@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-21
+
+Ryan foreground launch, snappy launcher, native Settings, and macOS 26/27 chrome release.
+
+### Added
+
+- `⌘,` opens Settings from anywhere Photon is running, including a key launcher. Settings use a System Settings–style `NavigationSplitView` with Photon's materials, accent, and typography.
+- Liquid Glass panel chrome when `NSGlassEffectView` exists at runtime (GitHub Actions `macos-latest` is macOS 26.6.2, Xcode 26.6, SDK 26.5). macOS 14 still builds with vibrancy fallback.
+
+### Changed
+
+- Launching or focusing an app hides Photon first, then activates the target with `NSApp.yieldActivation` and `activateIgnoringOtherApps` so it comes above everything.
+- Launcher show paints before index reload. App icons load off the main thread. Spotlight `mdfind` starts off the main actor. `PHOTON_DEBUG=1` enables cheap `PhotonTiming` logs; production stays quiet.
+
+### Fixed
+
+- Packaged smoke proves a launched Calculator or TextEdit is frontmost, and a CGEvent `⌘,` shows the Settings window. Files, clipboard, notes, drag, ember ranking, and recs-scroll are unchanged.
+
 ## [0.3.9] - 2026-09-18
 
 Ryan Notes chrome and launcher recs-scroll release.

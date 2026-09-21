@@ -322,7 +322,7 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
       guard let self, let panel, panel.isVisible, !panel.isKeyWindow else {
         return
       }
-      guard Date() >= autoHideSuppressedUntil else {
+      guard Date() >= autoHideSuppressedUntil, !isDraggingLauncher else {
         return
       }
       guard generation == focusTransitionGeneration else {
