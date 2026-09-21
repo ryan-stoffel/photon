@@ -127,6 +127,9 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     guard panel?.isVisible == true else {
       return
     }
+    guard !NativeParityReporter.suppressFilesPromotion else {
+      return
+    }
     guard model.showsCommandList, model.activeMode == nil else {
       return
     }

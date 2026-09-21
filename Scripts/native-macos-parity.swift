@@ -1527,9 +1527,13 @@ do {
 
   clickSearchField(report)
   try require(focusPhotonTextField(pid: pid), "drag chrome does not hijack the search field")
+  try sendRuntimeCommand("holdCommandList")
   try require(setPhotonTextFieldValue(pid: pid, value: "clipboard"), "search field remains editable after dragging")
   report = try wait("row remains clickable after dragging") {
-    string(launcher($0)["query"]) == "clipboard" && int(launcher($0)["resultCount"]) > 0
+    string(launcher($0)["query"]) == "clipboard"
+      && int(launcher($0)["resultCount"]) > 0
+      && string(launcher($0)["mode"]).isEmpty
+      && string(launcher($0)["content"]) == "rows"
   }
   // The filtered row can still be settling after drag checks, so a single
   // click sometimes lands before the row is under the cursor.
