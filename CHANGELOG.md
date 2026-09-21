@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-21
+
+Ryan Photon-styled Settings, Caps Lock Hyper, app-hotkeys list, and running-apps-first release.
+
 ### Changed
 
 - Settings matches the launcher: Liquid Glass / vibrancy panel chrome, 12 pt continuous corners, launcher type, and sidebar rows instead of a System Settings clone. `⌘,` still opens it.
