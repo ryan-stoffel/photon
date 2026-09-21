@@ -55,6 +55,9 @@ public final class KeybindsController: ObservableObject {
         self?.fire(hyperKeyCode: keyCode)
       }
     }
+    engine.onSuppressCapsLock = {
+      CapsLockState.forceOff()
+    }
     refreshPermissions()
   }
 
@@ -226,7 +229,8 @@ public final class KeybindsController: ObservableObject {
     HyperKeyEngine.Configuration(
       hyperKeyCode: HyperKeySource.destinationKeyCode,
       tapBehavior: configuration.hyperKey.tapBehavior,
-      boundKeyCodes: Set(hyperBindings.keys)
+      boundKeyCodes: Set(hyperBindings.keys),
+      suppressCapsLock: configuration.hyperKey.source == .capsLock
     )
   }
 
@@ -273,6 +277,9 @@ public final class KeybindsController: ObservableObject {
       }
     } else {
       removeRemap()
+    }
+    if settings.source == .capsLock {
+      CapsLockState.forceOff()
     }
     hyperStatus = .active(settings.source)
   }

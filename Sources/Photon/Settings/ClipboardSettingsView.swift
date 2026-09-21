@@ -1,5 +1,6 @@
 import AppKit
 import PhotonClipboard
+import PhotonCore
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -11,16 +12,13 @@ struct ClipboardSettingsView: View {
   @State private var isConfirmingClear = false
 
   var body: some View {
-    Form {
+    PhotonSettingsPage(title: "Clipboard") {
       historySection
       pasteSection
       shortcutSection
       excludedAppsSection
       storageSection
     }
-    .formStyle(.grouped)
-    .navigationTitle("Clipboard")
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .onAppear {
       clipboard.refreshAccessibility()
     }
@@ -39,44 +37,54 @@ struct ClipboardSettingsView: View {
   }
 
   private var historySection: some View {
-    Section("History") {
-      Toggle("Save clipboard history", isOn: $settings.clipboardEnabled)
-      Picker("Keep items for", selection: $settings.clipboardRetention) {
-        ForEach(ClipboardRetention.allCases) { retention in
-          Text(retention.label).tag(retention)
-        }
+    PhotonSettingsCard(
+      title: "History",
+      footer: "Pinned items never expire and do not count against the limit."
+    ) {
+      PhotonSettingsRow(title: "Save clipboard history") {
+        Toggle("", isOn: $settings.clipboardEnabled)
+          .toggleStyle(.switch)
+          .labelsHidden()
       }
-      .disabled(!settings.clipboardEnabled)
-      Stepper(
-        value: $settings.clipboardMaxItems,
-        in: ClipboardSettings.maxItemsRange,
-        step: 50
-      ) {
-        HStack {
-          Text("Maximum items")
-          Spacer()
+      PhotonSettingsRow(title: "Keep items for") {
+        Picker("Keep items for", selection: $settings.clipboardRetention) {
+          ForEach(ClipboardRetention.allCases) { retention in
+            Text(retention.label).tag(retention)
+          }
+        }
+        .labelsHidden()
+        .disabled(!settings.clipboardEnabled)
+        .frame(maxWidth: 180)
+      }
+      PhotonSettingsRow(title: "Maximum items") {
+        Stepper(
+          value: $settings.clipboardMaxItems,
+          in: ClipboardSettings.maxItemsRange,
+          step: 50
+        ) {
           Text("\(settings.clipboardMaxItems)")
             .foregroundStyle(.secondary)
             .monospacedDigit()
         }
+        .disabled(!settings.clipboardEnabled)
       }
-      .disabled(!settings.clipboardEnabled)
-      Text("Pinned items never expire and do not count against the limit.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
     }
   }
 
   private var pasteSection: some View {
-    Section("Paste") {
-      Picker("Return key", selection: $settings.clipboardPasteBehavior) {
-        ForEach(ClipboardPasteBehavior.allCases) { behavior in
-          Text(behavior.label).tag(behavior)
+    PhotonSettingsCard(
+      title: "Paste",
+      footer: "Cmd+Return always copies without pasting."
+    ) {
+      PhotonSettingsRow(title: "Return key") {
+        Picker("Return key", selection: $settings.clipboardPasteBehavior) {
+          ForEach(ClipboardPasteBehavior.allCases) { behavior in
+            Text(behavior.label).tag(behavior)
+          }
         }
+        .labelsHidden()
+        .frame(maxWidth: 180)
       }
-      Text("Cmd+Return always copies without pasting.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
       if settings.clipboardPasteBehavior == .paste {
         accessibilityStatus
       }
@@ -93,38 +101,46 @@ struct ClipboardSettingsView: View {
           ? "Accessibility access granted. Photon can paste into the frontmost app."
           : "Pasting needs Accessibility access. Until it is granted, Return only copies."
       )
-      .font(.caption)
+      .font(.system(size: 12))
       Spacer()
       if !trusted {
         Button("Open Accessibility Settings") {
           clipboard.requestAccessibility()
           clipboard.openAccessibilitySettings()
         }
+        .buttonStyle(.borderless)
       }
     }
+    .padding(.horizontal, 10)
+    .padding(.bottom, 6)
   }
 
   private var shortcutSection: some View {
-    Section("Shortcut") {
-      Toggle("Open clipboard history with a shortcut", isOn: $settings.clipboardHotkeyEnabled)
-        .disabled(!settings.clipboardEnabled)
-      HStack {
-        Text("Shortcut")
-        Spacer()
+    PhotonSettingsCard(
+      title: "Shortcut",
+      footer: "You can also type \"cb\" or \"clipboard\" followed by a space in the launcher."
+    ) {
+      PhotonSettingsRow(title: "Open clipboard history with a shortcut") {
+        Toggle("", isOn: $settings.clipboardHotkeyEnabled)
+          .toggleStyle(.switch)
+          .labelsHidden()
+          .disabled(!settings.clipboardEnabled)
+      }
+      PhotonSettingsRow(title: "Shortcut") {
         HotkeyRecorder(combo: $settings.clipboardHotkey)
           .frame(width: 180, height: 24)
       }
-      Text("You can also type \"cb\" or \"clipboard\" followed by a space in the launcher.")
-        .font(.caption)
-        .foregroundStyle(.secondary)
     }
   }
 
   private var excludedAppsSection: some View {
-    Section {
+    PhotonSettingsCard(
+      title: "Excluded apps",
+      footer: "Nothing copied while one of these apps is frontmost is recorded. "
+        + "Password managers are excluded by default."
+    ) {
       if settings.clipboardExcludedBundleIDs.isEmpty {
-        Text("No excluded apps. Everything you copy is recorded.")
-          .foregroundStyle(.secondary)
+        PhotonSettingsCaption(text: "No excluded apps. Everything you copy is recorded.")
       }
       ForEach(settings.clipboardExcludedBundleIDs, id: \.self) { bundleID in
         HStack(spacing: 10) {
@@ -133,8 +149,9 @@ struct ClipboardSettingsView: View {
             .frame(width: 20, height: 20)
           VStack(alignment: .leading, spacing: 1) {
             Text(AppIconCache.shared.appName(forBundleID: bundleID))
+              .font(.system(size: 14, weight: .medium))
             Text(bundleID)
-              .font(.caption)
+              .font(.system(size: 12))
               .foregroundStyle(.secondary)
           }
           Spacer()
@@ -146,6 +163,8 @@ struct ClipboardSettingsView: View {
           .buttonStyle(.borderless)
           .help("Remove")
         }
+        .padding(.horizontal, 10)
+        .frame(height: LauncherLayout.rowHeight)
       }
       HStack {
         TextField("Bundle identifier, e.g. com.example.app", text: $newBundleID)
@@ -155,39 +174,30 @@ struct ClipboardSettingsView: View {
           .disabled(newBundleID.trimmingCharacters(in: .whitespaces).isEmpty)
         Button("Choose App…", action: chooseApp)
       }
-    } header: {
-      Text("Excluded apps")
-    } footer: {
-      Text(
-        "Nothing copied while one of these apps is frontmost is recorded. "
-          + "Password managers are excluded by default."
-      )
+      .padding(.horizontal, 10)
+      .padding(.bottom, 6)
     }
   }
 
   private var storageSection: some View {
-    Section("Storage") {
-      HStack {
-        Text("History")
-        Spacer()
+    PhotonSettingsCard(title: "Storage") {
+      PhotonSettingsRow(title: "History") {
         Text("\(clipboard.items.count) items · \(formattedBytes(clipboard.storageBytes))")
           .foregroundStyle(.secondary)
           .monospacedDigit()
       }
+      PhotonSettingsCaption(text: "Stored in ~/Library/Application Support/Photon/Clipboard")
       HStack {
-        Text("Stored in ~/Library/Application Support/Photon/Clipboard")
-          .font(.caption)
-          .foregroundStyle(.secondary)
         Spacer()
         Button("Clear History…", role: .destructive) {
           isConfirmingClear = true
         }
         .disabled(clipboard.items.isEmpty)
       }
+      .padding(.horizontal, 10)
+      .padding(.bottom, 6)
     }
   }
-
-  // MARK: Actions
 
   private func addTypedBundleID() {
     let trimmed = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)

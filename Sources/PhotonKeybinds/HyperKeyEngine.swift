@@ -7,6 +7,9 @@ import Foundation
 /// key event typed while it is down, and dispatches keys that have a Hyper shortcut bound in Photon.
 /// A quick press without another key runs the configured tap behaviour.
 ///
+/// When Caps Lock is the Hyper source, the tap also watches `flagsChanged` and the Caps Lock key
+/// code so holding Hyper cannot leave Caps Lock on.
+///
 /// The tap runs on the main run loop; state is guarded by a lock because the callback is plain C.
 public final class HyperKeyEngine: @unchecked Sendable {
   public struct Configuration: Equatable, Sendable {
@@ -15,17 +18,21 @@ public final class HyperKeyEngine: @unchecked Sendable {
     /// Keys with a Hyper shortcut. They are swallowed and reported through `onHyperShortcut`.
     public var boundKeyCodes: Set<UInt16>
     public var tapThreshold: TimeInterval
+    /// When true, Caps Lock lock state is forced off on Hyper down/up and flagsChanged.
+    public var suppressCapsLock: Bool
 
     public init(
       hyperKeyCode: UInt16 = HyperKeySource.destinationKeyCode,
       tapBehavior: HyperTapBehavior = .nothing,
       boundKeyCodes: Set<UInt16> = [],
-      tapThreshold: TimeInterval = 0.4
+      tapThreshold: TimeInterval = 0.4,
+      suppressCapsLock: Bool = false
     ) {
       self.hyperKeyCode = hyperKeyCode
       self.tapBehavior = tapBehavior
       self.boundKeyCodes = boundKeyCodes
       self.tapThreshold = tapThreshold
+      self.suppressCapsLock = suppressCapsLock
     }
   }
 
@@ -44,6 +51,9 @@ public final class HyperKeyEngine: @unchecked Sendable {
     case tap(HyperTapBehavior)
   }
 
+  /// Caps Lock virtual key code (`kVK_CapsLock`).
+  public static let capsLockKeyCode: UInt16 = 57
+
   private static var hyperFlags: CGEventFlags {
     CGEventFlags(rawValue: KeyModifiers.hyper.cgEventFlags)
   }
@@ -54,8 +64,15 @@ public final class HyperKeyEngine: @unchecked Sendable {
     set { lock.withLock { shortcutHandler = newValue } }
   }
 
+  /// Hook for tests and for `CapsLockState.forceOff` while Caps Lock is Hyper.
+  public var onSuppressCapsLock: (@Sendable () -> Void)? {
+    get { lock.withLock { suppressHandler } }
+    set { lock.withLock { suppressHandler = newValue } }
+  }
+
   private let lock = NSLock()
   private var shortcutHandler: (@Sendable (UInt16) -> Void)?
+  private var suppressHandler: (@Sendable () -> Void)?
   private var configuration = Configuration()
   private var tap: CFMachPort?
   private var runLoopSource: CFRunLoopSource?
@@ -93,7 +110,9 @@ public final class HyperKeyEngine: @unchecked Sendable {
     guard tap == nil else {
       return
     }
-    let mask = CGEventMask(1 << CGEventType.keyDown.rawValue) | CGEventMask(1 << CGEventType.keyUp.rawValue)
+    let mask = CGEventMask(1 << CGEventType.keyDown.rawValue)
+      | CGEventMask(1 << CGEventType.keyUp.rawValue)
+      | CGEventMask(1 << CGEventType.flagsChanged.rawValue)
     guard let port = CGEvent.tapCreate(
       tap: .cgSessionEventTap,
       place: .headInsertEventTap,
@@ -127,12 +146,15 @@ public final class HyperKeyEngine: @unchecked Sendable {
     resetState()
   }
 
-  fileprivate func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+  func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
       if let tap = lock.withLock({ tap }) {
         CGEvent.tapEnable(tap: tap, enable: true)
       }
       return Unmanaged.passUnretained(event)
+    }
+    if type == .flagsChanged {
+      return handleFlagsChanged(event)
     }
     guard type == .keyDown || type == .keyUp else {
       return Unmanaged.passUnretained(event)
@@ -158,11 +180,28 @@ public final class HyperKeyEngine: @unchecked Sendable {
     }
   }
 
+  private func handleFlagsChanged(_ event: CGEvent) -> Unmanaged<CGEvent>? {
+    let suppress = lock.withLock { configuration.suppressCapsLock }
+    guard suppress else {
+      return Unmanaged.passUnretained(event)
+    }
+    let keyCode = UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
+    let capsOn = event.flags.contains(.maskAlphaShift)
+    if capsOn || keyCode == Self.capsLockKeyCode {
+      requestCapsLockOff()
+      event.flags.remove(.maskAlphaShift)
+    }
+    if keyCode == Self.capsLockKeyCode {
+      return nil
+    }
+    return Unmanaged.passUnretained(event)
+  }
+
   private func decide(type: CGEventType, keyCode: Int64, isRepeat: Bool, event: CGEvent) -> Decision {
     lock.lock()
     defer { lock.unlock() }
 
-    if keyCode == Int64(configuration.hyperKeyCode) {
+    if isHyperKey(keyCode) {
       return handleHyperKey(down: type == .keyDown, isRepeat: isRepeat)
     }
 
@@ -189,8 +228,18 @@ public final class HyperKeyEngine: @unchecked Sendable {
     return .pass
   }
 
+  private func isHyperKey(_ keyCode: Int64) -> Bool {
+    if keyCode == Int64(configuration.hyperKeyCode) {
+      return true
+    }
+    return configuration.suppressCapsLock && keyCode == Int64(Self.capsLockKeyCode)
+  }
+
   private func handleHyperKey(down: Bool, isRepeat: Bool) -> Decision {
     if down {
+      if configuration.suppressCapsLock {
+        requestCapsLockOffLocked()
+      }
       if !hyperDown, !isRepeat {
         hyperDown = true
         hyperUsed = false
@@ -204,7 +253,30 @@ public final class HyperKeyEngine: @unchecked Sendable {
     if wasDown, !hyperUsed, held < configuration.tapThreshold, configuration.tapBehavior != .nothing {
       return .tap(configuration.tapBehavior)
     }
+    if configuration.suppressCapsLock {
+      requestCapsLockOffLocked()
+    }
     return .swallow
+  }
+
+  private func requestCapsLockOff() {
+    if let handler = onSuppressCapsLock {
+      handler()
+    } else {
+      CapsLockState.forceOff()
+    }
+  }
+
+  /// Caller already holds `lock`.
+  private func requestCapsLockOffLocked() {
+    let handler = suppressHandler
+    lock.unlock()
+    if let handler {
+      handler()
+    } else {
+      CapsLockState.forceOff()
+    }
+    lock.lock()
   }
 
   private func resetState() {

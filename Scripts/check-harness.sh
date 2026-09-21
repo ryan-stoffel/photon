@@ -10,6 +10,7 @@ swift test --filter LauncherLayoutTests
 swift test --filter LauncherPositionTests
 swift test --filter SelectionNavigationTests
 swift test --filter LauncherRowTests
+swift test --filter LauncherRankingTests
 
 echo "==> clipboard filtering, persistence and launcher entry"
 swift test --filter ClipboardSearchTests
@@ -31,5 +32,7 @@ swift test --filter PhotonNotesTests
 swift test --filter KeybindsConfigurationTests
 swift test --filter KeyShortcutTests
 swift test --filter WindowLayoutTests
+swift test --filter AppHotkeyCatalogTests
+swift test --filter HyperKeyEngineTests
 
 echo "Focused parity fixture harness green."

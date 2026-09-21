@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-21
+
+Ryan Photon-styled Settings, Caps Lock Hyper, app-hotkeys list, and running-apps-first release.
+
+### Changed
+
+- Settings matches the launcher: Liquid Glass / vibrancy panel chrome, 12 pt continuous corners, launcher type, and sidebar rows instead of a System Settings clone. `⌘,` still opens it.
+- App hotkeys lists installed and currently running apps so each row can take a shortcut. Add missing app remains for anything the catalog does not show.
+- Currently open applications sort to the top of the launcher list (apps only), then the rest. Running dots stay.
+
+### Fixed
+
+- Caps Lock as the Hyper key no longer toggles Caps Lock on. The remap swallows Caps Lock lock-state changes while Hyper is held.
+
 ## [0.4.1] - 2026-09-21
 
 Ryan Dock-style running dots and trailing keybind chips release.
