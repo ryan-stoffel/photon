@@ -4,36 +4,38 @@ struct GeneralSettingsView: View {
   @EnvironmentObject private var settings: SettingsStore
 
   var body: some View {
-    Form {
-      Section("Hotkey") {
-        HStack {
-          Text("Open launcher")
-          Spacer()
+    PhotonSettingsPage(title: "General") {
+      PhotonSettingsCard(
+        title: "Hotkey",
+        footer: "Photon registers this shortcut globally. If Spotlight still owns it, disable "
+          + "Spotlight’s shortcut under System Settings > Keyboard > Keyboard Shortcuts > Spotlight."
+      ) {
+        PhotonSettingsRow(title: "Open launcher") {
           HotkeyRecorder(combo: $settings.hotkey)
             .frame(width: 180, height: 24)
         }
-        Text(
-          "Photon registers this shortcut globally. If Spotlight still owns it, disable "
-            + "Spotlight’s shortcut under System Settings > Keyboard > Keyboard Shortcuts > Spotlight."
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
         Button("Open Keyboard Settings") {
           SpotlightConflict.openKeyboardSettings()
         }
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 10)
+        .padding(.bottom, 6)
       }
 
-      Section("Startup") {
-        Toggle("Launch at login", isOn: $settings.launchAtLogin)
+      PhotonSettingsCard(title: "Startup") {
+        PhotonSettingsRow(title: "Launch at login") {
+          Toggle("", isOn: $settings.launchAtLogin)
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
         if let launchAtLoginError = settings.launchAtLoginError {
           Text(launchAtLoginError)
-            .font(.caption)
+            .font(.system(size: 12))
             .foregroundStyle(.red)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 6)
         }
       }
     }
-    .formStyle(.grouped)
-    .navigationTitle("General")
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }

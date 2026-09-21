@@ -63,7 +63,8 @@ extension AppRuntime {
       return []
     case .settings:
       return NSApp.windows.filter {
-        ["General", "Appearance", "Settings", "Photon"].contains($0.title)
+        $0 is PhotonSettingsWindow
+          || ["General", "Appearance", "Settings", "Photon"].contains($0.title)
           || $0.className.contains("Settings")
       }
     case .notes:
@@ -112,7 +113,9 @@ extension AppRuntime {
   @MainActor
   private func positionSettingsWindowForScreenshot() {
     let settingsWindow = NSApp.windows.first { window in
-      window.title.contains("Settings") || window.className.contains("Settings")
+      window is PhotonSettingsWindow
+        || window.title.contains("Settings")
+        || window.className.contains("Settings")
     } ?? NSApp.windows.first { $0.isVisible && $0.frame.width >= 500 }
     guard let window = settingsWindow else {
       return

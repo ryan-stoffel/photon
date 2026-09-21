@@ -1,3 +1,4 @@
+import PhotonCore
 import PhotonKeybinds
 import SwiftUI
 
@@ -6,22 +7,19 @@ struct KeybindsSettingsView: View {
   @EnvironmentObject private var keybinds: KeybindsController
 
   var body: some View {
-    Form {
-      permissionsSection
-      hyperKeySection
+    PhotonSettingsPage(title: "Keybinds") {
       AppHotkeysSection()
+      hyperKeySection
+      permissionsSection
       WindowCommandsSection()
     }
-    .formStyle(.grouped)
-    .navigationTitle("Keybinds")
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .onAppear {
       keybinds.refreshPermissions()
     }
   }
 
   private var permissionsSection: some View {
-    Section("Permissions") {
+    PhotonSettingsCard(title: "Permissions") {
       PermissionRow(
         title: "Accessibility",
         detail: "Required for the Hyper key and window management.",
@@ -38,33 +36,43 @@ struct KeybindsSettingsView: View {
   }
 
   private var hyperKeySection: some View {
-    Section {
-      Toggle("Enable Hyper key", isOn: $settings.keybinds.hyperKey.enabled)
-        .onChange(of: settings.keybinds.hyperKey.enabled) { _, enabled in
-          if enabled, !keybinds.accessibilityGranted {
-            keybinds.requestAccessibility()
+    PhotonSettingsCard(
+      title: "Hyper key",
+      footer: "Holding the key acts as Control + Option + Shift + Command, shown as ✦. "
+        + "The remap only exists while Photon runs and is removed when Photon quits or the Hyper key is turned off. "
+        + "Caps Lock as Hyper never turns Caps Lock on."
+    ) {
+      PhotonSettingsRow(title: "Enable Hyper key") {
+        Toggle("", isOn: $settings.keybinds.hyperKey.enabled)
+          .toggleStyle(.switch)
+          .labelsHidden()
+          .onChange(of: settings.keybinds.hyperKey.enabled) { _, enabled in
+            if enabled, !keybinds.accessibilityGranted {
+              keybinds.requestAccessibility()
+            }
+          }
+      }
+      PhotonSettingsRow(title: "Key") {
+        Picker("Key", selection: $settings.keybinds.hyperKey.source) {
+          ForEach(HyperKeySource.allCases) { source in
+            Text(source.title).tag(source)
           }
         }
-      Picker("Key", selection: $settings.keybinds.hyperKey.source) {
-        ForEach(HyperKeySource.allCases) { source in
-          Text(source.title).tag(source)
-        }
+        .labelsHidden()
+        .frame(maxWidth: 200)
+        .disabled(!settings.keybinds.hyperKey.enabled)
       }
-      .disabled(!settings.keybinds.hyperKey.enabled)
-      Picker("On tap", selection: $settings.keybinds.hyperKey.tapBehavior) {
-        ForEach(HyperTapBehavior.allCases) { behavior in
-          Text(behavior.title).tag(behavior)
+      PhotonSettingsRow(title: "On tap") {
+        Picker("On tap", selection: $settings.keybinds.hyperKey.tapBehavior) {
+          ForEach(HyperTapBehavior.allCases) { behavior in
+            Text(behavior.title).tag(behavior)
+          }
         }
+        .labelsHidden()
+        .frame(maxWidth: 200)
+        .disabled(!settings.keybinds.hyperKey.enabled)
       }
-      .disabled(!settings.keybinds.hyperKey.enabled)
       statusRow
-    } header: {
-      Text("Hyper key")
-    } footer: {
-      Text(
-        "Holding the key acts as Control + Option + Shift + Command, shown as ✦. "
-          + "The remap only exists while Photon runs and is removed when Photon quits or the Hyper key is turned off."
-      )
     }
   }
 
@@ -75,16 +83,19 @@ struct KeybindsSettingsView: View {
           .fill(statusColor)
           .frame(width: 8, height: 8)
         Text(statusText)
+          .font(.system(size: 12))
           .foregroundStyle(.secondary)
         Spacer()
         statusAction
       }
       if let lastError = keybinds.lastError {
         Text(lastError)
-          .font(.caption)
+          .font(.system(size: 12))
           .foregroundStyle(.red)
       }
     }
+    .padding(.horizontal, 10)
+    .padding(.bottom, 6)
   }
 
   @ViewBuilder
@@ -94,10 +105,12 @@ struct KeybindsSettingsView: View {
       Button("Grant Access") {
         keybinds.requestAccessibility()
       }
+      .buttonStyle(.borderless)
     case .failed:
       Button("Reset Key Mapping") {
         keybinds.resetKeyMapping()
       }
+      .buttonStyle(.borderless)
     case .disabled, .active:
       EmptyView()
     }
@@ -139,8 +152,9 @@ private struct PermissionRow: View {
         .frame(width: 8, height: 8)
       VStack(alignment: .leading, spacing: 2) {
         Text(title)
+          .font(.system(size: 14, weight: .medium))
         Text(detail)
-          .font(.caption)
+          .font(.system(size: 12))
           .foregroundStyle(.secondary)
       }
       Spacer()
@@ -149,7 +163,10 @@ private struct PermissionRow: View {
           .foregroundStyle(.secondary)
       } else {
         Button("Open System Settings", action: action)
+          .buttonStyle(.borderless)
       }
     }
+    .padding(.horizontal, 10)
+    .frame(minHeight: LauncherLayout.rowHeight)
   }
 }

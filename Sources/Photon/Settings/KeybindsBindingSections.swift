@@ -1,42 +1,90 @@
 import AppKit
+import PhotonApps
+import PhotonCore
 import PhotonKeybinds
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// User-defined shortcuts that launch, focus, or hide an application.
+/// Installed and currently running apps, each with an optional shortcut.
 struct AppHotkeysSection: View {
   @EnvironmentObject private var settings: SettingsStore
   @EnvironmentObject private var keybinds: KeybindsController
+  @EnvironmentObject private var runningApps: RunningApplications
+  @State private var installed: [AppHotkeyNamedApp] = []
+  @State private var runningNamed: [AppHotkeyNamedApp] = []
   @State private var addError: String?
+  @State private var filter = ""
 
   var body: some View {
-    Section {
-      if settings.keybinds.appHotkeys.isEmpty {
-        Text("No app hotkeys yet. Add an application, then record a shortcut for it.")
-          .foregroundStyle(.secondary)
-      }
-      ForEach($settings.keybinds.appHotkeys) { $hotkey in
-        AppHotkeyRow(
-          hotkey: $hotkey,
-          conflict: conflicts.contains(.app(hotkey.id)),
-          failure: hotkey.shortcut.flatMap { keybinds.registrationFailures[$0] },
-          onRemove: { remove(hotkey.id) }
-        )
-      }
-      HStack {
-        Button("Add Application…") {
+    PhotonSettingsCard(
+      title: "App hotkeys",
+      footer: "The shortcut launches or focuses the app. Press it again while the app is frontmost to hide it."
+    ) {
+      HStack(spacing: 10) {
+        Text("Filter apps")
+          .font(.system(size: 14, weight: .medium))
+          .fixedSize()
+        TextField("Filter apps", text: $filter)
+          .textFieldStyle(.plain)
+          .font(.system(size: 14))
+        Button("Add missing app…") {
           addApplication()
         }
-        if let addError {
-          Text(addError)
-            .font(.caption)
-            .foregroundStyle(.red)
+        .buttonStyle(.borderless)
+      }
+      .padding(.horizontal, 10)
+      .frame(height: LauncherLayout.rowHeight)
+      if let addError {
+        Text(addError)
+          .font(.system(size: 12))
+          .foregroundStyle(.red)
+          .padding(.horizontal, 10)
+      }
+
+      PhotonSettingsHairline()
+
+      if visibleRows.isEmpty {
+        PhotonSettingsCaption(text: emptyText)
+      } else {
+        ForEach(visibleRows) { row in
+          AppHotkeyCatalogRowView(
+            row: row,
+            shortcut: shortcutBinding(for: row),
+            conflict: hasConflict(row),
+            failure: shortcut(for: row).flatMap { keybinds.registrationFailures[$0] },
+            onRemoveExtra: row.isExtra ? { removeExtra(row.bundleIdentifier) } : nil
+          )
         }
       }
-    } header: {
-      Text("App hotkeys")
-    } footer: {
-      Text("The shortcut launches or focuses the app. Press it again while the app is frontmost to hide it.")
+    }
+    .onAppear(perform: reloadCatalog)
+    .onChange(of: runningApps.bundleIdentifiers) { _, _ in
+      reloadRunning()
+    }
+  }
+
+  private var emptyText: String {
+    filter.isEmpty
+      ? "No applications found."
+      : "No apps match “\(filter)”."
+  }
+
+  private var catalogRows: [AppHotkeyCatalogRow] {
+    AppHotkeyCatalog.rows(
+      installed: installed,
+      running: runningNamed,
+      saved: settings.keybinds.appHotkeys
+    )
+  }
+
+  private var visibleRows: [AppHotkeyCatalogRow] {
+    let trimmed = filter.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      return catalogRows
+    }
+    return catalogRows.filter { row in
+      row.name.localizedCaseInsensitiveContains(trimmed)
+        || row.bundleIdentifier.localizedCaseInsensitiveContains(trimmed)
     }
   }
 
@@ -44,8 +92,80 @@ struct AppHotkeysSection: View {
     settings.keybinds.conflictingOwners(launcher: KeyShortcut(settings.hotkey))
   }
 
-  private func remove(_ id: UUID) {
-    settings.keybinds.appHotkeys.removeAll { $0.id == id }
+  private func hasConflict(_ row: AppHotkeyCatalogRow) -> Bool {
+    let owners = conflicts
+    return settings.keybinds.appHotkeys.contains { hotkey in
+      hotkey.bundleIdentifier.caseInsensitiveCompare(row.bundleIdentifier) == .orderedSame
+        && owners.contains(.app(hotkey.id))
+    }
+  }
+
+  private func shortcut(for row: AppHotkeyCatalogRow) -> KeyShortcut? {
+    settings.keybinds.appHotkeys.first {
+      $0.bundleIdentifier.caseInsensitiveCompare(row.bundleIdentifier) == .orderedSame
+    }?.shortcut
+  }
+
+  private func shortcutBinding(for row: AppHotkeyCatalogRow) -> Binding<KeyShortcut?> {
+    Binding(
+      get: { shortcut(for: row) },
+      set: { upsert(row, shortcut: $0) }
+    )
+  }
+
+  private func upsert(_ row: AppHotkeyCatalogRow, shortcut: KeyShortcut?) {
+    var keybinds = settings.keybinds
+    if let index = keybinds.appHotkeys.firstIndex(where: {
+      $0.bundleIdentifier.caseInsensitiveCompare(row.bundleIdentifier) == .orderedSame
+    }) {
+      if shortcut == nil, !row.isExtra {
+        keybinds.appHotkeys.remove(at: index)
+      } else {
+        keybinds.appHotkeys[index].name = row.name
+        keybinds.appHotkeys[index].shortcut = shortcut
+      }
+    } else if shortcut != nil || row.isExtra {
+      keybinds.appHotkeys.append(
+        AppHotkey(bundleIdentifier: row.bundleIdentifier, name: row.name, shortcut: shortcut)
+      )
+    }
+    settings.keybinds = keybinds
+  }
+
+  private func removeExtra(_ bundleIdentifier: String) {
+    settings.keybinds.appHotkeys.removeAll {
+      $0.bundleIdentifier.caseInsensitiveCompare(bundleIdentifier) == .orderedSame
+    }
+  }
+
+  private func reloadCatalog() {
+    let index = ApplicationIndex()
+    index.refresh()
+    installed = index.applications.compactMap { app in
+      guard app.id.hasPrefix("app:") else {
+        return nil
+      }
+      let identifier = String(app.id.dropFirst(4))
+      guard !identifier.isEmpty else {
+        return nil
+      }
+      return AppHotkeyNamedApp(bundleIdentifier: identifier, name: app.name)
+    }
+    reloadRunning()
+  }
+
+  private func reloadRunning() {
+    runningApps.refresh()
+    runningNamed = NSWorkspace.shared.runningApplications.compactMap { application in
+      guard application.activationPolicy == .regular,
+            let identifier = application.bundleIdentifier,
+            !identifier.isEmpty
+      else {
+        return nil
+      }
+      let name = application.localizedName ?? identifier
+      return AppHotkeyNamedApp(bundleIdentifier: identifier, name: name)
+    }
   }
 
   private func addApplication() {
@@ -55,7 +175,7 @@ struct AppHotkeysSection: View {
     panel.canChooseDirectories = false
     panel.allowsMultipleSelection = false
     panel.prompt = "Add"
-    panel.message = "Choose an application to bind to a shortcut."
+    panel.message = "Choose an application that is missing from the list."
     guard panel.runModal() == .OK, let url = panel.url else {
       return
     }
@@ -64,50 +184,71 @@ struct AppHotkeysSection: View {
       return
     }
     addError = nil
-    guard !settings.keybinds.appHotkeys.contains(where: { $0.bundleIdentifier == identifier }) else {
-      return
-    }
     let name = (bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
       ?? (bundle.object(forInfoDictionaryKey: "CFBundleName") as? String)
       ?? url.deletingPathExtension().lastPathComponent
-    settings.keybinds.appHotkeys.append(AppHotkey(bundleIdentifier: identifier, name: name))
+    if !installed.contains(where: { $0.bundleIdentifier.caseInsensitiveCompare(identifier) == .orderedSame }) {
+      installed.append(AppHotkeyNamedApp(bundleIdentifier: identifier, name: name))
+    }
+    if !settings.keybinds.appHotkeys.contains(where: {
+      $0.bundleIdentifier.caseInsensitiveCompare(identifier) == .orderedSame
+    }) {
+      settings.keybinds.appHotkeys.append(AppHotkey(bundleIdentifier: identifier, name: name))
+    }
   }
 }
 
-private struct AppHotkeyRow: View {
-  @Binding var hotkey: AppHotkey
+private struct AppHotkeyCatalogRowView: View {
+  let row: AppHotkeyCatalogRow
+  @Binding var shortcut: KeyShortcut?
   let conflict: Bool
   let failure: String?
-  let onRemove: () -> Void
+  let onRemoveExtra: (() -> Void)?
 
   var body: some View {
     HStack(spacing: 10) {
-      Image(nsImage: icon)
-        .resizable()
-        .frame(width: 20, height: 20)
+      ZStack(alignment: .bottom) {
+        Image(nsImage: icon)
+          .resizable()
+          .frame(width: 20, height: 20)
+        if row.isRunning {
+          Circle()
+            .fill(Color.primary.opacity(0.78))
+            .frame(width: 4, height: 4)
+            .offset(y: 3)
+        }
+      }
+      .frame(width: 20, height: 20)
       VStack(alignment: .leading, spacing: 2) {
-        Text(hotkey.name)
+        Text(row.name)
+          .font(.system(size: 14, weight: .medium))
         if let failure {
           Text(failure)
-            .font(.caption)
+            .font(.system(size: 12))
             .foregroundStyle(.red)
         }
       }
-      Spacer()
+      Spacer(minLength: 8)
       if conflict {
-        ConflictBadge()
+        Text("Also used elsewhere")
+          .font(.system(size: 11))
+          .foregroundStyle(.secondary)
       }
-      ShortcutField(shortcut: $hotkey.shortcut)
-      Button(action: onRemove) {
-        Image(systemName: "minus.circle")
+      ShortcutField(shortcut: $shortcut)
+      if let onRemoveExtra {
+        Button(action: onRemoveExtra) {
+          Image(systemName: "minus.circle")
+        }
+        .buttonStyle(.borderless)
+        .help("Remove")
       }
-      .buttonStyle(.borderless)
-      .help("Remove")
     }
+    .padding(.horizontal, 10)
+    .frame(minHeight: LauncherLayout.rowHeight)
   }
 
   private var icon: NSImage {
-    if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: hotkey.bundleIdentifier) {
+    if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: row.bundleIdentifier) {
       return NSWorkspace.shared.icon(forFile: url.path)
     }
     return NSWorkspace.shared.icon(for: .application)
@@ -120,13 +261,19 @@ struct WindowCommandsSection: View {
   @EnvironmentObject private var keybinds: KeybindsController
 
   var body: some View {
-    Section {
+    PhotonSettingsCard(
+      title: "Window management",
+      footer: "Every command is also searchable in the launcher, for example \"Left Half\" or \"Maximize\"."
+    ) {
       ForEach($settings.keybinds.windowBindings) { $binding in
         HStack(spacing: 10) {
           Text(binding.action.title)
+            .font(.system(size: 14, weight: .medium))
           Spacer()
           if conflicts.contains(.window(binding.action)) {
-            ConflictBadge()
+            Text("Also used elsewhere")
+              .font(.system(size: 11))
+              .foregroundStyle(.secondary)
           }
           if let shortcut = binding.shortcut, let failure = keybinds.registrationFailures[shortcut] {
             Image(systemName: "exclamationmark.circle.fill")
@@ -135,14 +282,15 @@ struct WindowCommandsSection: View {
           }
           ShortcutField(shortcut: $binding.shortcut)
         }
+        .padding(.horizontal, 10)
+        .frame(minHeight: LauncherLayout.rowHeight)
       }
       Button("Reset to Defaults") {
         settings.keybinds.resetWindowBindings()
       }
-    } header: {
-      Text("Window management")
-    } footer: {
-      Text("Every command is also searchable in the launcher, for example \"Left Half\" or \"Maximize\".")
+      .buttonStyle(.borderless)
+      .padding(.horizontal, 10)
+      .padding(.bottom, 6)
     }
   }
 
@@ -184,13 +332,5 @@ struct ShortcutField: View {
         shortcut = combo.map { KeyShortcut($0) }
       }
     )
-  }
-}
-
-struct ConflictBadge: View {
-  var body: some View {
-    Image(systemName: "exclamationmark.triangle.fill")
-      .foregroundStyle(.orange)
-      .help("This shortcut is assigned more than once. Only the first binding fires.")
   }
 }

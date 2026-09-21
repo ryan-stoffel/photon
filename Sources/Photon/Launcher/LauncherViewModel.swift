@@ -94,6 +94,16 @@ final class LauncherViewModel: ObservableObject {
 
   let registry: CommandRegistry
   var frecency: FrecencyStore
+  /// Live running-app bundle IDs. Running `app:` rows sort to the top of the list.
+  var runningBundleIDs: Set<String> = [] {
+    didSet {
+      guard runningBundleIDs != oldValue, showsCommandList, !results.isEmpty else {
+        return
+      }
+      Task { await refresh() }
+    }
+  }
+
   /// Set by `AppRuntime` once the clipboard feature is available.
   var clipboard: ClipboardHistoryViewModel? {
     didSet {
@@ -396,10 +406,11 @@ final class LauncherViewModel: ObservableObject {
         primary.append(item)
       }
     }
+    let ordered = LauncherRanking.promotingRunningApps(primary, runningBundleIDs: runningBundleIDs)
     if isSuggestions {
       var seen = Set<String>()
       var unique: [RankedCommand] = []
-      for item in primary {
+      for item in ordered {
         if seen.insert(item.id).inserted {
           unique.append(item)
         }
@@ -409,7 +420,7 @@ final class LauncherViewModel: ObservableObject {
       }
       return unique
     }
-    return Array(primary.prefix(limit)) + Array(trailing.prefix(trailingLimit))
+    return Array(ordered.prefix(limit)) + Array(trailing.prefix(trailingLimit))
   }
 
   private func updateContent() {

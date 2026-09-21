@@ -8,50 +8,57 @@ struct NotesSettingsView: View {
   private let directory = NoteStore.defaultDirectory()
 
   var body: some View {
-    Form {
-      Section("Editor") {
-        Stepper(
-          value: $settings.notesFontSize,
-          in: NotesPreferences.fontSizeRange,
-          step: NotesPreferences.fontSizeStep
-        ) {
-          HStack {
-            Text("Text size")
-            Spacer()
+    PhotonSettingsPage(title: "Notes") {
+      PhotonSettingsCard(
+        title: "Editor",
+        footer: "⌘+ and ⌘- change the size from the notes window as well."
+      ) {
+        PhotonSettingsRow(title: "Text size") {
+          Stepper(
+            value: $settings.notesFontSize,
+            in: NotesPreferences.fontSizeRange,
+            step: NotesPreferences.fontSizeStep
+          ) {
             Text("\(Int(settings.notesFontSize)) pt")
               .foregroundStyle(.secondary)
               .monospacedDigit()
           }
         }
-        Text("⌘+ and ⌘- change the size from the notes window as well.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
       }
 
-      Section("Window") {
-        Toggle("Float above other windows", isOn: $settings.notesFloatsAboveOtherWindows)
-        Toggle("Open notes when Photon launches", isOn: $settings.notesOpenOnLaunch)
+      PhotonSettingsCard(title: "Window") {
+        PhotonSettingsRow(title: "Float above other windows") {
+          Toggle("", isOn: $settings.notesFloatsAboveOtherWindows)
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+        PhotonSettingsRow(title: "Open notes when Photon launches") {
+          Toggle("", isOn: $settings.notesOpenOnLaunch)
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
       }
 
-      Section("Shortcut") {
-        HStack {
-          Text("Toggle notes window")
-          Spacer()
-          OptionalHotkeyRecorder(combo: $settings.notesHotkey)
-            .frame(width: 180, height: 24)
-          if settings.notesHotkey != nil {
-            Button("Remove") {
-              settings.notesHotkey = nil
+      PhotonSettingsCard(
+        title: "Shortcut",
+        footer: "Notes are always available from the launcher: type “notes”, or “n” followed by a title."
+      ) {
+        PhotonSettingsRow(title: "Toggle notes window") {
+          HStack(spacing: 8) {
+            OptionalHotkeyRecorder(combo: $settings.notesHotkey)
+              .frame(width: 180, height: 24)
+            if settings.notesHotkey != nil {
+              Button("Remove") {
+                settings.notesHotkey = nil
+              }
+              .buttonStyle(.borderless)
             }
           }
         }
-        Text("Notes are always available from the launcher: type “notes”, or “n” followed by a title.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
       }
 
-      Section("Storage") {
-        LabeledContent("Location") {
+      PhotonSettingsCard(title: "Storage", footer: "One markdown file per note. The first line is the title.") {
+        PhotonSettingsRow(title: "Location") {
           Text(abbreviatedPath)
             .font(.callout.monospaced())
             .foregroundStyle(.secondary)
@@ -59,19 +66,16 @@ struct NotesSettingsView: View {
             .multilineTextAlignment(.trailing)
         }
         HStack {
-          Text("One markdown file per note. The first line is the title.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
           Spacer()
           Button("Show in Finder") {
             showInFinder()
           }
+          .buttonStyle(.borderless)
         }
+        .padding(.horizontal, 10)
+        .padding(.bottom, 6)
       }
     }
-    .formStyle(.grouped)
-    .navigationTitle("Notes")
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 
   private var abbreviatedPath: String {

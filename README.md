@@ -12,12 +12,12 @@ Photon is written in **Swift 6**, with AppKit for native macOS window/process be
 
 ## Features
 
-- **Launcher** — `Cmd+Space` opens a compact floating search field that expands into results as you type. Down on the empty bar shows recommended apps and recents; turn on suggestions under **Settings > Appearance** to see them before typing. Configurable hotkey, panel width, and light/dark appearance. `⌘,` opens Settings.
-- **Applications** — fuzzy search over `/Applications`, `/System/Applications`, `~/Applications`, and System Settings panes, ranked by frecency. Photon hides first, then brings the launched app above everything.
+- **Launcher** — `Cmd+Space` opens a compact floating search field that expands into results as you type. Currently open applications sit at the top of the list (with a Dock-style dot under the icon). Down on the empty bar shows recommended apps and recents; turn on suggestions under **Settings > Appearance** to see them before typing. Configurable hotkey, panel width, and light/dark appearance. `⌘,` opens Settings.
+- **Applications** — fuzzy search over `/Applications`, `/System/Applications`, `~/Applications`, and System Settings panes, ranked by currently running apps, then frecency. Photon hides first, then brings the launched app above everything.
 - **Clipboard history** — `Cmd+Shift+V`, or type `cb ` in the launcher. Text (with rich text), links, images, and files; searchable, pin, paste back or copy. Retention of 1/7/30 days or forever, an item limit, and excluded apps (password managers by default).
 - **Notes** — a floating window with a collapsible sidebar of notes, live markdown styling, one `.md` file per note in `~/Library/Application Support/Photon/Notes`, and autosave. `⌘P` jumps to the sidebar. Type `notes` or `n <title>` in the launcher to open a note; an optional hotkey toggles the window.
 - **File search** — type `/` or `f ` (or run *Search Files*) to search your home folder through Spotlight (`mdfind`). Enter opens, `Cmd+Enter` reveals in Finder, Space or `Cmd+Y` toggles Quick Look, `Cmd+C` copies the path, `Cmd+I` shows size and dates. Strong file matches also appear below applications in the main list.
-- **Keybinds** — a Hyper key (Caps Lock held = `⌃⌥⇧⌘`, shown as `✦`; tap = nothing, Escape, or Caps Lock), shortcuts that launch, focus, or hide an app, and window management: halves, quarters, thirds, two-thirds, maximize, almost maximize, center, next/previous display, restore. Defaults: `✦←` `✦→` `✦↑` `✦↓` halves, `✦Return` maximize, `✦C` center, `✦[` / `✦]` displays. Every command is also searchable in the launcher.
+- **Keybinds** — a Hyper key (Caps Lock held = `⌃⌥⇧⌘`, shown as `✦`; tap = nothing, Escape, or Caps Lock — Caps Lock as Hyper never turns Caps Lock on), shortcuts for installed and running apps from a list in Settings, and window management: halves, quarters, thirds, two-thirds, maximize, almost maximize, center, next/previous display, restore. Defaults: `✦←` `✦→` `✦↑` `✦↓` halves, `✦Return` maximize, `✦C` center, `✦[` / `✦]` displays. Every command is also searchable in the launcher.
 
 ## Install
 
@@ -66,7 +66,7 @@ Photon is a menu-bar agent (`LSUIElement`). It does not appear in the Dock.
 
 ### How the Hyper key works
 
-While the Hyper key is enabled and Accessibility is granted, Photon remaps the chosen key (Caps Lock by default) to F18 for the current login session using the same `hidutil` user key mapping Hyperkey-style apps use, then translates F18 into `⌃⌥⇧⌘` with an event tap. The mapping is removed when the Hyper key is turned off or Photon quits, and macOS clears it at logout anyway. **Settings > Keybinds > Reset Key Mapping** puts the key back by hand if anything goes wrong.
+While the Hyper key is enabled and Accessibility is granted, Photon remaps the chosen key (Caps Lock by default) to F18 for the current login session using the same `hidutil` user key mapping Hyperkey-style apps use, then translates F18 into `⌃⌥⇧⌘` with an event tap. When Caps Lock is Hyper, Photon also swallows Caps Lock lock-state changes so typing with Hyper cannot leave Caps Lock on. The mapping is removed when the Hyper key is turned off or Photon quits, and macOS clears it at logout anyway. **Settings > Keybinds > Reset Key Mapping** puts the key back by hand if anything goes wrong.
 
 ## Development
 

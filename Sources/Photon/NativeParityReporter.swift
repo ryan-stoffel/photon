@@ -3,6 +3,7 @@ import Foundation
 import PhotonApps
 import PhotonCore
 import PhotonFiles
+import PhotonKeybinds
 import PhotonNotes
 
 /// Writes live state from the packaged app for the macOS runtime parity harness.
@@ -194,10 +195,13 @@ final class NativeParityReporter: NSObject {
       "settingsWindow": settingsWindowReport(runtime),
       "settings": [
         "appearance": runtime.settings.appearance.rawValue,
+        "pane": runtime.settings.selectedPane.rawValue,
         "launcherHotkey": "\(launcherHotkey.keyCode):\(launcherHotkey.carbonModifiers)",
         "clipboardHotkey": "\(clipboardHotkey.keyCode):\(clipboardHotkey.carbonModifiers)",
         "launcherPosition": launcherPositionReport(runtime.settings.launcherStoredPosition),
+        "appHotkeyNames": runtime.settings.keybinds.appHotkeys.map(\.name),
       ],
+      "capsLockOn": CapsLockState.isOn,
       "features": [
         "notesRegistered": model.results.contains { $0.command.providerID == "notes" },
         "filesModeRegistered": model.modes.contains { $0.id == "files" },
@@ -290,6 +294,7 @@ final class NativeParityReporter: NSObject {
       "selectedIsRunning": selectedIsRunning(model),
       "selectedShortcutChips": selectedShortcutChips(model),
       "runningAppRowTitles": runningAppRowTitles(model),
+      "runningAppsLeadList": runningAppsLeadList(model),
       "visibleRecommendationRows": LauncherLayout.visibleRecommendationRows,
       "fileSelectedName": runtime?.fileSearch?.controller.selected?.displayName ?? "",
       "fileSelectedType": runtime?.fileSearch?.controller.selected?.contentType ?? "",
@@ -304,127 +309,6 @@ final class NativeParityReporter: NSObject {
       "resolvedAppIconCount": resolvedAppIcons,
       "fileStatus": fileStatus(runtime?.fileSearch?.controller.status),
       "fileRequestingAccess": runtime?.fileSearch?.controller.isRequestingAccess == true,
-    ]
-  }
-
-  private func settingsWindowReport(_ runtime: AppRuntime) -> [String: Any] {
-    guard let window = runtime.existingSettingsWindow() else {
-      return [
-        "exists": false,
-        "visible": false,
-        "key": false,
-        "title": "",
-        "windowNumber": 0,
-      ]
-    }
-    return [
-      "exists": true,
-      "visible": window.isVisible,
-      "key": window.isKeyWindow,
-      "title": window.title,
-      "windowNumber": window.windowNumber,
-    ]
-  }
-
-  private func hostReport() -> [String: Any] {
-    let version = ProcessInfo.processInfo.operatingSystemVersion
-    return [
-      "os": ProcessInfo.processInfo.operatingSystemVersionString,
-      "major": version.majorVersion,
-      "minor": version.minorVersion,
-      "patch": version.patchVersion,
-      "glassAvailable": PhotonPanelChrome.glassEffectAvailable,
-    ]
-  }
-
-  private func notesReport(_ controller: NotesController) -> [String: Any] {
-    [
-      "visible": controller.isWindowVisible,
-      "width": controller.windowWidth,
-      "height": controller.windowHeight,
-      "windowNumber": controller.windowNumber,
-      "overlay": controller.overlayName,
-      "title": controller.screenshotWindow?.title ?? "",
-      "characterCount": controller.currentNote?.characterCount ?? 0,
-    ]
-  }
-
-  private func contentName(_ content: LauncherContent) -> String {
-    switch content {
-    case .searchOnly:
-      "searchOnly"
-    case .recommendations:
-      "recommendations"
-    case .rows:
-      "rows"
-    case .fullHeight:
-      "fullHeight"
-    }
-  }
-
-  private func fileStatus(_ status: FileSearchController.Status?) -> String {
-    switch status {
-    case .idle:
-      "idle"
-    case .searching:
-      "searching"
-    case .recents:
-      "recents"
-    case .noRecents:
-      "noRecents"
-    case .results:
-      "results"
-    case .empty:
-      "empty"
-    case .unavailable:
-      "unavailable"
-    case .needsAccess:
-      "needsAccess"
-    case nil:
-      ""
-    }
-  }
-
-  private func fileAccessStatus(_ status: FileAccessCoordinator.Status) -> String {
-    switch status {
-    case .idle:
-      "idle"
-    case .requesting:
-      "requesting"
-    case .granted:
-      "granted"
-    case .cancelled:
-      "cancelled"
-    case .failed:
-      "failed"
-    }
-  }
-
-  private func launcherPositionReport(_ position: LauncherStoredPosition?) -> [String: Any] {
-    guard let position else {
-      return ["exists": false]
-    }
-    return [
-      "exists": true,
-      "x": position.originX,
-      "y": position.originY,
-      "centered": position.isHorizontallyCentered,
-    ]
-  }
-
-  private func colorComponents(_ color: NSColor, appearance: NSAppearance) -> [String: Double] {
-    var resolved: NSColor?
-    appearance.performAsCurrentDrawingAppearance {
-      resolved = color.usingColorSpace(.deviceRGB)
-    }
-    guard let resolved else {
-      return [:]
-    }
-    return [
-      "red": resolved.redComponent,
-      "green": resolved.greenComponent,
-      "blue": resolved.blueComponent,
-      "alpha": resolved.alphaComponent,
     ]
   }
 }

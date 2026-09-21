@@ -7,11 +7,13 @@ struct PhotonApp: App {
 
   var body: some Scene {
     Settings {
-      SettingsRootView()
+      SettingsRootView(settings: appDelegate.runtime.settings)
         .environmentObject(appDelegate.runtime.settings)
         .environmentObject(appDelegate.runtime.clipboard)
         .environmentObject(appDelegate.runtime.keybinds)
         .environmentObject(appDelegate.runtime.fileAccess)
+        .environmentObject(appDelegate.runtime.runningApps)
+        .background(PhotonSettingsWindowBinder())
         .frame(minWidth: 720, minHeight: 480)
     }
     .commands {

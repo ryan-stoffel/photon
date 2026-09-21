@@ -1,4 +1,5 @@
 import AppKit
+import PhotonCore
 import PhotonFiles
 import SwiftUI
 
@@ -7,42 +8,65 @@ struct FilesSettingsView: View {
   @EnvironmentObject private var fileAccess: FileAccessCoordinator
 
   var body: some View {
-    Form {
-      Section("Search") {
-        Picker("Look in", selection: $settings.filesSearchScope) {
-          ForEach(FileSearchScope.allCases, id: \.rawValue) { scope in
-            Text(scope.title).tag(scope.rawValue)
+    PhotonSettingsPage(title: "Files") {
+      PhotonSettingsCard(
+        title: "Search",
+        footer: "Matches words inside documents as well as names. Slower on large libraries."
+      ) {
+        PhotonSettingsRow(title: "Look in") {
+          Picker("Look in", selection: $settings.filesSearchScope) {
+            ForEach(FileSearchScope.allCases, id: \.rawValue) { scope in
+              Text(scope.title).tag(scope.rawValue)
+            }
           }
+          .labelsHidden()
+          .frame(maxWidth: 220)
         }
-        Toggle("Search file contents", isOn: $settings.filesSearchContents)
-        Text("Matches words inside documents as well as names. Slower on large libraries.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        Stepper(value: $settings.filesMaxResults, in: FileSearchSettings.maxResultsRange, step: 10) {
-          Text("Show up to \(settings.filesMaxResults) results")
+        PhotonSettingsRow(title: "Search file contents") {
+          Toggle("", isOn: $settings.filesSearchContents)
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
+        PhotonSettingsRow(title: "Show up to \(settings.filesMaxResults) results") {
+          Stepper(
+            value: $settings.filesMaxResults,
+            in: FileSearchSettings.maxResultsRange,
+            step: 10
+          ) {
+            EmptyView()
+          }
         }
       }
 
-      Section("Actions") {
-        Picker("Enter", selection: $settings.filesDefaultAction) {
-          ForEach(FileDefaultAction.allCases, id: \.rawValue) { action in
-            Text(action.title).tag(action.rawValue)
+      PhotonSettingsCard(
+        title: "Actions",
+        footer: "Command-Enter performs the other action. Space or Command-Y opens Quick Look. "
+          + "Up to three strong matches appear below applications once you have typed three characters."
+      ) {
+        PhotonSettingsRow(title: "Enter") {
+          Picker("Enter", selection: $settings.filesDefaultAction) {
+            ForEach(FileDefaultAction.allCases, id: \.rawValue) { action in
+              Text(action.title).tag(action.rawValue)
+            }
           }
+          .labelsHidden()
+          .frame(maxWidth: 180)
         }
-        Text("Command-Enter performs the other action. Space or Command-Y opens Quick Look.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
-        Toggle("Show file matches in the main list", isOn: $settings.filesInlineResults)
-        Text("Up to three strong matches appear below applications once you have typed three characters.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
+        PhotonSettingsRow(title: "Show file matches in the main list") {
+          Toggle("", isOn: $settings.filesInlineResults)
+            .toggleStyle(.switch)
+            .labelsHidden()
+        }
       }
 
-      Section("Folder Access") {
+      PhotonSettingsCard(
+        title: "Folder Access",
+        footer: "Photon stores security-scoped bookmarks so access survives relaunch."
+      ) {
         if fileAccess.grants.isEmpty {
-          Text("Choose only the folders Photon may search directly when Spotlight has no match.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
+          PhotonSettingsCaption(
+            text: "Choose only the folders Photon may search directly when Spotlight has no match."
+          )
         }
         ForEach(fileAccess.grants) { grant in
           HStack(spacing: 8) {
@@ -59,39 +83,38 @@ struct FilesSettingsView: View {
             .labelStyle(.iconOnly)
             .buttonStyle(.borderless)
           }
+          .padding(.horizontal, 10)
+          .frame(height: LauncherLayout.rowHeight)
         }
         Button(fileAccess.grants.isEmpty ? "Choose Folders…" : "Add Folder…") {
           fileAccess.requestAccess(parent: NSApp.keyWindow)
         }
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 10)
+        .padding(.bottom, 6)
         if fileAccess.status == .requesting {
           ProgressView()
             .controlSize(.small)
+            .padding(.horizontal, 10)
         } else if let message = fileAccess.statusMessage {
           Text(message)
-            .font(.caption)
+            .font(.system(size: 12))
             .foregroundStyle(.orange)
+            .padding(.horizontal, 10)
         }
-        Text("Photon stores security-scoped bookmarks so access survives relaunch.")
-          .font(.caption)
-          .foregroundStyle(.secondary)
       }
 
-      Section("Never search") {
+      PhotonSettingsCard(
+        title: "Never search",
+        footer: "Folders listed under System Settings > Siri & Spotlight > Spotlight Privacy "
+          + "are already excluded by Spotlight."
+      ) {
         FolderListEditor(
           folders: $settings.filesExcludedFolders,
           emptyText: "Files inside these folders never appear in results."
         )
-        Text(
-          "Folders listed under System Settings > Siri & Spotlight > Spotlight Privacy "
-            + "are already excluded by Spotlight."
-        )
-        .font(.caption)
-        .foregroundStyle(.secondary)
       }
     }
-    .formStyle(.grouped)
-    .navigationTitle("Files")
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
 }
 
@@ -101,9 +124,7 @@ private struct FolderListEditor: View {
 
   var body: some View {
     if folders.isEmpty {
-      Text(emptyText)
-        .font(.caption)
-        .foregroundStyle(.secondary)
+      PhotonSettingsCaption(text: emptyText)
     }
     ForEach(folders, id: \.self) { folder in
       HStack(spacing: 8) {
@@ -121,10 +142,15 @@ private struct FolderListEditor: View {
         .labelStyle(.iconOnly)
         .buttonStyle(.borderless)
       }
+      .padding(.horizontal, 10)
+      .frame(height: LauncherLayout.rowHeight)
     }
     Button("Add Folder\u{2026}") {
       addFolders()
     }
+    .buttonStyle(.borderless)
+    .padding(.horizontal, 10)
+    .padding(.bottom, 6)
   }
 
   private func addFolders() {

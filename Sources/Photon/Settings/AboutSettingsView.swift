@@ -4,8 +4,8 @@ import SwiftUI
 
 struct AboutSettingsView: View {
   var body: some View {
-    Form {
-      Section {
+    PhotonSettingsPage(title: "About") {
+      PhotonSettingsCard {
         HStack {
           Spacer()
           VStack(spacing: 12) {
@@ -13,7 +13,7 @@ struct AboutSettingsView: View {
               .resizable()
               .frame(width: 96, height: 96)
             Text("Photon")
-              .font(.title.weight(.semibold))
+              .font(.system(size: 20, weight: .semibold))
             Text("Version \(PhotonVersion.string)")
               .foregroundStyle(.secondary)
             Text("com.ryanstoffel.photon")
@@ -23,17 +23,14 @@ struct AboutSettingsView: View {
               .multilineTextAlignment(.center)
             Link("github.com/ryan-stoffel/photon", destination: Self.repositoryURL)
             Text("Copyright 2026 Ryan Stoffel. MIT License.")
-              .font(.caption)
+              .font(.system(size: 12))
               .foregroundStyle(.secondary)
           }
-          .padding(.vertical, 12)
+          .padding(.vertical, 16)
           Spacer()
         }
       }
     }
-    .formStyle(.grouped)
-    .navigationTitle("About")
-    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
   }
 
   private static let repositoryURL = URL(string: "https://github.com/ryan-stoffel/photon")!

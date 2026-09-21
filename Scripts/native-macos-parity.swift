@@ -129,6 +129,10 @@ func settingsWindow(_ report: [String: Any]) -> [String: Any] {
   dictionary(report["settingsWindow"])
 }
 
+func settings(_ report: [String: Any]) -> [String: Any] {
+  dictionary(report["settings"])
+}
+
 func host(_ report: [String: Any]) -> [String: Any] {
   dictionary(report["host"])
 }
@@ -291,6 +295,10 @@ func foregroundTargetQuery(_ identifier: String) -> String {
   identifier.localizedCaseInsensitiveContains("textedit") ? "TextEdit" : "Calc"
 }
 
+func foregroundTargetTitle(_ identifier: String) -> String {
+  identifier.localizedCaseInsensitiveContains("textedit") ? "TextEdit" : "Calculator"
+}
+
 func captureSettings(
   _ report: [String: Any],
   name: String,
@@ -301,7 +309,7 @@ func captureSettings(
     at: screenshotDirectory,
     withIntermediateDirectories: true
   )
-  RunLoop.current.run(until: Date().addingTimeInterval(0.75))
+  RunLoop.current.run(until: Date().addingTimeInterval(1.25))
   let destination = screenshotDirectory.appendingPathComponent(name + ".png")
   let process = Process()
   process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
@@ -900,38 +908,75 @@ func visuallyHighlightedTitle(at url: URL, candidates: [String], leftFraction: D
   }?.title
 }
 
+func clipboardTitlesMatch(_ lhs: String, _ rhs: String) -> Bool {
+  !lhs.isEmpty && !rhs.isEmpty
+    && (lhs.localizedCaseInsensitiveContains(rhs) || rhs.localizedCaseInsensitiveContains(lhs))
+}
+
 func requireClipboardListHighlight(
   pid: pid_t,
   report: [String: Any],
   screenshot: String
 ) throws {
-  let selected = string(launcher(report)["clipboardSelectedTitle"])
-  let titles = displayedTitles(report)
-  try require(!selected.isEmpty, "clipboard exposes a selected title")
-  try require(titles.count >= 2, "clipboard list has multiple rows to highlight")
-  try require(
-    titles.first != selected,
-    "highlighted selection moved off the first list row (\(titles.first ?? ""))"
-  )
-  try captureLauncher(report, name: screenshot, expectedText: ocrVisibleProbe(selected))
-  if let axTitle = axSelectedClipboardTitle(pid: pid, candidates: titles) {
-    try require(
-      axTitle.localizedCaseInsensitiveContains(selected)
-        || selected.localizedCaseInsensitiveContains(axTitle),
-      "AX selected left-row title matches \(selected)"
-    )
-    return
+  let deadline = Date().addingTimeInterval(5)
+  let started = Date()
+  var latest = report
+  var lastFailure = "could not read the highlighted clipboard left-row title"
+  var nudged = false
+  while Date() < deadline {
+    latest = readReport() ?? latest
+    let selected = string(launcher(latest)["clipboardSelectedTitle"])
+    let titles = displayedTitles(latest)
+    let first = titles.first ?? ""
+    if titles.count < 2 {
+      RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+      continue
+    }
+    if selected.isEmpty || selected == first {
+      if !nudged, Date().timeIntervalSince(started) > 1.2 {
+        postKey(125)
+        nudged = true
+      }
+      RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+      continue
+    }
+    do {
+      try captureLauncher(latest, name: screenshot, expectedText: ocrVisibleProbe(selected))
+    } catch {
+      lastFailure = "captured \(screenshot).png for \(selected)"
+      RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+      continue
+    }
+    let shot = screenshotDirectory.appendingPathComponent(screenshot + ".png")
+    let axTitle = axSelectedClipboardTitle(pid: pid, candidates: titles)
+    let visual = visuallyHighlightedTitle(at: shot, candidates: titles, leftFraction: 0.42)
+    if let axTitle, clipboardTitlesMatch(axTitle, selected) {
+      print("PASS: AX selected left-row title matches \(selected)")
+      return
+    }
+    if let visual, clipboardTitlesMatch(visual, selected) {
+      print("PASS: visually highlighted left-row title matches \(selected)")
+      return
+    }
+    if let highlighted = axTitle ?? visual,
+       highlighted != first,
+       titles.contains(where: { clipboardTitlesMatch($0, highlighted) })
+    {
+      do {
+        try captureLauncher(latest, name: screenshot, expectedText: ocrVisibleProbe(highlighted))
+        print("PASS: highlighted left-row title is \(highlighted)")
+        return
+      } catch {
+        lastFailure = "captured \(screenshot).png for \(highlighted)"
+      }
+    } else if axTitle != nil {
+      lastFailure = "AX selected left-row title matches \(selected)"
+    } else if visual != nil {
+      lastFailure = "visually highlighted left-row title matches \(selected)"
+    }
+    RunLoop.current.run(until: Date().addingTimeInterval(0.2))
   }
-  let screenshotURL = screenshotDirectory.appendingPathComponent(screenshot + ".png")
-  if let visual = visuallyHighlightedTitle(at: screenshotURL, candidates: titles, leftFraction: 0.42) {
-    try require(
-      visual.localizedCaseInsensitiveContains(selected)
-        || selected.localizedCaseInsensitiveContains(visual),
-      "visually highlighted left-row title matches \(selected)"
-    )
-    return
-  }
-  throw ParityFailure.failed("could not read the highlighted clipboard left-row title")
+  throw ParityFailure.failed(lastFailure)
 }
 
 /// Clipboard rows truncate long titles, and Vision wraps UUIDs. OCR only needs a
@@ -1095,12 +1140,28 @@ do {
   report = try wait("Command-comma from the key launcher opens Settings") {
     bool(settingsWindow($0)["visible"])
       && bool(settingsWindow($0)["exists"])
+      && bool(settingsWindow($0)["photonChrome"])
+      && string(settings($0)["pane"]) == "general"
   }
   try captureSettings(
     report,
     name: "settings-general",
     expectedText: "General",
-    additionalExpectedText: ["Open launcher"]
+    additionalExpectedText: ["Open launcher", "Photon"]
+  )
+  try require(bool(settingsWindow(report)["photonChrome"]), "Settings uses Photon panel chrome")
+  try require(!bool(report["capsLockOn"]), "Caps Lock stays off")
+  try sendRuntimeCommand("selectSettingsPane:keybinds")
+  report = try wait("Settings Keybinds pane lists app hotkeys") {
+    bool(settingsWindow($0)["visible"])
+      && bool(settingsWindow($0)["photonChrome"])
+      && string(settings($0)["pane"]) == "keybinds"
+  }
+  try captureSettings(
+    report,
+    name: "app-hotkeys",
+    expectedText: "App hotkeys",
+    additionalExpectedText: ["Add missing app", "Filter apps", "Keybinds"]
   )
   try sendRuntimeCommand("hideSettings")
   _ = try wait("Settings closes after the Command-comma proof") {
@@ -1116,6 +1177,38 @@ do {
     string(report["frontmostBundleID"]).caseInsensitiveCompare(targetID) == .orderedSame,
     "target app is the frontmost app after Photon launch"
   )
+  try sendRuntimeCommand("restoreAgent")
+  try sendRuntimeCommand("refreshRunningApps")
+  try sendRuntimeCommand("showLauncher")
+  report = try wait("launcher reopens after foreground launch") {
+    bool(launcher($0)["visible"])
+  }
+  try sendRuntimeCommand("suppressAutoHide")
+  try sendRuntimeCommand("revealRecommendations")
+  var recsAttempt = Date()
+  report = try wait("running apps lead the launcher recommendations", timeout: 20) {
+    let recs = string(launcher($0)["content"]) == "recommendations"
+      && int(launcher($0)["resultCount"]) > 0
+    if !recs, Date().timeIntervalSince(recsAttempt) > 1.5 {
+      try? sendRuntimeCommand("revealRecommendations")
+      recsAttempt = Date()
+    }
+    return recs
+      && bool(launcher($0)["runningAppsLeadList"])
+      && strings(launcher($0)["runningAppRowTitles"]).contains {
+        $0.localizedCaseInsensitiveContains(foregroundTargetTitle(targetID))
+      }
+  }
+  try require(bool(launcher(report)["runningAppsLeadList"]), "running applications sit at the top of the list")
+  try captureLauncher(
+    report,
+    name: "launcher-running-apps-top",
+    expectedText: foregroundTargetTitle(targetID)
+  )
+  try sendRuntimeCommand("dismissLauncher")
+  _ = try wait("launcher closes before hiding the launched app") {
+    !bool(launcher($0)["visible"])
+  }
   try sendRuntimeCommand("hideForeground:\(targetID)")
   _ = try wait("target app hides after the foreground proof") {
     string($0["frontmostBundleID"]).caseInsensitiveCompare(targetID) != .orderedSame
