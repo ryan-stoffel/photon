@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import PhotonApps
 import PhotonCore
 import PhotonFiles
 import PhotonNotes
@@ -153,6 +154,8 @@ final class NativeParityReporter: NSObject {
       "pid": ProcessInfo.processInfo.processIdentifier,
       "activationPolicy": NSRunningApplication.current.activationPolicy.rawValue,
       "ownsMenuBar": NSRunningApplication.current.ownsMenuBar,
+      "frontmostBundleID": NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "",
+      "host": hostReport(),
       "statusItem": [
         "visible": statusItem?.isVisible == true,
         "hasButton": statusItem?.button != nil,
@@ -184,6 +187,7 @@ final class NativeParityReporter: NSObject {
           || runtime.fileSearch?.controller.isRequestingAccess == true,
       ],
       "notes": notesReport(runtime.notes.controller),
+      "settingsWindow": settingsWindowReport(runtime),
       "settings": [
         "appearance": runtime.settings.appearance.rawValue,
         "launcherHotkey": "\(launcherHotkey.keyCode):\(launcherHotkey.carbonModifiers)",
@@ -291,6 +295,36 @@ final class NativeParityReporter: NSObject {
       "resolvedAppIconCount": resolvedAppIcons,
       "fileStatus": fileStatus(runtime?.fileSearch?.controller.status),
       "fileRequestingAccess": runtime?.fileSearch?.controller.isRequestingAccess == true,
+    ]
+  }
+
+  private func settingsWindowReport(_ runtime: AppRuntime) -> [String: Any] {
+    guard let window = runtime.existingSettingsWindow() else {
+      return [
+        "exists": false,
+        "visible": false,
+        "key": false,
+        "title": "",
+        "windowNumber": 0,
+      ]
+    }
+    return [
+      "exists": true,
+      "visible": window.isVisible,
+      "key": window.isKeyWindow,
+      "title": window.title,
+      "windowNumber": window.windowNumber,
+    ]
+  }
+
+  private func hostReport() -> [String: Any] {
+    let version = ProcessInfo.processInfo.operatingSystemVersion
+    return [
+      "os": ProcessInfo.processInfo.operatingSystemVersionString,
+      "major": version.majorVersion,
+      "minor": version.minorVersion,
+      "patch": version.patchVersion,
+      "glassAvailable": PhotonPanelChrome.glassEffectAvailable,
     ]
   }
 

@@ -6,6 +6,7 @@ public final class FileIconCache: @unchecked Sendable {
   public static let shared = FileIconCache()
 
   private let cache = NSCache<NSString, NSImage>()
+  private let placeholder = NSImage(size: NSSize(width: 32, height: 32))
 
   init() {
     cache.countLimit = 600
@@ -20,6 +21,10 @@ public final class FileIconCache: @unchecked Sendable {
     if let cached = cache.object(forKey: key) {
       return cached
     }
+    if Thread.isMainThread {
+      scheduleLoad(path)
+      return placeholder
+    }
     let image = NSWorkspace.shared.icon(forFile: path)
     cache.setObject(image, forKey: key)
     return image
@@ -27,7 +32,23 @@ public final class FileIconCache: @unchecked Sendable {
 
   public func prefetch(_ files: [FileResult]) {
     for file in files {
-      _ = icon(forPath: file.path)
+      let key = file.path as NSString
+      if cache.object(forKey: key) != nil {
+        continue
+      }
+      let image = NSWorkspace.shared.icon(forFile: file.path)
+      cache.setObject(image, forKey: key)
+    }
+  }
+
+  private func scheduleLoad(_ path: String) {
+    Task.detached(priority: .utility) { [self] in
+      let key = path as NSString
+      if cache.object(forKey: key) != nil {
+        return
+      }
+      let image = NSWorkspace.shared.icon(forFile: path)
+      cache.setObject(image, forKey: key)
     }
   }
 }

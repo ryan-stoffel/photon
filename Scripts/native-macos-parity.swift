@@ -125,6 +125,14 @@ func notes(_ report: [String: Any]) -> [String: Any] {
   dictionary(report["notes"])
 }
 
+func settingsWindow(_ report: [String: Any]) -> [String: Any] {
+  dictionary(report["settingsWindow"])
+}
+
+func host(_ report: [String: Any]) -> [String: Any] {
+  dictionary(report["host"])
+}
+
 func frame(_ report: [String: Any]) -> [String: Any] {
   dictionary(launcher(report)["frame"])
 }
@@ -238,6 +246,65 @@ func captureNotes(
     "-x",
     "-l",
     String(int(notes(report)["windowNumber"])),
+    destination.path,
+  ]
+  try process.run()
+  let captureDeadline = Date().addingTimeInterval(8)
+  while process.isRunning, Date() < captureDeadline {
+    RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+  }
+  if process.isRunning {
+    process.terminate()
+    throw ParityFailure.failed("screencapture timed out for \(name).png")
+  }
+  let size = (try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+  try require(process.terminationStatus == 0 && size > 0, "captured \(name).png")
+  let recognition = VNRecognizeTextRequest()
+  recognition.recognitionLevel = .accurate
+  let handler = VNImageRequestHandler(url: destination)
+  try handler.perform([recognition])
+  let renderedText = (recognition.results ?? [])
+    .compactMap { $0.topCandidates(1).first?.string }
+    .joined(separator: "\n")
+  try require(
+    ocrContains(renderedText, expectedText),
+    "\(name).png visibly contains \(expectedText)"
+  )
+  for expected in additionalExpectedText {
+    try require(
+      ocrContains(renderedText, expected),
+      "\(name).png visibly contains \(expected)"
+    )
+  }
+}
+
+func foregroundTargetBundleIdentifier() -> String {
+  for identifier in ["com.apple.calculator", "com.apple.Calculator", "com.apple.TextEdit"] {
+    if NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) != nil {
+      return identifier
+    }
+  }
+  return "com.apple.TextEdit"
+}
+
+func captureSettings(
+  _ report: [String: Any],
+  name: String,
+  expectedText: String,
+  additionalExpectedText: [String] = []
+) throws {
+  try FileManager.default.createDirectory(
+    at: screenshotDirectory,
+    withIntermediateDirectories: true
+  )
+  RunLoop.current.run(until: Date().addingTimeInterval(0.75))
+  let destination = screenshotDirectory.appendingPathComponent(name + ".png")
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+  process.arguments = [
+    "-x",
+    "-l",
+    String(int(settingsWindow(report)["windowNumber"])),
     destination.path,
   ]
   try process.run()
@@ -877,6 +944,8 @@ do {
   let pid = pid_t(int(report["pid"]))
   let app = NSRunningApplication(processIdentifier: pid)
   try require(app != nil, "NSRunningApplication resolves Photon")
+  print("GitHub Actions host OS: \(string(host(report)["os"]))")
+  print("Liquid Glass NSGlassEffectView: \(bool(host(report)["glassAvailable"]))")
   try require(app?.activationPolicy == .accessory, "activation policy is accessory (no Dock app)")
   try require(
     int(report["activationPolicy"]) == NSApplication.ActivationPolicy.accessory.rawValue,
@@ -978,6 +1047,36 @@ do {
       && string(launcher($0)["content"]) == "recommendations"
   }
   try captureLauncher(report, name: "launcher-recs", expectedText: "Photon")
+
+  postKey(43, flags: .maskCommand)
+  report = try wait("Command-comma from the key launcher opens Settings") {
+    bool(settingsWindow($0)["visible"])
+      && bool(settingsWindow($0)["exists"])
+  }
+  try captureSettings(
+    report,
+    name: "settings-general",
+    expectedText: "General",
+    additionalExpectedText: ["Open launcher"]
+  )
+  try sendRuntimeCommand("hideSettings")
+  _ = try wait("Settings closes after the Command-comma proof") {
+    !bool(settingsWindow($0)["visible"])
+  }
+
+  let targetID = foregroundTargetBundleIdentifier()
+  try sendRuntimeCommand("launchForeground:\(targetID)")
+  report = try wait("launched target app is frontmost", timeout: 20) {
+    string($0["frontmostBundleID"]).caseInsensitiveCompare(targetID) == .orderedSame
+  }
+  try require(
+    string(report["frontmostBundleID"]).caseInsensitiveCompare(targetID) == .orderedSame,
+    "target app is the frontmost app after Photon launch"
+  )
+  try sendRuntimeCommand("hideForeground:\(targetID)")
+  _ = try wait("target app hides after the foreground proof") {
+    string($0["frontmostBundleID"]).caseInsensitiveCompare(targetID) != .orderedSame
+  }
 
   try sendRuntimeCommand("hideLauncher")
   _ = try wait("launcher recommendations close before drag checks") {

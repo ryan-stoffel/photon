@@ -11,7 +11,16 @@ struct PhotonApp: App {
         .environmentObject(appDelegate.runtime.settings)
         .environmentObject(appDelegate.runtime.clipboard)
         .environmentObject(appDelegate.runtime.keybinds)
-        .frame(minWidth: 560, minHeight: 400)
+        .environmentObject(appDelegate.runtime.fileAccess)
+        .frame(minWidth: 720, minHeight: 480)
+    }
+    .commands {
+      CommandGroup(replacing: .appSettings) {
+        Button("Settings…") {
+          appDelegate.runtime.openSettings()
+        }
+        .keyboardShortcut(",", modifiers: .command)
+      }
     }
   }
 }
@@ -23,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   func applicationDidFinishLaunching(_: Notification) {
     NSApp.setActivationPolicy(.accessory)
+    installSettingsMenu()
     statusItemController = StatusItemController(runtime: runtime)
     runtime.start()
     runtime.runUIScenarioIfNeeded()
@@ -36,6 +46,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationWillTerminate(_: Notification) {
     NativeParityReporter.stop()
     runtime.stop()
+  }
+
+  private func installSettingsMenu() {
+    let mainMenu = NSMenu()
+    let appItem = NSMenuItem()
+    let appMenu = NSMenu(title: "Photon")
+    let settingsItem = NSMenuItem(
+      title: "Settings…",
+      action: #selector(openSettingsMenu),
+      keyEquivalent: ","
+    )
+    settingsItem.target = self
+    appMenu.addItem(settingsItem)
+    appItem.submenu = appMenu
+    mainMenu.addItem(appItem)
+    NSApp.mainMenu = mainMenu
+  }
+
+  @objc private func openSettingsMenu() {
+    runtime.openSettings()
   }
 }
 
@@ -59,7 +89,10 @@ final class StatusItemController: NSObject {
     menu.addItem(item("Open Launcher", action: #selector(openLauncher)))
     menu.addItem(item("Clipboard History", action: #selector(openClipboard)))
     menu.addItem(item("Notes", action: #selector(openNotes)))
-    menu.addItem(item("Settings…", action: #selector(openSettings)))
+    let settingsItem = item("Settings…", action: #selector(openSettings))
+    settingsItem.keyEquivalent = ","
+    settingsItem.keyEquivalentModifierMask = .command
+    menu.addItem(settingsItem)
     menu.addItem(.separator())
     menu.addItem(item("Quit Photon", action: #selector(quit)))
     statusItem.menu = menu
