@@ -13,7 +13,6 @@ public final class KeybindsProvider: CommandProvider, Sendable {
   }
 
   public func commands(matching query: String) async -> [Command] {
-    let configuration = await controller.currentConfiguration
     let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
     return WindowAction.allCases.compactMap { action in
       let keywords = ["window", "layout"] + action.keywords
@@ -24,11 +23,10 @@ public final class KeybindsProvider: CommandProvider, Sendable {
           return nil
         }
       }
-      let shortcut = configuration.shortcut(for: action)?.displayString
       return Command(
         id: Self.commandPrefix + action.rawValue,
         title: action.title,
-        subtitle: shortcut.map { "Window · \($0)" } ?? "Window",
+        subtitle: "Window",
         keywords: keywords,
         providerID: id,
         icon: .symbol(name: action.symbolName)

@@ -287,6 +287,10 @@ func foregroundTargetBundleIdentifier() -> String {
   return "com.apple.TextEdit"
 }
 
+func foregroundTargetQuery(_ identifier: String) -> String {
+  identifier.localizedCaseInsensitiveContains("textedit") ? "TextEdit" : "Calc"
+}
+
 func captureSettings(
   _ report: [String: Any],
   name: String,
@@ -1028,13 +1032,27 @@ do {
   let compactLauncherWidth = double(compactLauncherFrame["width"])
   let compactLauncherHeight = double(compactLauncherFrame["height"])
   let compactLauncherTop = top(report)
+  clickSearchField(report)
+  var downSent = Date()
+  var retriedDown = false
   postKey(125)
   report = try wait("Down instantly reveals launcher recommendations at the shared expanded size") {
-    string(launcher($0)["content"]) == "recommendations"
+    let revealed = string(launcher($0)["content"]) == "recommendations"
       && int(launcher($0)["resultCount"]) > 0
+    if !revealed, !retriedDown, Date().timeIntervalSince(downSent) > 1.5 {
+      postKey(125)
+      retriedDown = true
+    }
+    return revealed
       && abs(double(frame($0)["width"]) - compactLauncherWidth) < 0.5
       && double(frame($0)["height"]) > compactLauncherHeight
       && abs(top($0) - compactLauncherTop) < 0.5
+  }
+  try sendRuntimeCommand("selectLauncherIndex:0")
+  report = try wait("recommendations start on the first row") {
+    string(launcher($0)["content"]) == "recommendations"
+      && int(launcher($0)["selectedIndex"]) == 0
+      && int(launcher($0)["resultCount"]) > 0
   }
   let launcherRecommendationsFrame = frame(report)
   let sharedExpandedWidth = double(launcherRecommendationsFrame["width"])
@@ -1104,7 +1122,44 @@ do {
   }
   try sendRuntimeCommand("restoreAgent")
 
-  try sendRuntimeCommand("hideLauncher")
+  try sendRuntimeCommand("seedAppHotkey:\(targetID)|cmd+/")
+  try sendRuntimeCommand("refreshRunningApps")
+  try sendRuntimeCommand("showLauncher")
+  _ = try wait("launcher reopens for running-dot and keybind chips") {
+    bool(launcher($0)["visible"])
+  }
+  let targetQuery = foregroundTargetQuery(targetID)
+  try sendRuntimeCommand("setLauncherQuery:\(targetQuery)")
+  _ = try wait("typed query lists the launched target app") {
+    strings(launcher($0)["displayedCommandIDs"]).contains {
+      $0.caseInsensitiveCompare("app:\(targetID)") == .orderedSame
+    }
+  }
+  try sendRuntimeCommand("selectLauncherApp:\(targetID)")
+  report = try wait("selected app row is running and shows keybind chips") {
+    let state = launcher($0)
+    return bool(state["visible"])
+      && bool(state["selectedIsRunning"])
+      && strings(state["selectedShortcutChips"]) == ["⌘", "/"]
+      && string(state["selectedCommandID"]).caseInsensitiveCompare("app:\(targetID)") == .orderedSame
+  }
+  try require(
+    strings(launcher(report)["runningAppRowTitles"]).contains {
+      $0.caseInsensitiveCompare(string(launcher(report)["selectedTitle"])) == .orderedSame
+    },
+    "running-dot titles include the selected app"
+  )
+  try captureLauncher(
+    report,
+    name: "launcher-running-dot",
+    expectedText: string(launcher(report)["selectedTitle"])
+  )
+  try captureLauncher(
+    report,
+    name: "launcher-keybind-chips",
+    expectedText: string(launcher(report)["selectedTitle"])
+  )
+  try sendRuntimeCommand("dismissLauncher")
   _ = try wait("launcher recommendations close before drag checks") {
     !bool(launcher($0)["visible"])
   }

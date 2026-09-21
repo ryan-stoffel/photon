@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import PhotonApps
 import PhotonClipboard
 import PhotonCore
 import PhotonFiles
@@ -9,6 +10,7 @@ import SwiftUI
 @MainActor
 final class LauncherPanelController: NSObject, NSWindowDelegate {
   let settings: SettingsStore
+  let runningApps: RunningApplications
   private let registry: CommandRegistry
   private let frecencyURL: URL
   let model: LauncherViewModel
@@ -29,8 +31,9 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
   private var previousApplication: NSRunningApplication?
   private var iconRefreshTask: Task<Void, Never>?
 
-  init(settings: SettingsStore, registry: CommandRegistry, frecencyURL: URL) {
+  init(settings: SettingsStore, registry: CommandRegistry, frecencyURL: URL, runningApps: RunningApplications) {
     self.settings = settings
+    self.runningApps = runningApps
     self.registry = registry
     self.frecencyURL = frecencyURL
     model = LauncherViewModel(registry: registry, frecency: FrecencyStore.load(from: frecencyURL))
@@ -420,7 +423,7 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
       onRun: { [weak self] in
         self?.hide(restorePrevious: false)
       }
-    ).environmentObject(settings))
+    ).environmentObject(settings).environmentObject(runningApps))
     host.safeAreaRegions = []
     let background = PhotonPanelChrome.embed(
       host,

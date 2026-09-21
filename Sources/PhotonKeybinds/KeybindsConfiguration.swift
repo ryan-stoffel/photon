@@ -173,6 +173,24 @@ public struct KeybindsConfiguration: Codable, Equatable, Sendable {
     windowBindings.first { $0.action == action }?.shortcut
   }
 
+  /// Assigned launcher-row shortcut, if any. Apps match `app:<bundleID>`; window commands match `window:<action>`.
+  public func shortcut(forCommandID id: String) -> KeyShortcut? {
+    if id.hasPrefix("app:") {
+      let identifier = String(id.dropFirst(4))
+      return appHotkeys.first {
+        $0.bundleIdentifier.caseInsensitiveCompare(identifier) == .orderedSame
+      }?.shortcut
+    }
+    if id.hasPrefix("window:") {
+      let rawValue = String(id.dropFirst("window:".count))
+      guard let action = WindowAction(rawValue: rawValue) else {
+        return nil
+      }
+      return shortcut(for: action)
+    }
+    return nil
+  }
+
   public mutating func setShortcut(_ shortcut: KeyShortcut?, for action: WindowAction) {
     if let index = windowBindings.firstIndex(where: { $0.action == action }) {
       windowBindings[index].shortcut = shortcut

@@ -1,5 +1,7 @@
+import PhotonApps
 import PhotonClipboard
 import PhotonCore
+import PhotonNotes
 import SwiftUI
 
 /// The launcher panel: search field, the command list (or a feature view), and a footer.
@@ -8,6 +10,7 @@ struct LauncherView: View {
   @ObservedObject var model: LauncherViewModel
   var onRun: () -> Void
   @EnvironmentObject private var settings: SettingsStore
+  @EnvironmentObject private var runningApps: RunningApplications
   @FocusState private var searchFocused: Bool
 
   static let defaultPlaceholder = "Search apps, files, notes and more\u{2026}"
@@ -54,6 +57,7 @@ struct LauncherView: View {
     )
     .onAppear {
       searchFocused = true
+      runningApps.refresh()
       Task { await model.refresh() }
     }
     .onChange(of: model.focusGeneration) {
@@ -157,9 +161,9 @@ struct LauncherView: View {
 
   private func resultRow(_ row: LauncherRow) -> some View {
     let selected = row.id == model.selectedID
+    let chips = shortcutChips(for: row)
     return HStack(spacing: 12) {
-      rowIcon(for: row)
-        .frame(width: LauncherLayout.iconSize, height: LauncherLayout.iconSize)
+      runningAppIcon(for: row)
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         Text(row.title)
           .font(.system(size: 14, weight: .medium))
@@ -173,7 +177,10 @@ struct LauncherView: View {
             .truncationMode(.middle)
         }
       }
-      Spacer(minLength: 0)
+      Spacer(minLength: 8)
+      if !chips.isEmpty {
+        KeybindChipStack(chips: chips, emphasized: selected)
+      }
     }
     .padding(.horizontal, 10)
     .frame(height: LauncherLayout.rowHeight)
@@ -186,6 +193,32 @@ struct LauncherView: View {
       model.selectedID = row.id
       Task { await run() }
     }
+  }
+
+  private func runningAppIcon(for row: LauncherRow) -> some View {
+    let running = row.showsRunningIndicator(runningBundleIDs: runningApps.bundleIdentifiers)
+    return ZStack(alignment: .bottom) {
+      rowIcon(for: row)
+        .frame(width: LauncherLayout.iconSize, height: LauncherLayout.iconSize)
+      if running {
+        Circle()
+          .fill(Color.primary.opacity(0.78))
+          .frame(width: 4, height: 4)
+          .offset(y: 3)
+          .accessibilityLabel("Running")
+      }
+    }
+    .frame(width: LauncherLayout.iconSize, height: LauncherLayout.iconSize)
+  }
+
+  private func shortcutChips(for row: LauncherRow) -> [String] {
+    LauncherRowChrome.shortcutChips(
+      commandID: row.id,
+      keybinds: settings.keybinds,
+      clipboardHotkeyEnabled: settings.clipboardHotkeyEnabled,
+      clipboardHotkey: settings.clipboardHotkey,
+      notesHotkey: settings.notesHotkey
+    )
   }
 
   @ViewBuilder
@@ -302,6 +335,29 @@ private struct LauncherModeFooter: View {
     .foregroundStyle(.secondary)
     .padding(.horizontal, 14)
     .frame(height: LauncherLayout.footerHeight)
+  }
+}
+
+/// Trailing Raycast-style keycaps for an assigned shortcut.
+private struct KeybindChipStack: View {
+  let chips: [String]
+  var emphasized = false
+
+  var body: some View {
+    HStack(spacing: 4) {
+      ForEach(Array(chips.enumerated()), id: \.offset) { _, chip in
+        Text(chip)
+          .font(.system(size: 11, weight: .semibold, design: .rounded))
+          .foregroundStyle(.primary.opacity(0.86))
+          .frame(minWidth: 18, minHeight: 18)
+          .padding(.horizontal, 5)
+          .background(
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+              .fill(Color.primary.opacity(emphasized ? 0.14 : 0.08))
+          )
+      }
+    }
+    .accessibilityLabel(chips.joined(separator: " "))
   }
 }
 

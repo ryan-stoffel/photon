@@ -18,7 +18,7 @@ final class NativeParityReporter: NSObject {
     return !path.isEmpty
   }
 
-  private var runtime: AppRuntime?
+  var runtime: AppRuntime?
   private weak var statusItemController: StatusItemController?
   private var reportURL: URL?
   private var commandURL: URL?
@@ -283,8 +283,13 @@ final class NativeParityReporter: NSObject {
       "panelWidth": model.panelWidth,
       "resultCount": model.results.count,
       "displayedRowTitles": displayedTitles,
+      "displayedCommandIDs": model.rows.map(\.id),
       "selectedIndex": model.results.firstIndex { $0.id == model.selectedID } ?? -1,
       "selectedTitle": model.selectedRow?.title ?? "",
+      "selectedCommandID": model.selectedRow?.id ?? "",
+      "selectedIsRunning": selectedIsRunning(model),
+      "selectedShortcutChips": selectedShortcutChips(model),
+      "runningAppRowTitles": runningAppRowTitles(model),
       "visibleRecommendationRows": LauncherLayout.visibleRecommendationRows,
       "fileSelectedName": runtime?.fileSearch?.controller.selected?.displayName ?? "",
       "fileSelectedType": runtime?.fileSearch?.controller.selected?.contentType ?? "",
