@@ -85,7 +85,7 @@ final class LauncherRowTests: XCTestCase {
       providerID: "files"
     ))
     let window = LauncherRow(command: Command(id: "window:leftHalf", title: "Left Half", providerID: "keybinds"))
-    let running: Set<String> = ["com.apple.Safari", "com.apple.finder"]
+    let running = Set(["com.apple.Safari", "com.apple.finder"])
 
     XCTAssertEqual(safari.applicationBundleIdentifier, "com.apple.Safari")
     XCTAssertTrue(safari.showsRunningIndicator(runningBundleIDs: running))

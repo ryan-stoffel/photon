@@ -1108,11 +1108,6 @@ do {
   }
   try sendRuntimeCommand("restoreAgent")
 
-  try sendRuntimeCommand("launchForeground:\(targetID)")
-  _ = try wait("target is running for Dock-style dots", timeout: 20) {
-    string($0["frontmostBundleID"]).caseInsensitiveCompare(targetID) == .orderedSame
-  }
-  try sendRuntimeCommand("restoreAgent")
   try sendRuntimeCommand("seedAppHotkey:\(targetID)|cmd+/")
   try sendRuntimeCommand("refreshRunningApps")
   try sendRuntimeCommand("showLauncher")
@@ -1152,6 +1147,11 @@ do {
   )
   try sendRuntimeCommand("setLauncherQuery:")
   try sendRuntimeCommand("hideLauncher")
+  try sendRuntimeCommand("hideForeground:\(targetID)")
+  _ = try wait("target stays out of the foreground after Dock-dot proof") {
+    string($0["frontmostBundleID"]).caseInsensitiveCompare(targetID) != .orderedSame
+  }
+  try sendRuntimeCommand("restoreAgent")
   _ = try wait("launcher recommendations close before drag checks") {
     !bool(launcher($0)["visible"])
   }
