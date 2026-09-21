@@ -309,7 +309,7 @@ func captureSettings(
     at: screenshotDirectory,
     withIntermediateDirectories: true
   )
-  RunLoop.current.run(until: Date().addingTimeInterval(0.75))
+  RunLoop.current.run(until: Date().addingTimeInterval(1.25))
   let destination = screenshotDirectory.appendingPathComponent(name + ".png")
   let process = Process()
   process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
@@ -1103,6 +1103,8 @@ do {
   report = try wait("Command-comma from the key launcher opens Settings") {
     bool(settingsWindow($0)["visible"])
       && bool(settingsWindow($0)["exists"])
+      && bool(settingsWindow($0)["photonChrome"])
+      && string(settings($0)["pane"]) == "general"
   }
   try captureSettings(
     report,

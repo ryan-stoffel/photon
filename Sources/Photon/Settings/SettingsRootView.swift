@@ -6,20 +6,23 @@ struct SettingsRootView: View {
   @EnvironmentObject private var settings: SettingsStore
 
   var body: some View {
-    HStack(spacing: 0) {
-      sidebar
-        .frame(width: PhotonSettingsChrome.sidebarWidth)
-      PhotonSettingsHairline()
-        .frame(maxHeight: .infinity)
-      SettingsDetailView(pane: settings.selectedPane)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    GeometryReader { geo in
+      HStack(spacing: 0) {
+        sidebar
+          .frame(width: PhotonSettingsChrome.sidebarWidth)
+        PhotonSettingsHairline()
+          .frame(maxHeight: .infinity)
+        SettingsDetailView(pane: settings.selectedPane)
+          .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+      }
+      .frame(width: geo.size.width, height: geo.size.height)
+      .background(Color.clear)
+      .overlay(
+        RoundedRectangle(cornerRadius: LauncherLayout.cornerRadius, style: .continuous)
+          .strokeBorder(Color.primary.opacity(0.1), lineWidth: LauncherLayout.hairline)
+          .allowsHitTesting(false)
+      )
     }
-    .background(Color.clear)
-    .overlay(
-      RoundedRectangle(cornerRadius: LauncherLayout.cornerRadius, style: .continuous)
-        .strokeBorder(Color.primary.opacity(0.1), lineWidth: LauncherLayout.hairline)
-        .allowsHitTesting(false)
-    )
     .onAppear {
       if let pending = settings.pendingSettingsPane {
         settings.selectedPane = pending

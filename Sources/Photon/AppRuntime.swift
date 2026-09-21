@@ -242,6 +242,7 @@ final class AppRuntime: ObservableObject {
     }
     settingsWindowController?.showWindow(nil)
     settingsWindowController?.window?.makeKeyAndOrderFront(nil)
+    hideSwiftUISettingsScene()
   }
 
   private var settingsRootView: some View {
@@ -252,6 +253,7 @@ final class AppRuntime: ObservableObject {
       .environmentObject(fileAccess)
       .environmentObject(runningApps)
       .frame(minWidth: 680, minHeight: 420)
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
   func closeSettings() {
@@ -266,15 +268,15 @@ final class AppRuntime: ObservableObject {
 
   func existingSettingsWindow() -> NSWindow? {
     let hosted = settingsWindowController?.window
+    if let hosted {
+      return hosted
+    }
+    if let photon = NSApp.windows.first(where: { $0 is PhotonSettingsWindow }) {
+      return photon
+    }
     return NSApp.windows.first { window in
       if window === launcher.panel {
         return false
-      }
-      if window === hosted {
-        return true
-      }
-      if window is PhotonSettingsWindow {
-        return true
       }
       if window.title.localizedCaseInsensitiveContains("Settings") {
         return true
@@ -286,6 +288,20 @@ final class AppRuntime: ObservableObject {
         return true
       }
       return SettingsPaneID.allCases.contains { $0.title == window.title }
+    }
+  }
+
+  /// The SwiftUI `Settings` scene can also appear on ⌘,. Prefer the Photon window.
+  private func hideSwiftUISettingsScene() {
+    guard let hosted = settingsWindowController?.window else {
+      return
+    }
+    for window in NSApp.windows where window !== hosted && !(window is PhotonSettingsWindow) {
+      let settingsLike = window.title.localizedCaseInsensitiveContains("Settings")
+        || window.className.localizedCaseInsensitiveContains("Settings")
+      if settingsLike {
+        window.orderOut(nil)
+      }
     }
   }
 

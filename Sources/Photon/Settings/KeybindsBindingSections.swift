@@ -20,7 +20,10 @@ struct AppHotkeysSection: View {
       title: "App hotkeys",
       footer: "The shortcut launches or focuses the app. Press it again while the app is frontmost to hide it."
     ) {
-      HStack {
+      HStack(spacing: 10) {
+        Text("Filter apps")
+          .font(.system(size: 14, weight: .medium))
+          .fixedSize()
         TextField("Filter apps", text: $filter)
           .textFieldStyle(.plain)
           .font(.system(size: 14))

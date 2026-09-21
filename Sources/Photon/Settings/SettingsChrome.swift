@@ -43,6 +43,8 @@ enum PhotonSettingsChrome {
   static func makeWindow(rootView: some View) -> PhotonSettingsWindow {
     let host = NSHostingView(rootView: rootView)
     host.safeAreaRegions = []
+    host.sizingOptions = []
+    host.frame = NSRect(origin: .zero, size: windowSize)
     let window = PhotonSettingsWindow(
       contentRect: NSRect(origin: .zero, size: windowSize),
       styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -128,7 +130,7 @@ struct PhotonSettingsPage<Content: View>: View {
       Text(title)
         .font(.system(size: 20, weight: .medium))
         .padding(.horizontal, 20)
-        .frame(height: LauncherLayout.searchFieldHeight, alignment: .leading)
+        .frame(maxWidth: .infinity, height: LauncherLayout.searchFieldHeight, alignment: .leading)
       PhotonSettingsHairline(emphasized: true)
       ScrollView {
         VStack(alignment: .leading, spacing: 16) {
@@ -137,6 +139,7 @@ struct PhotonSettingsPage<Content: View>: View {
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
       }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
   }
@@ -151,8 +154,8 @@ struct PhotonSettingsCard<Content: View>: View {
     VStack(alignment: .leading, spacing: 8) {
       if let title {
         Text(title)
-          .font(.system(size: 12, weight: .semibold))
-          .foregroundStyle(.secondary)
+          .font(.system(size: 14, weight: .semibold))
+          .foregroundStyle(.primary)
           .padding(.horizontal, 4)
       }
       VStack(alignment: .leading, spacing: 0) {
@@ -189,12 +192,15 @@ struct PhotonSettingsRow<Accessory: View>: View {
       VStack(alignment: .leading, spacing: 2) {
         Text(title)
           .font(.system(size: 14, weight: .medium))
+          .lineLimit(1)
+          .fixedSize(horizontal: true, vertical: false)
         if let detail {
           Text(detail)
             .font(.system(size: 12))
             .foregroundStyle(.secondary)
         }
       }
+      .layoutPriority(1)
       Spacer(minLength: 8)
       accessory()
     }
