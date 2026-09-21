@@ -12,6 +12,9 @@ import PhotonNotes
 final class NativeParityReporter: NSObject {
   private static let shared = NativeParityReporter()
 
+  /// Parity-only. Stops a warm file index from replacing the command row mid-click.
+  static var suppressFilesPromotion = false
+
   static var isRequested: Bool {
     guard let path = ProcessInfo.processInfo.environment["PHOTON_NATIVE_PARITY_REPORT_PATH"] else {
       return false
