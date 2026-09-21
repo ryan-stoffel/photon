@@ -157,6 +157,9 @@ extension NativeParityReporter {
   private func handleRowChromeParityCommand(_ command: String, runtime: AppRuntime) {
     if command == "refreshRunningApps" {
       runtime.runningApps.refresh()
+    } else if command == "revealRecommendations" {
+      runtime.launcher.model.revealRecommendations()
+      Task { await runtime.launcher.model.refresh() }
     } else if command.hasPrefix("setLauncherQuery:") {
       runtime.launcher.model.query = String(command.dropFirst("setLauncherQuery:".count))
     } else if command.hasPrefix("selectLauncherApp:") {
@@ -222,6 +225,9 @@ extension NativeParityReporter {
   }
 
   func runningAppsLeadList(_ model: LauncherViewModel) -> Bool {
+    guard !model.rows.isEmpty else {
+      return false
+    }
     let running = runtime?.runningApps.bundleIdentifiers ?? []
     var seenRest = false
     for row in model.rows {

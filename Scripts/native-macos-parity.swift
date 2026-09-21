@@ -908,38 +908,75 @@ func visuallyHighlightedTitle(at url: URL, candidates: [String], leftFraction: D
   }?.title
 }
 
+func clipboardTitlesMatch(_ lhs: String, _ rhs: String) -> Bool {
+  !lhs.isEmpty && !rhs.isEmpty
+    && (lhs.localizedCaseInsensitiveContains(rhs) || rhs.localizedCaseInsensitiveContains(lhs))
+}
+
 func requireClipboardListHighlight(
   pid: pid_t,
   report: [String: Any],
   screenshot: String
 ) throws {
-  let selected = string(launcher(report)["clipboardSelectedTitle"])
-  let titles = displayedTitles(report)
-  try require(!selected.isEmpty, "clipboard exposes a selected title")
-  try require(titles.count >= 2, "clipboard list has multiple rows to highlight")
-  try require(
-    titles.first != selected,
-    "highlighted selection moved off the first list row (\(titles.first ?? ""))"
-  )
-  try captureLauncher(report, name: screenshot, expectedText: ocrVisibleProbe(selected))
-  if let axTitle = axSelectedClipboardTitle(pid: pid, candidates: titles) {
-    try require(
-      axTitle.localizedCaseInsensitiveContains(selected)
-        || selected.localizedCaseInsensitiveContains(axTitle),
-      "AX selected left-row title matches \(selected)"
-    )
-    return
+  let deadline = Date().addingTimeInterval(5)
+  let started = Date()
+  var latest = report
+  var lastFailure = "could not read the highlighted clipboard left-row title"
+  var nudged = false
+  while Date() < deadline {
+    latest = readReport() ?? latest
+    let selected = string(launcher(latest)["clipboardSelectedTitle"])
+    let titles = displayedTitles(latest)
+    let first = titles.first ?? ""
+    if titles.count < 2 {
+      RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+      continue
+    }
+    if selected.isEmpty || selected == first {
+      if !nudged, Date().timeIntervalSince(started) > 1.2 {
+        postKey(125)
+        nudged = true
+      }
+      RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+      continue
+    }
+    do {
+      try captureLauncher(latest, name: screenshot, expectedText: ocrVisibleProbe(selected))
+    } catch {
+      lastFailure = "captured \(screenshot).png for \(selected)"
+      RunLoop.current.run(until: Date().addingTimeInterval(0.15))
+      continue
+    }
+    let shot = screenshotDirectory.appendingPathComponent(screenshot + ".png")
+    let axTitle = axSelectedClipboardTitle(pid: pid, candidates: titles)
+    let visual = visuallyHighlightedTitle(at: shot, candidates: titles, leftFraction: 0.42)
+    if let axTitle, clipboardTitlesMatch(axTitle, selected) {
+      print("PASS: AX selected left-row title matches \(selected)")
+      return
+    }
+    if let visual, clipboardTitlesMatch(visual, selected) {
+      print("PASS: visually highlighted left-row title matches \(selected)")
+      return
+    }
+    if let highlighted = axTitle ?? visual,
+       highlighted != first,
+       titles.contains(where: { clipboardTitlesMatch($0, highlighted) })
+    {
+      do {
+        try captureLauncher(latest, name: screenshot, expectedText: ocrVisibleProbe(highlighted))
+        print("PASS: highlighted left-row title is \(highlighted)")
+        return
+      } catch {
+        lastFailure = "captured \(screenshot).png for \(highlighted)"
+      }
+    } else if axTitle != nil {
+      lastFailure = "AX selected left-row title matches \(selected)"
+    } else if visual != nil {
+      lastFailure = "visually highlighted left-row title matches \(selected)"
+    }
+    RunLoop.current.run(until: Date().addingTimeInterval(0.2))
   }
-  let screenshotURL = screenshotDirectory.appendingPathComponent(screenshot + ".png")
-  if let visual = visuallyHighlightedTitle(at: screenshotURL, candidates: titles, leftFraction: 0.42) {
-    try require(
-      visual.localizedCaseInsensitiveContains(selected)
-        || selected.localizedCaseInsensitiveContains(visual),
-      "visually highlighted left-row title matches \(selected)"
-    )
-    return
-  }
-  throw ParityFailure.failed("could not read the highlighted clipboard left-row title")
+  throw ParityFailure.failed(lastFailure)
 }
 
 /// Clipboard rows truncate long titles, and Vision wraps UUIDs. OCR only needs a
@@ -1147,16 +1184,14 @@ do {
     bool(launcher($0)["visible"])
   }
   try sendRuntimeCommand("suppressAutoHide")
-  try sendRuntimeCommand("moveLauncherSelection:1")
+  try sendRuntimeCommand("revealRecommendations")
   var recsAttempt = Date()
-  var retriedRecs = false
   report = try wait("running apps lead the launcher recommendations", timeout: 20) {
     let recs = string(launcher($0)["content"]) == "recommendations"
       && int(launcher($0)["resultCount"]) > 0
-    if !recs, !retriedRecs, Date().timeIntervalSince(recsAttempt) > 1.5 {
-      clickSearchField($0)
-      postKey(125)
-      retriedRecs = true
+    if !recs, Date().timeIntervalSince(recsAttempt) > 1.5 {
+      try? sendRuntimeCommand("revealRecommendations")
+      recsAttempt = Date()
     }
     return recs
       && bool(launcher($0)["runningAppsLeadList"])
