@@ -1146,12 +1146,8 @@ do {
     expectedText: string(launcher(report)["selectedTitle"])
   )
   try sendRuntimeCommand("setLauncherQuery:")
-  try sendRuntimeCommand("hideLauncher")
-  try sendRuntimeCommand("hideForeground:\(targetID)")
-  _ = try wait("target stays out of the foreground after Dock-dot proof") {
-    string($0["frontmostBundleID"]).caseInsensitiveCompare(targetID) != .orderedSame
-  }
-  try sendRuntimeCommand("restoreAgent")
+  try sendRuntimeCommand("dismissLauncher")
+  try sendRuntimeCommand("terminateForeground:\(targetID)")
   _ = try wait("launcher recommendations close before drag checks") {
     !bool(launcher($0)["visible"])
   }

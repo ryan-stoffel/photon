@@ -37,11 +37,10 @@ extension NativeParityReporter {
   }
 
   private func handleLauncherParityCommand(_ command: String, runtime: AppRuntime) {
-    if command == "hideLauncher" {
-      runtime.launcher.hide()
-    } else if command == "showLauncher" {
-      runtime.launcher.show()
-    } else if command == "resetLauncherPosition" {
+    if handleLauncherWindowCommand(command, runtime: runtime) {
+      return
+    }
+    if command == "resetLauncherPosition" {
       runtime.settings.resetLauncherPositionToCenter()
       if let panel = runtime.launcher.panel {
         runtime.launcher.position(panel)
@@ -61,40 +60,92 @@ extension NativeParityReporter {
     }
   }
 
+  private func handleLauncherWindowCommand(_ command: String, runtime: AppRuntime) -> Bool {
+    switch command {
+    case "hideLauncher":
+      runtime.launcher.hide()
+    case "showLauncher":
+      runtime.launcher.show()
+    case "dismissLauncher":
+      runtime.launcher.hide(restorePrevious: false)
+    default:
+      return false
+    }
+    return true
+  }
+
   private func handleLauncherPrefixCommand(_ command: String, runtime: AppRuntime) {
+    if handleFileParityCommand(command, runtime: runtime) {
+      return
+    }
+    if handleLaunchParityCommand(command, runtime: runtime) {
+      return
+    }
+    handleRowChromeParityCommand(command, runtime: runtime)
+  }
+
+  private func handleFileParityCommand(_ command: String, runtime: AppRuntime) -> Bool {
     if command.hasPrefix("showFiles:") {
       runtime.launcher.showFilesMode(query: String(command.dropFirst("showFiles:".count)))
-    } else if command.hasPrefix("setFilesQuery:") {
+      return true
+    }
+    if command.hasPrefix("setFilesQuery:") {
       runtime.launcher.model.query = String(command.dropFirst("setFilesQuery:".count))
-    } else if command.hasPrefix("requestFileAccess:") {
+      return true
+    }
+    if command.hasPrefix("requestFileAccess:") {
       let query = String(command.dropFirst("requestFileAccess:".count))
       runtime.fileSearch?.controller.update(query: query)
       runtime.fileSearch?.controller.requestFileAccess()
-    } else if command.hasPrefix("selectLauncherIndex:") {
+      return true
+    }
+    return false
+  }
+
+  private func handleLaunchParityCommand(_ command: String, runtime: AppRuntime) -> Bool {
+    if command.hasPrefix("selectLauncherIndex:") {
       let raw = String(command.dropFirst("selectLauncherIndex:".count))
       guard let index = Int(raw) else {
-        return
+        return true
       }
       let results = runtime.launcher.model.results
       guard results.indices.contains(index) else {
-        return
+        return true
       }
       runtime.launcher.model.selectedID = results[index].id
-    } else if command.hasPrefix("launchForeground:") {
+      return true
+    }
+    if command.hasPrefix("launchForeground:") {
       let identifier = String(command.dropFirst("launchForeground:".count))
       runtime.launcher.hide(restorePrevious: false)
       Task { @MainActor in
         _ = try? await ForegroundActivation.launch(bundleIdentifier: identifier)
         runtime.restoreAccessoryPolicy()
       }
-    } else if command.hasPrefix("hideForeground:") {
+      return true
+    }
+    if command.hasPrefix("hideForeground:") {
       let identifier = String(command.dropFirst("hideForeground:".count))
       ForegroundActivation.runningApplication(bundleIdentifier: identifier)?.hide()
       runtime.restoreAccessoryPolicy()
-    } else if command.hasPrefix("moveLauncherSelection:") {
+      return true
+    }
+    if command.hasPrefix("terminateForeground:") {
+      let identifier = String(command.dropFirst("terminateForeground:".count))
+      ForegroundActivation.runningApplication(bundleIdentifier: identifier)?.terminate()
+      runtime.restoreAccessoryPolicy()
+      return true
+    }
+    if command.hasPrefix("moveLauncherSelection:") {
       let raw = String(command.dropFirst("moveLauncherSelection:".count))
       runtime.launcher.model.moveSelection(Int(raw) ?? 0)
-    } else if command == "refreshRunningApps" {
+      return true
+    }
+    return false
+  }
+
+  private func handleRowChromeParityCommand(_ command: String, runtime: AppRuntime) {
+    if command == "refreshRunningApps" {
       runtime.runningApps.refresh()
     } else if command.hasPrefix("setLauncherQuery:") {
       runtime.launcher.model.query = String(command.dropFirst("setLauncherQuery:".count))
@@ -131,5 +182,32 @@ extension NativeParityReporter {
       )
     }
     runtime.settings.keybinds = keybinds
+  }
+
+  func selectedIsRunning(_ model: LauncherViewModel) -> Bool {
+    guard let row = model.selectedRow else {
+      return false
+    }
+    return row.showsRunningIndicator(runningBundleIDs: runtime?.runningApps.bundleIdentifiers ?? [])
+  }
+
+  func selectedShortcutChips(_ model: LauncherViewModel) -> [String] {
+    guard let row = model.selectedRow, let runtime else {
+      return []
+    }
+    return LauncherRowChrome.shortcutChips(
+      commandID: row.id,
+      keybinds: runtime.settings.keybinds,
+      clipboardHotkeyEnabled: runtime.settings.clipboardHotkeyEnabled,
+      clipboardHotkey: runtime.settings.clipboardHotkey,
+      notesHotkey: runtime.settings.notesHotkey
+    )
+  }
+
+  func runningAppRowTitles(_ model: LauncherViewModel) -> [String] {
+    let running = runtime?.runningApps.bundleIdentifiers ?? []
+    return model.rows.compactMap { row in
+      row.showsRunningIndicator(runningBundleIDs: running) ? row.title : nil
+    }
   }
 }
