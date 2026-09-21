@@ -1,5 +1,8 @@
+import AppKit
 import Foundation
 import PhotonApps
+import PhotonCore
+import PhotonFiles
 import PhotonKeybinds
 import PhotonNotes
 
@@ -230,5 +233,130 @@ extension NativeParityReporter {
       }
     }
     return true
+  }
+
+  func settingsWindowReport(_ runtime: AppRuntime) -> [String: Any] {
+    guard let window = runtime.existingSettingsWindow() else {
+      return [
+        "exists": false,
+        "visible": false,
+        "key": false,
+        "title": "",
+        "windowNumber": 0,
+      ]
+    }
+    return [
+      "exists": true,
+      "visible": window.isVisible,
+      "key": window.isKeyWindow,
+      "title": window.title,
+      "windowNumber": window.windowNumber,
+      "class": window.className,
+      "photonChrome": window is PhotonSettingsWindow
+        || window.contentView?.identifier?.rawValue == PhotonSettingsChrome.contentIdentifier.rawValue,
+      "cornerRadius": LauncherLayout.cornerRadius,
+    ]
+  }
+
+  func hostReport() -> [String: Any] {
+    let version = ProcessInfo.processInfo.operatingSystemVersion
+    return [
+      "os": ProcessInfo.processInfo.operatingSystemVersionString,
+      "major": version.majorVersion,
+      "minor": version.minorVersion,
+      "patch": version.patchVersion,
+      "glassAvailable": PhotonPanelChrome.glassEffectAvailable,
+    ]
+  }
+
+  func notesReport(_ controller: NotesController) -> [String: Any] {
+    [
+      "visible": controller.isWindowVisible,
+      "width": controller.windowWidth,
+      "height": controller.windowHeight,
+      "windowNumber": controller.windowNumber,
+      "overlay": controller.overlayName,
+      "title": controller.screenshotWindow?.title ?? "",
+      "characterCount": controller.currentNote?.characterCount ?? 0,
+    ]
+  }
+
+  func contentName(_ content: LauncherContent) -> String {
+    switch content {
+    case .searchOnly:
+      "searchOnly"
+    case .recommendations:
+      "recommendations"
+    case .rows:
+      "rows"
+    case .fullHeight:
+      "fullHeight"
+    }
+  }
+
+  func fileStatus(_ status: FileSearchController.Status?) -> String {
+    switch status {
+    case .idle:
+      "idle"
+    case .searching:
+      "searching"
+    case .recents:
+      "recents"
+    case .noRecents:
+      "noRecents"
+    case .results:
+      "results"
+    case .empty:
+      "empty"
+    case .unavailable:
+      "unavailable"
+    case .needsAccess:
+      "needsAccess"
+    case nil:
+      ""
+    }
+  }
+
+  func fileAccessStatus(_ status: FileAccessCoordinator.Status) -> String {
+    switch status {
+    case .idle:
+      "idle"
+    case .requesting:
+      "requesting"
+    case .granted:
+      "granted"
+    case .cancelled:
+      "cancelled"
+    case .failed:
+      "failed"
+    }
+  }
+
+  func launcherPositionReport(_ position: LauncherStoredPosition?) -> [String: Any] {
+    guard let position else {
+      return ["exists": false]
+    }
+    return [
+      "exists": true,
+      "x": position.originX,
+      "y": position.originY,
+      "centered": position.isHorizontallyCentered,
+    ]
+  }
+
+  func colorComponents(_ color: NSColor, appearance: NSAppearance) -> [String: Double] {
+    var resolved: NSColor?
+    appearance.performAsCurrentDrawingAppearance {
+      resolved = color.usingColorSpace(.deviceRGB)
+    }
+    guard let resolved else {
+      return [:]
+    }
+    return [
+      "red": resolved.redComponent,
+      "green": resolved.greenComponent,
+      "blue": resolved.blueComponent,
+      "alpha": resolved.alphaComponent,
+    ]
   }
 }
