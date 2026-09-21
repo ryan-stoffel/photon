@@ -18,6 +18,7 @@ struct GeneralSettingsView: View {
           SpotlightConflict.openKeyboardSettings()
         }
         .buttonStyle(.borderless)
+        .settingsFocused(.control("general.keyboardSettings"))
         .padding(.horizontal, 10)
         .padding(.bottom, 6)
       }
@@ -27,6 +28,7 @@ struct GeneralSettingsView: View {
           Toggle("", isOn: $settings.launchAtLogin)
             .toggleStyle(.switch)
             .labelsHidden()
+            .settingsFocused(.control("general.launchAtLogin"))
         }
         if let launchAtLoginError = settings.launchAtLoginError {
           Text(launchAtLoginError)

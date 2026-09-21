@@ -200,7 +200,9 @@ final class NativeParityReporter: NSObject {
         "clipboardHotkey": "\(clipboardHotkey.keyCode):\(clipboardHotkey.carbonModifiers)",
         "launcherPosition": launcherPositionReport(runtime.settings.launcherStoredPosition),
         "appHotkeyNames": runtime.settings.keybinds.appHotkeys.map(\.name),
+        "focus": runtime.settingsFocus.report,
       ],
+      "onboarding": onboardingReport(runtime),
       "capsLockOn": CapsLockState.isOn,
       "features": [
         "notesRegistered": model.results.contains { $0.command.providerID == "notes" },
@@ -295,6 +297,8 @@ final class NativeParityReporter: NSObject {
       "selectedShortcutChips": selectedShortcutChips(model),
       "runningAppRowTitles": runningAppRowTitles(model),
       "runningAppsLeadList": runningAppsLeadList(model),
+      "suggestionCount": model.suggestionCount,
+      "suggestionTitles": model.suggestionRows.map(\.title),
       "visibleRecommendationRows": LauncherLayout.visibleRecommendationRows,
       "fileSelectedName": runtime?.fileSearch?.controller.selected?.displayName ?? "",
       "fileSelectedType": runtime?.fileSearch?.controller.selected?.contentType ?? "",

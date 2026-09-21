@@ -133,6 +133,10 @@ func settings(_ report: [String: Any]) -> [String: Any] {
   dictionary(report["settings"])
 }
 
+func onboarding(_ report: [String: Any]) -> [String: Any] {
+  dictionary(report["onboarding"])
+}
+
 func host(_ report: [String: Any]) -> [String: Any] {
   dictionary(report["host"])
 }
@@ -279,6 +283,79 @@ func captureNotes(
       ocrContains(renderedText, expected),
       "\(name).png visibly contains \(expected)"
     )
+  }
+}
+
+func frequentSuggestionBundleIdentifier(excluding running: String) -> String {
+  let candidates = [
+    "com.apple.TextEdit",
+    "com.apple.Preview",
+    "com.apple.Safari",
+    "com.apple.calculator",
+    "com.apple.Calculator",
+  ]
+  for identifier in candidates where identifier.caseInsensitiveCompare(running) != .orderedSame {
+    if NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) != nil {
+      return identifier
+    }
+  }
+  return running
+}
+
+func frequentSuggestionTitle(_ identifier: String) -> String {
+  if identifier.localizedCaseInsensitiveContains("textedit") {
+    return "TextEdit"
+  }
+  if identifier.localizedCaseInsensitiveContains("preview") {
+    return "Preview"
+  }
+  if identifier.localizedCaseInsensitiveContains("safari") {
+    return "Safari"
+  }
+  return foregroundTargetTitle(identifier)
+}
+
+func captureOnboarding(
+  _ report: [String: Any],
+  name: String,
+  expectedText: String,
+  additionalExpectedText: [String] = []
+) throws {
+  try FileManager.default.createDirectory(
+    at: screenshotDirectory,
+    withIntermediateDirectories: true
+  )
+  RunLoop.current.run(until: Date().addingTimeInterval(0.8))
+  let destination = screenshotDirectory.appendingPathComponent(name + ".png")
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+  process.arguments = [
+    "-x",
+    "-l",
+    String(int(onboarding(report)["windowNumber"])),
+    destination.path,
+  ]
+  try process.run()
+  let captureDeadline = Date().addingTimeInterval(8)
+  while process.isRunning, Date() < captureDeadline {
+    RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+  }
+  if process.isRunning {
+    process.terminate()
+    throw ParityFailure.failed("screencapture timed out for \(name).png")
+  }
+  let size = (try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+  try require(process.terminationStatus == 0 && size > 0, "captured \(name).png")
+  let recognition = VNRecognizeTextRequest()
+  recognition.recognitionLevel = .accurate
+  let handler = VNImageRequestHandler(url: destination)
+  try handler.perform([recognition])
+  let renderedText = (recognition.results ?? [])
+    .compactMap { $0.topCandidates(1).first?.string }
+    .joined(separator: "\n")
+  try require(ocrContains(renderedText, expectedText), "\(name).png visibly contains \(expectedText)")
+  for expected in additionalExpectedText {
+    try require(ocrContains(renderedText, expected), "\(name).png visibly contains \(expected)")
   }
 }
 
@@ -1151,6 +1228,67 @@ do {
   )
   try require(bool(settingsWindow(report)["photonChrome"]), "Settings uses Photon panel chrome")
   try require(!bool(report["capsLockOn"]), "Caps Lock stays off")
+  try sendRuntimeCommand("focusSettings:sidebar:general")
+  _ = try wait("Settings focus starts on General", timeout: 8) {
+    string($0["lastParityCommand"]) == "focusSettings:sidebar:general"
+      && string(settings($0)["focus"]) == "sidebar:general"
+  }
+  postKey(48)
+  var settingsFocusMoved = false
+  do {
+    report = try wait("Tab moves the Settings focus ring off General", timeout: 6) {
+      string(settings($0)["focus"]) == "sidebar:appearance"
+    }
+    settingsFocusMoved = true
+  } catch {
+    settingsFocusMoved = false
+  }
+  if !settingsFocusMoved {
+    try sendRuntimeCommand("focusSettings:sidebar:general")
+    _ = try wait("Settings focus returns to General", timeout: 8) {
+      string(settings($0)["focus"]) == "sidebar:general"
+    }
+    try sendRuntimeCommand("moveSettingsFocus")
+    report = try wait("Settings focus moves to the next sidebar row", timeout: 8) {
+      string(settings($0)["focus"]) == "sidebar:appearance"
+    }
+  }
+  try require(
+    string(settings(report)["focus"]) == "sidebar:appearance",
+    "Settings focus is on Appearance instead of stuck on General"
+  )
+  try require(string(settings(report)["pane"]) == "general", "selecting a pane stays independent of the focus ring")
+  try captureSettings(
+    report,
+    name: "settings-focus",
+    expectedText: "Appearance",
+    additionalExpectedText: ["General", "Open launcher"]
+  )
+  try sendRuntimeCommand("showOnboarding")
+  report = try wait("first-run walkthrough opens") {
+    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Photon"
+  }
+  try captureOnboarding(
+    report,
+    name: "onboarding-welcome",
+    expectedText: "Photon",
+    additionalExpectedText: ["Continue"]
+  )
+  try sendRuntimeCommand("advanceOnboarding")
+  try sendRuntimeCommand("advanceOnboarding")
+  report = try wait("walkthrough reaches Suggestions") {
+    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Suggestions"
+  }
+  try captureOnboarding(
+    report,
+    name: "onboarding-suggestions",
+    expectedText: "Suggestions",
+    additionalExpectedText: ["Most opened", "Continue"]
+  )
+  try sendRuntimeCommand("dismissOnboarding")
+  _ = try wait("walkthrough closes") {
+    !bool(onboarding($0)["visible"])
+  }
   try sendRuntimeCommand("selectSettingsPane:keybinds")
   report = try wait("Settings Keybinds pane lists app hotkeys") {
     bool(settingsWindow($0)["visible"])
@@ -1179,6 +1317,10 @@ do {
   )
   try sendRuntimeCommand("restoreAgent")
   try sendRuntimeCommand("refreshRunningApps")
+  let frequentID = frequentSuggestionBundleIdentifier(excluding: targetID)
+  let frequentTitle = frequentSuggestionTitle(frequentID)
+  try sendRuntimeCommand("seedUsage:\(frequentID)|40")
+  try sendRuntimeCommand("seedUsage:\(targetID)|1")
   try sendRuntimeCommand("showLauncher")
   report = try wait("launcher reopens after foreground launch") {
     bool(launcher($0)["visible"])
@@ -1186,24 +1328,32 @@ do {
   try sendRuntimeCommand("suppressAutoHide")
   try sendRuntimeCommand("revealRecommendations")
   var recsAttempt = Date()
-  report = try wait("running apps lead the launcher recommendations", timeout: 20) {
+  report = try wait("Suggestions lead with the most-used app", timeout: 20) {
     let recs = string(launcher($0)["content"]) == "recommendations"
       && int(launcher($0)["resultCount"]) > 0
     if !recs, Date().timeIntervalSince(recsAttempt) > 1.5 {
       try? sendRuntimeCommand("revealRecommendations")
       recsAttempt = Date()
     }
+    let titles = strings(launcher($0)["suggestionTitles"])
     return recs
-      && bool(launcher($0)["runningAppsLeadList"])
+      && int(launcher($0)["suggestionCount"]) > 0
+      && titles.first?.localizedCaseInsensitiveContains(frequentTitle) == true
+      && !bool(launcher($0)["runningAppsLeadList"])
       && strings(launcher($0)["runningAppRowTitles"]).contains {
         $0.localizedCaseInsensitiveContains(foregroundTargetTitle(targetID))
       }
   }
-  try require(bool(launcher(report)["runningAppsLeadList"]), "running applications sit at the top of the list")
+  try require(
+    strings(launcher(report)["suggestionTitles"]).first?.localizedCaseInsensitiveContains(frequentTitle) == true,
+    "Suggestions are ranked by use count"
+  )
+  try require(!bool(launcher(report)["runningAppsLeadList"]), "open apps are not pinned to the top")
   try captureLauncher(
     report,
-    name: "launcher-running-apps-top",
-    expectedText: foregroundTargetTitle(targetID)
+    name: "launcher-suggestions",
+    expectedText: "Suggestions",
+    additionalExpectedText: [frequentTitle, foregroundTargetTitle(targetID)]
   )
   try sendRuntimeCommand("dismissLauncher")
   _ = try wait("launcher closes before hiding the launched app") {

@@ -129,7 +129,14 @@ struct LauncherView: View {
               )
               .id(hero.commandID)
             }
-            ForEach(model.rowsBelowCalculatorHero) { row in
+            if !model.suggestionRows.isEmpty {
+              suggestionHeader
+            }
+            ForEach(model.suggestionRows) { row in
+              resultRow(row)
+                .id(row.id)
+            }
+            ForEach(listRowsBelowSuggestions) { row in
               resultRow(row)
                 .id(row.id)
             }
@@ -146,6 +153,25 @@ struct LauncherView: View {
       }
     }
     .frame(maxHeight: .infinity)
+  }
+
+  /// Catalog rows under Suggestions. Typed queries keep the calculator hero out of this list.
+  private var listRowsBelowSuggestions: [LauncherRow] {
+    if model.suggestionCount > 0 {
+      return model.rowsAfterSuggestions
+    }
+    return model.rowsBelowCalculatorHero
+  }
+
+  private var suggestionHeader: some View {
+    Text("Suggestions")
+      .font(.system(size: 11, weight: .semibold))
+      .foregroundStyle(.secondary)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.horizontal, 12)
+      .padding(.top, 2)
+      .padding(.bottom, 2)
+      .accessibilityAddTraits(.isHeader)
   }
 
   private var messageRow: some View {

@@ -22,6 +22,7 @@ struct AboutSettingsView: View {
             Text("A small, fast macOS launcher.")
               .multilineTextAlignment(.center)
             Link("github.com/ryan-stoffel/photon", destination: Self.repositoryURL)
+              .settingsFocused(.control("about.repository"))
             Text("Copyright 2026 Ryan Stoffel. MIT License.")
               .font(.system(size: 12))
               .foregroundStyle(.secondary)

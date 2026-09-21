@@ -19,6 +19,25 @@ public struct HotkeyCombo: Equatable, Sendable {
     modifierSymbols + keyName
   }
 
+  /// Modifier symbols, then the key name, for a large shortcut display.
+  public var keycapLabels: [String] {
+    var labels: [String] = []
+    if carbonModifiers & UInt32(controlKey) != 0 {
+      labels.append("⌃")
+    }
+    if carbonModifiers & UInt32(optionKey) != 0 {
+      labels.append("⌥")
+    }
+    if carbonModifiers & UInt32(shiftKey) != 0 {
+      labels.append("⇧")
+    }
+    if carbonModifiers & UInt32(cmdKey) != 0 {
+      labels.append("⌘")
+    }
+    labels.append(keyName)
+    return labels
+  }
+
   public var appleFlags: UInt32 {
     var flags: UInt32 = 0
     if carbonModifiers & UInt32(cmdKey) != 0 {

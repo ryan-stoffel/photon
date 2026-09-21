@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Suggestions at the top of the empty launcher, ranked by how often each application is opened on this Mac.
+- A first-run walkthrough for the launcher, search, suggestions, clipboard, notes, files, and Settings.
+- Accessibility and Input Monitoring are requested together on first launch.
+
+### Changed
+
+- Currently open applications are no longer pinned to the top of the launcher. Running dots still mark open apps.
+
+### Fixed
+
+- Tab moves keyboard focus through Settings. The sidebar focus ring no longer stays stuck on one row.
+
 ## [0.4.2] - 2026-09-21
 
 Ryan Photon-styled Settings, Caps Lock Hyper, app-hotkeys list, and running-apps-first release.

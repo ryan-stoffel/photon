@@ -23,6 +23,15 @@ public struct FrecencyStore: Codable, Sendable, Equatable {
     }
   }
 
+  /// Replaces the stored open count. Used when a caller already knows the total.
+  public mutating func setUseCount(id: String, count: Int, at date: Date = Date()) {
+    if count <= 0 {
+      records.removeValue(forKey: id)
+      return
+    }
+    records[id] = FrecencyRecord(count: count, lastUsed: date)
+  }
+
   public func score(id: String, now: Date = Date()) -> Double {
     guard let record = records[id] else {
       return 0

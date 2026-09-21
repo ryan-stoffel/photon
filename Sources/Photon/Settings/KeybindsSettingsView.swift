@@ -26,6 +26,7 @@ struct KeybindsSettingsView: View {
         granted: keybinds.accessibilityGranted,
         action: { keybinds.requestAccessibility() }
       )
+      .settingsFocused(.control("keybinds.accessibility"))
       PermissionRow(
         title: "Input Monitoring",
         detail: "Optional. macOS may ask for it the first time the Hyper key is enabled.",
@@ -43,9 +44,10 @@ struct KeybindsSettingsView: View {
         + "Caps Lock as Hyper never turns Caps Lock on."
     ) {
       PhotonSettingsRow(title: "Enable Hyper key") {
-        Toggle("", isOn: $settings.keybinds.hyperKey.enabled)
-          .toggleStyle(.switch)
-          .labelsHidden()
+          Toggle("", isOn: $settings.keybinds.hyperKey.enabled)
+            .toggleStyle(.switch)
+            .labelsHidden()
+            .settingsFocused(.control("keybinds.hyper"))
           .onChange(of: settings.keybinds.hyperKey.enabled) { _, enabled in
             if enabled, !keybinds.accessibilityGranted {
               keybinds.requestAccessibility()

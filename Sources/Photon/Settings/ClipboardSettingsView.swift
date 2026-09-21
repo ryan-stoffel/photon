@@ -45,6 +45,7 @@ struct ClipboardSettingsView: View {
         Toggle("", isOn: $settings.clipboardEnabled)
           .toggleStyle(.switch)
           .labelsHidden()
+          .settingsFocused(.control("clipboard.enabled"))
       }
       PhotonSettingsRow(title: "Keep items for") {
         Picker("Keep items for", selection: $settings.clipboardRetention) {
@@ -54,6 +55,7 @@ struct ClipboardSettingsView: View {
         }
         .labelsHidden()
         .disabled(!settings.clipboardEnabled)
+        .settingsFocused(.control("clipboard.retention"))
         .frame(maxWidth: 180)
       }
       PhotonSettingsRow(title: "Maximum items") {
@@ -67,6 +69,7 @@ struct ClipboardSettingsView: View {
             .monospacedDigit()
         }
         .disabled(!settings.clipboardEnabled)
+        .settingsFocused(.control("clipboard.maxItems"))
       }
     }
   }
