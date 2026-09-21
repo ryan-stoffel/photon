@@ -4,6 +4,9 @@ import SwiftUI
 
 struct SettingsRootView: View {
   @ObservedObject var settings: SettingsStore
+  @EnvironmentObject private var settingsFocus: SettingsFocusModel
+  @FocusState private var focus: SettingsFocusTarget?
+  @State private var hostWindow: NSWindow?
 
   var body: some View {
     HStack(spacing: 0) {
@@ -23,12 +26,62 @@ struct SettingsRootView: View {
         .strokeBorder(Color.primary.opacity(0.1), lineWidth: LauncherLayout.hairline)
         .allowsHitTesting(false)
     )
+    .environment(\.settingsFocus, .some($focus))
+    .background(SettingsWindowReader { window in
+      if hostWindow !== window {
+        hostWindow = window
+      }
+    })
     .onAppear {
       if let pending = settings.pendingSettingsPane {
         settings.selectedPane = pending
         settings.pendingSettingsPane = nil
       }
     }
+    .onReceive(NotificationCenter.default.publisher(for: .photonSettingsMoveFocus)) { note in
+      guard hostWindow is PhotonSettingsWindow else {
+        return
+      }
+      if (note.userInfo?["reset"] as? Bool) == true {
+        focus = nil
+        settingsFocus.target = nil
+        return
+      }
+      if let raw = note.userInfo?["target"] as? String, let next = SettingsFocusTarget.parsed(raw) {
+        focus = next
+        settingsFocus.target = next
+        return
+      }
+      let forward = (note.userInfo?["forward"] as? Bool) ?? true
+      moveFocus(forward: forward)
+    }
+    .onChange(of: focus) { _, newValue in
+      guard hostWindow is PhotonSettingsWindow, let newValue else {
+        return
+      }
+      settingsFocus.target = newValue
+    }
+  }
+
+  private func moveFocus(forward: Bool) {
+    let order = SettingsFocusTarget.order(pane: settings.selectedPane)
+    guard let first = order.first, let last = order.last else {
+      return
+    }
+    let current = focus ?? settingsFocus.target
+    let next: SettingsFocusTarget
+    if let current, let index = order.firstIndex(of: current) {
+      let destination = index + (forward ? 1 : -1)
+      if order.indices.contains(destination) {
+        next = order[destination]
+      } else {
+        next = forward ? first : last
+      }
+    } else {
+      next = forward ? first : last
+    }
+    focus = next
+    settingsFocus.target = next
   }
 
   private var sidebar: some View {
@@ -86,6 +139,32 @@ struct SettingsRootView: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
+    .focused($focus, equals: .sidebar(pane))
+    .focusEffectDisabled()
+    .overlay(
+      RoundedRectangle(cornerRadius: PhotonSettingsChrome.rowCornerRadius, style: .continuous)
+        .strokeBorder(Color.accentColor.opacity(focus == .sidebar(pane) ? 1 : 0), lineWidth: 2)
+        .padding(1)
+        .allowsHitTesting(false)
+    )
+  }
+}
+
+private struct SettingsWindowReader: NSViewRepresentable {
+  var onWindow: (NSWindow?) -> Void
+
+  func makeNSView(context _: Context) -> NSView {
+    let view = NSView(frame: .zero)
+    DispatchQueue.main.async {
+      onWindow(view.window)
+    }
+    return view
+  }
+
+  func updateNSView(_ nsView: NSView, context _: Context) {
+    DispatchQueue.main.async {
+      onWindow(nsView.window)
+    }
   }
 }
 

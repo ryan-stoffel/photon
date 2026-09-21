@@ -23,6 +23,7 @@ struct NotesSettingsView: View {
               .foregroundStyle(.secondary)
               .monospacedDigit()
           }
+          .settingsFocused(.control("notes.size"))
         }
       }
 
@@ -31,11 +32,13 @@ struct NotesSettingsView: View {
           Toggle("", isOn: $settings.notesFloatsAboveOtherWindows)
             .toggleStyle(.switch)
             .labelsHidden()
+            .settingsFocused(.control("notes.float"))
         }
         PhotonSettingsRow(title: "Open notes when Photon launches") {
           Toggle("", isOn: $settings.notesOpenOnLaunch)
             .toggleStyle(.switch)
             .labelsHidden()
+            .settingsFocused(.control("notes.launch"))
         }
       }
 

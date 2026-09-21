@@ -20,12 +20,14 @@ struct FilesSettingsView: View {
             }
           }
           .labelsHidden()
+          .settingsFocused(.control("files.scope"))
           .frame(maxWidth: 220)
         }
         PhotonSettingsRow(title: "Search file contents") {
           Toggle("", isOn: $settings.filesSearchContents)
             .toggleStyle(.switch)
             .labelsHidden()
+            .settingsFocused(.control("files.contents"))
         }
         PhotonSettingsRow(title: "Show up to \(settings.filesMaxResults) results") {
           Stepper(
@@ -35,6 +37,7 @@ struct FilesSettingsView: View {
           ) {
             EmptyView()
           }
+          .settingsFocused(.control("files.maxResults"))
         }
       }
 

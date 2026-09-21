@@ -43,23 +43,17 @@ extension NativeParityReporter {
     if handleLauncherWindowCommand(command, runtime: runtime) {
       return
     }
+    if handleSettingsParityCommand(command, runtime: runtime) {
+      return
+    }
+    if handleOnboardingParityCommand(command, runtime: runtime) {
+      return
+    }
     if command == "resetLauncherPosition" {
       runtime.settings.resetLauncherPositionToCenter()
       if let panel = runtime.launcher.panel {
         runtime.launcher.position(panel)
       }
-    } else if command == "openSettings" {
-      runtime.openSettings()
-    } else if command.hasPrefix("selectSettingsPane:") {
-      let raw = String(command.dropFirst("selectSettingsPane:".count))
-      if let pane = SettingsPaneID(rawValue: raw) {
-        runtime.settings.selectedPane = pane
-        runtime.openSettings()
-      }
-    } else if command == "hideSettings" {
-      runtime.closeSettings()
-    } else if command == "refreshAppearance" {
-      runtime.applyAppearance()
     } else if command == "restoreAgent" {
       runtime.restoreAccessoryPolicy()
     } else if command == "suppressAutoHide" {
@@ -67,6 +61,55 @@ extension NativeParityReporter {
     } else {
       handleLauncherPrefixCommand(command, runtime: runtime)
     }
+  }
+
+  private func handleSettingsParityCommand(_ command: String, runtime: AppRuntime) -> Bool {
+    switch command {
+    case "openSettings":
+      runtime.openSettings()
+    case "hideSettings":
+      runtime.closeSettings()
+    case "moveSettingsFocus":
+      SettingsFocusRouting.move(forward: true)
+    case "resetSettingsFocus":
+      SettingsFocusRouting.reset()
+    case "refreshAppearance":
+      runtime.applyAppearance()
+    default:
+      return handleSettingsPrefixCommand(command, runtime: runtime)
+    }
+    return true
+  }
+
+  private func handleSettingsPrefixCommand(_ command: String, runtime: AppRuntime) -> Bool {
+    if command.hasPrefix("selectSettingsPane:") {
+      let raw = String(command.dropFirst("selectSettingsPane:".count))
+      if let pane = SettingsPaneID(rawValue: raw) {
+        runtime.settings.selectedPane = pane
+        runtime.openSettings()
+      }
+      return true
+    }
+    if command.hasPrefix("focusSettings:") {
+      SettingsFocusRouting.focus(report: String(command.dropFirst("focusSettings:".count)))
+      return true
+    }
+    return false
+  }
+
+  private func handleOnboardingParityCommand(_ command: String, runtime: AppRuntime) -> Bool {
+    switch command {
+    case "showOnboarding":
+      let onboarding = runtime.makeOnboarding()
+      onboarding.present(hotkey: runtime.settings.hotkey)
+    case "advanceOnboarding":
+      runtime.onboarding?.advance()
+    case "dismissOnboarding":
+      runtime.onboarding?.finish()
+    default:
+      return false
+    }
+    return true
   }
 
   private func handleLauncherWindowCommand(_ command: String, runtime: AppRuntime) -> Bool {
@@ -166,7 +209,21 @@ extension NativeParityReporter {
       selectLauncherApp(String(command.dropFirst("selectLauncherApp:".count)), runtime: runtime)
     } else if command.hasPrefix("seedAppHotkey:") {
       seedAppHotkey(String(command.dropFirst("seedAppHotkey:".count)), runtime: runtime)
+    } else if command.hasPrefix("seedUsage:") {
+      seedUsage(String(command.dropFirst("seedUsage:".count)), runtime: runtime)
     }
+  }
+
+  private func seedUsage(_ payload: String, runtime: AppRuntime) {
+    let parts = payload.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false)
+    guard let rawID = parts.first else {
+      return
+    }
+    let count = parts.count > 1 ? Int(parts[1]) ?? 1 : 1
+    let identifier = String(rawID)
+    let commandID = identifier.hasPrefix("app:") ? identifier : "app:\(identifier)"
+    runtime.launcher.model.frecency.setUseCount(id: commandID, count: count)
+    Task { await runtime.launcher.model.refresh() }
   }
 
   private func selectLauncherApp(_ identifier: String, runtime: AppRuntime) {
@@ -222,6 +279,23 @@ extension NativeParityReporter {
     return model.rows.compactMap { row in
       row.showsRunningIndicator(runningBundleIDs: running) ? row.title : nil
     }
+  }
+
+  func onboardingReport(_ runtime: AppRuntime) -> [String: Any] {
+    guard let onboarding = runtime.onboarding else {
+      return [
+        "visible": false,
+        "windowNumber": 0,
+        "step": "",
+        "title": "",
+      ]
+    }
+    return [
+      "visible": onboarding.isVisible,
+      "windowNumber": onboarding.windowNumber,
+      "step": onboarding.step.title,
+      "title": onboarding.step.title,
+    ]
   }
 
   func runningAppsLeadList(_ model: LauncherViewModel) -> Bool {

@@ -14,12 +14,13 @@ struct AppearanceSettingsView: View {
       ) {
         PhotonSettingsRow(
           title: "Show suggestions before typing",
-          detail: "On: the launcher opens with your most used apps and commands. "
+          detail: "On: the launcher opens with Suggestions of the apps you use most. "
             + "Off: it stays a single search field until you type."
         ) {
           Toggle("", isOn: $settings.launcherShowsSuggestions)
             .toggleStyle(.switch)
             .labelsHidden()
+            .settingsFocused(.control("appearance.suggestions"))
         }
         VStack(alignment: .leading, spacing: 8) {
           Text("Panel width")
@@ -31,6 +32,7 @@ struct AppearanceSettingsView: View {
           }
           .pickerStyle(.segmented)
           .labelsHidden()
+          .settingsFocused(.control("appearance.width"))
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -38,6 +40,7 @@ struct AppearanceSettingsView: View {
           settings.resetLauncherPositionToCenter()
         }
         .buttonStyle(.borderless)
+        .settingsFocused(.control("appearance.reset"))
         .padding(.horizontal, 10)
         .padding(.bottom, 6)
       }
@@ -52,6 +55,7 @@ struct AppearanceSettingsView: View {
           }
         }
         .pickerStyle(.segmented)
+        .settingsFocused(.control("appearance.mode"))
         .padding(10)
       }
     }

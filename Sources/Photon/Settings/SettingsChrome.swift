@@ -77,6 +77,19 @@ final class PhotonSettingsWindow: NSWindow {
     true
   }
 
+  /// Tab is handled by Settings focus so the sidebar ring cannot stay on the first row.
+  override func sendEvent(_ event: NSEvent) {
+    if event.type == .keyDown, event.keyCode == 48 {
+      let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+      let blocked = modifiers.intersection([.command, .option, .control])
+      if blocked.isEmpty {
+        SettingsFocusRouting.move(forward: !modifiers.contains(.shift))
+        return
+      }
+    }
+    super.sendEvent(event)
+  }
+
   func setRootView(_ view: some View) {
     hostingView?.rootView = AnyView(view)
     hostingView?.needsDisplay = true
@@ -89,6 +102,13 @@ final class PhotonSettingsWindowCloseDelegate: NSObject, NSWindowDelegate {
 
   func windowWillClose(_: Notification) {
     onClose?()
+  }
+
+  func windowDidBecomeKey(_ notification: Notification) {
+    guard let window = notification.object as? PhotonSettingsWindow else {
+      return
+    }
+    window.makeFirstResponder(window.hostingView)
   }
 }
 
