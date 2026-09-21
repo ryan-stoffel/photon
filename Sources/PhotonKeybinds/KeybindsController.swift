@@ -109,6 +109,16 @@ public final class KeybindsController: ObservableObject {
     applyHyperKey()
   }
 
+  /// Asks for Accessibility and Input Monitoring together. Marks the later guidance alert as shown.
+  public func requestFirstLaunchPermissions() {
+    UserDefaults.standard.set(true, forKey: Self.accessibilityGuidanceKey)
+    AccessibilityPermission.requestTrust()
+    AccessibilityPermission.requestInputMonitoring()
+    refreshPermissions()
+    applyHyperKey()
+    updatePermissionPolling()
+  }
+
   /// One-time first-run alert when the Hyper key is on but Accessibility is missing.
   public func adviseAccessibilityIfNeeded() {
     let defaults = UserDefaults.standard

@@ -20,6 +20,8 @@ final class AppRuntime: ObservableObject {
   let keybinds: KeybindsController
   let fileAccess: FileAccessCoordinator
   let runningApps = RunningApplications()
+  let settingsFocus = SettingsFocusModel()
+  private(set) var onboarding: OnboardingController?
   private let hotkey = HotkeyManager.shared
   private let frecencyURL: URL
   var fileSearch: FileSearchIntegration?
@@ -110,8 +112,12 @@ final class AppRuntime: ObservableObject {
         }
         keybinds.apply(settings.keybinds)
       }
-      SpotlightConflict.adviseIfNeeded(current: settings.hotkey)
-      keybinds.adviseAccessibilityIfNeeded()
+      if NativeParityReporter.isRequested {
+        SpotlightConflict.adviseIfNeeded(current: settings.hotkey)
+        keybinds.adviseAccessibilityIfNeeded()
+      } else {
+        presentFirstLaunch()
+      }
     } else {
       notes.startWithoutOpenOnLaunch()
     }
@@ -223,6 +229,36 @@ final class AppRuntime: ObservableObject {
     }
   }
 
+  func presentFirstLaunch() {
+    let defaults = UserDefaults.standard
+    if !defaults.bool(forKey: FirstLaunch.permissionsKey) {
+      defaults.set(true, forKey: FirstLaunch.permissionsKey)
+      keybinds.requestFirstLaunchPermissions()
+    }
+    if !defaults.bool(forKey: FirstLaunch.onboardingKey) {
+      let controller = makeOnboarding()
+      controller.onFinish = { [weak self] in
+        guard let self else {
+          return
+        }
+        SpotlightConflict.adviseIfNeeded(current: settings.hotkey)
+      }
+      controller.present(hotkey: settings.hotkey)
+    } else {
+      SpotlightConflict.adviseIfNeeded(current: settings.hotkey)
+      keybinds.adviseAccessibilityIfNeeded()
+    }
+  }
+
+  func makeOnboarding() -> OnboardingController {
+    if let onboarding {
+      return onboarding
+    }
+    let controller = OnboardingController(hotkey: settings.hotkey)
+    onboarding = controller
+    return controller
+  }
+
   func openSettings() {
     launcher.hide(restorePrevious: false)
     NSApp.activate(ignoringOtherApps: true)
@@ -250,6 +286,7 @@ final class AppRuntime: ObservableObject {
   private var settingsRootView: some View {
     SettingsRootView(settings: settings)
       .environmentObject(settings)
+      .environmentObject(settingsFocus)
       .environmentObject(clipboard)
       .environmentObject(keybinds)
       .environmentObject(fileAccess)

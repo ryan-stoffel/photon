@@ -69,6 +69,9 @@ final class LauncherViewModel: ObservableObject {
     didSet { updateContent() }
   }
 
+  /// How many leading rows belong to the Suggestions section. Zero hides the header.
+  @Published var suggestionCount = 0
+
   /// Drives the panel height; `LauncherPanelController` resizes the window when it changes.
   @Published private(set) var content: LauncherContent = .searchOnly
 
@@ -94,15 +97,6 @@ final class LauncherViewModel: ObservableObject {
 
   let registry: CommandRegistry
   var frecency: FrecencyStore
-  /// Live running-app bundle IDs. Running `app:` rows sort to the top of the list.
-  var runningBundleIDs: Set<String> = [] {
-    didSet {
-      guard runningBundleIDs != oldValue, showsCommandList, !results.isEmpty else {
-        return
-      }
-      Task { await refresh() }
-    }
-  }
 
   /// Set by `AppRuntime` once the clipboard feature is available.
   var clipboard: ClipboardHistoryViewModel? {
@@ -121,8 +115,8 @@ final class LauncherViewModel: ObservableObject {
 
   private var clipboardCancellable: AnyCancellable?
   private(set) var modes: [any LauncherMode] = []
-  private let limit = 30
-  private let trailingLimit = 5
+  let limit = 30
+  let trailingLimit = 5
   /// Searches finish out of order when typing fast; only the latest one may publish.
   private var searchGeneration = 0
 
@@ -139,6 +133,20 @@ final class LauncherViewModel: ObservableObject {
 
   var rows: [LauncherRow] {
     results.map { LauncherRow(command: $0.command) }
+  }
+
+  var suggestionRows: [LauncherRow] {
+    guard suggestionCount > 0 else {
+      return []
+    }
+    return Array(rows.prefix(suggestionCount))
+  }
+
+  var rowsAfterSuggestions: [LauncherRow] {
+    guard suggestionCount > 0 else {
+      return rows
+    }
+    return Array(rows.dropFirst(suggestionCount))
   }
 
   var selectedRow: LauncherRow? {
@@ -204,7 +212,11 @@ final class LauncherViewModel: ObservableObject {
     guard showsCommandList, generation == searchGeneration else {
       return
     }
-    results = arrange(ranked, forEmptyQuery: query.isEmpty)
+    let arranged = arrange(ranked, forEmptyQuery: query.isEmpty)
+    if suggestionCount != arranged.suggestionCount {
+      suggestionCount = arranged.suggestionCount
+    }
+    results = arranged.commands
     if !results.contains(where: { $0.id == selectedID }) {
       selectedID = results.first?.id
     }
@@ -388,39 +400,10 @@ final class LauncherViewModel: ObservableObject {
     if !results.isEmpty {
       results = []
     }
+    if suggestionCount != 0 {
+      suggestionCount = 0
+    }
     selectedID = nil
-  }
-
-  /// Primary results first; a mode's inline results (never its activation command) trail them
-  /// except files, which mix into the main list so a query like `ember` shows Documents
-  /// hits without typing "files" first.
-  /// An empty query lists suggestions: the few best-ranked (frecency) commands.
-  private func arrange(_ ranked: [RankedCommand], forEmptyQuery isSuggestions: Bool) -> [RankedCommand] {
-    var primary: [RankedCommand] = []
-    var trailing: [RankedCommand] = []
-    for item in ranked {
-      let mode = mode(forInlineProvider: item.command.providerID)
-      if let mode, item.command.id != mode.activationCommandID, mode.id != "files" {
-        trailing.append(item)
-      } else {
-        primary.append(item)
-      }
-    }
-    let ordered = LauncherRanking.promotingRunningApps(primary, runningBundleIDs: runningBundleIDs)
-    if isSuggestions {
-      var seen = Set<String>()
-      var unique: [RankedCommand] = []
-      for item in ordered {
-        if seen.insert(item.id).inserted {
-          unique.append(item)
-        }
-        if unique.count == LauncherLayout.recommendationCatalogLimit {
-          break
-        }
-      }
-      return unique
-    }
-    return Array(ordered.prefix(limit)) + Array(trailing.prefix(trailingLimit))
   }
 
   private func updateContent() {

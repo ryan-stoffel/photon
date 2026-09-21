@@ -21,6 +21,12 @@ public enum AccessibilityPermission {
     CGPreflightListenEventAccess()
   }
 
+  /// Shows the system Input Monitoring prompt. Silent when the choice is already made.
+  @discardableResult
+  public static func requestInputMonitoring() -> Bool {
+    CGRequestListenEventAccess()
+  }
+
   public static func openAccessibilitySettings() {
     open("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
   }

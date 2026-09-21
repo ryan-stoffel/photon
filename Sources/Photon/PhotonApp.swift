@@ -13,6 +13,7 @@ struct PhotonApp: App {
         .environmentObject(appDelegate.runtime.keybinds)
         .environmentObject(appDelegate.runtime.fileAccess)
         .environmentObject(appDelegate.runtime.runningApps)
+        .environmentObject(appDelegate.runtime.settingsFocus)
         .background(PhotonSettingsWindowBinder())
         .frame(minWidth: 720, minHeight: 480)
     }
