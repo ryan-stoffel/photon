@@ -1117,13 +1117,14 @@ do {
   try sendRuntimeCommand("selectSettingsPane:keybinds")
   report = try wait("Settings Keybinds pane lists app hotkeys") {
     bool(settingsWindow($0)["visible"])
+      && bool(settingsWindow($0)["photonChrome"])
       && string(settings($0)["pane"]) == "keybinds"
   }
   try captureSettings(
     report,
     name: "app-hotkeys",
     expectedText: "App hotkeys",
-    additionalExpectedText: ["Add missing app", "Filter apps"]
+    additionalExpectedText: ["Add missing app", "Filter apps", "Keybinds"]
   )
   try sendRuntimeCommand("hideSettings")
   _ = try wait("Settings closes after the Command-comma proof") {
