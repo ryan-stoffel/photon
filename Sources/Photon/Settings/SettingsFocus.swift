@@ -93,15 +93,8 @@ final class SettingsFocusModel: ObservableObject {
   }
 }
 
-private struct SettingsFocusKey: EnvironmentKey {
-  static let defaultValue: FocusState<SettingsFocusTarget?>.Binding? = nil
-}
-
 extension EnvironmentValues {
-  var settingsFocus: FocusState<SettingsFocusTarget?>.Binding? {
-    get { self[SettingsFocusKey.self] }
-    set { self[SettingsFocusKey.self] = newValue }
-  }
+  @Entry var settingsFocus: FocusState<SettingsFocusTarget?>.Binding? = nil
 }
 
 extension View {

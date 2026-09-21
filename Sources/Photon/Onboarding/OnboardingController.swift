@@ -140,6 +140,11 @@ enum OnboardingChrome {
 final class OnboardingWindow: NSWindow {
   var hostingView: NSHostingView<AnyView>?
 
-  override var canBecomeKey: Bool { true }
-  override var canBecomeMain: Bool { true }
+  override var canBecomeKey: Bool {
+    true
+  }
+
+  override var canBecomeMain: Bool {
+    true
+  }
 }
