@@ -43,36 +43,17 @@ extension NativeParityReporter {
     if handleLauncherWindowCommand(command, runtime: runtime) {
       return
     }
+    if handleSettingsParityCommand(command, runtime: runtime) {
+      return
+    }
+    if handleOnboardingParityCommand(command, runtime: runtime) {
+      return
+    }
     if command == "resetLauncherPosition" {
       runtime.settings.resetLauncherPositionToCenter()
       if let panel = runtime.launcher.panel {
         runtime.launcher.position(panel)
       }
-    } else if command == "openSettings" {
-      runtime.openSettings()
-    } else if command.hasPrefix("selectSettingsPane:") {
-      let raw = String(command.dropFirst("selectSettingsPane:".count))
-      if let pane = SettingsPaneID(rawValue: raw) {
-        runtime.settings.selectedPane = pane
-        runtime.openSettings()
-      }
-    } else if command == "hideSettings" {
-      runtime.closeSettings()
-    } else if command == "moveSettingsFocus" {
-      SettingsFocusRouting.move(forward: true)
-    } else if command == "resetSettingsFocus" {
-      SettingsFocusRouting.reset()
-    } else if command.hasPrefix("focusSettings:") {
-      SettingsFocusRouting.focus(report: String(command.dropFirst("focusSettings:".count)))
-    } else if command == "showOnboarding" {
-      let onboarding = runtime.makeOnboarding()
-      onboarding.present(hotkey: runtime.settings.hotkey)
-    } else if command == "advanceOnboarding" {
-      runtime.onboarding?.advance()
-    } else if command == "dismissOnboarding" {
-      runtime.onboarding?.finish()
-    } else if command == "refreshAppearance" {
-      runtime.applyAppearance()
     } else if command == "restoreAgent" {
       runtime.restoreAccessoryPolicy()
     } else if command == "suppressAutoHide" {
@@ -80,6 +61,55 @@ extension NativeParityReporter {
     } else {
       handleLauncherPrefixCommand(command, runtime: runtime)
     }
+  }
+
+  private func handleSettingsParityCommand(_ command: String, runtime: AppRuntime) -> Bool {
+    switch command {
+    case "openSettings":
+      runtime.openSettings()
+    case "hideSettings":
+      runtime.closeSettings()
+    case "moveSettingsFocus":
+      SettingsFocusRouting.move(forward: true)
+    case "resetSettingsFocus":
+      SettingsFocusRouting.reset()
+    case "refreshAppearance":
+      runtime.applyAppearance()
+    default:
+      return handleSettingsPrefixCommand(command, runtime: runtime)
+    }
+    return true
+  }
+
+  private func handleSettingsPrefixCommand(_ command: String, runtime: AppRuntime) -> Bool {
+    if command.hasPrefix("selectSettingsPane:") {
+      let raw = String(command.dropFirst("selectSettingsPane:".count))
+      if let pane = SettingsPaneID(rawValue: raw) {
+        runtime.settings.selectedPane = pane
+        runtime.openSettings()
+      }
+      return true
+    }
+    if command.hasPrefix("focusSettings:") {
+      SettingsFocusRouting.focus(report: String(command.dropFirst("focusSettings:".count)))
+      return true
+    }
+    return false
+  }
+
+  private func handleOnboardingParityCommand(_ command: String, runtime: AppRuntime) -> Bool {
+    switch command {
+    case "showOnboarding":
+      let onboarding = runtime.makeOnboarding()
+      onboarding.present(hotkey: runtime.settings.hotkey)
+    case "advanceOnboarding":
+      runtime.onboarding?.advance()
+    case "dismissOnboarding":
+      runtime.onboarding?.finish()
+    default:
+      return false
+    }
+    return true
   }
 
   private func handleLauncherWindowCommand(_ command: String, runtime: AppRuntime) -> Bool {

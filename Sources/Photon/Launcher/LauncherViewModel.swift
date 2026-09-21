@@ -70,7 +70,7 @@ final class LauncherViewModel: ObservableObject {
   }
 
   /// How many leading rows belong to the Suggestions section. Zero hides the header.
-  @Published private(set) var suggestionCount = 0
+  @Published var suggestionCount = 0
 
   /// Drives the panel height; `LauncherPanelController` resizes the window when it changes.
   @Published private(set) var content: LauncherContent = .searchOnly
@@ -115,8 +115,8 @@ final class LauncherViewModel: ObservableObject {
 
   private var clipboardCancellable: AnyCancellable?
   private(set) var modes: [any LauncherMode] = []
-  private let limit = 30
-  private let trailingLimit = 5
+  let limit = 30
+  let trailingLimit = 5
   /// Searches finish out of order when typing fast; only the latest one may publish.
   private var searchGeneration = 0
 
@@ -404,50 +404,6 @@ final class LauncherViewModel: ObservableObject {
       suggestionCount = 0
     }
     selectedID = nil
-  }
-
-  private struct Arrangement {
-    var commands: [RankedCommand]
-    var suggestionCount: Int
-  }
-
-  /// Primary results first; a mode's inline results (never its activation command) trail them
-  /// except files, which mix into the main list so a query like `ember` shows Documents
-  /// hits without typing "files" first.
-  /// An empty query leads with Suggestions: applications ranked by local open count.
-  private func arrange(_ ranked: [RankedCommand], forEmptyQuery isSuggestions: Bool) -> Arrangement {
-    var primary: [RankedCommand] = []
-    var trailing: [RankedCommand] = []
-    for item in ranked {
-      let mode = mode(forInlineProvider: item.command.providerID)
-      if let mode, item.command.id != mode.activationCommandID, mode.id != "files" {
-        trailing.append(item)
-      } else {
-        primary.append(item)
-      }
-    }
-    if isSuggestions {
-      return suggestionsArrangement(primary)
-    }
-    let commands = Array(primary.prefix(limit)) + Array(trailing.prefix(trailingLimit))
-    return Arrangement(commands: commands, suggestionCount: 0)
-  }
-
-  private func suggestionsArrangement(_ primary: [RankedCommand]) -> Arrangement {
-    let usage = frecency.records.mapValues {
-      LauncherRanking.Usage(count: $0.count, lastUsed: $0.lastUsed)
-    }
-    let suggestions = LauncherRanking.suggestedApps(from: primary, usage: usage)
-    var seen = Set(suggestions.map(\.id))
-    var rest: [RankedCommand] = []
-    rest.reserveCapacity(LauncherLayout.recommendationCatalogLimit)
-    for item in primary where seen.insert(item.id).inserted {
-      rest.append(item)
-      if suggestions.count + rest.count == LauncherLayout.recommendationCatalogLimit {
-        break
-      }
-    }
-    return Arrangement(commands: suggestions + rest, suggestionCount: suggestions.count)
   }
 
   private func updateContent() {

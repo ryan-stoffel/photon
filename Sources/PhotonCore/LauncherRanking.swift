@@ -32,7 +32,11 @@ public enum LauncherRanking {
       guard LauncherRow(command: command.command).applicationBundleIdentifier != nil else {
         return false
       }
-      guard let record = usageRecord(command.id, usage: usage), record.count > 0 else {
+      guard let record = usageRecord(command.id, usage: usage) else {
+        return false
+      }
+      let opens = record.count
+      guard opens > 0 else {
         return false
       }
       return seen.insert(command.id).inserted

@@ -94,7 +94,7 @@ final class SettingsFocusModel: ObservableObject {
 }
 
 extension EnvironmentValues {
-  @Entry var settingsFocus: FocusState<SettingsFocusTarget?>.Binding? = nil
+  @Entry var settingsFocus: FocusState<SettingsFocusTarget?>.Binding?
 }
 
 extension View {
