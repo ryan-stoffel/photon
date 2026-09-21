@@ -1,5 +1,6 @@
 import Foundation
 import PhotonApps
+import PhotonKeybinds
 import PhotonNotes
 
 extension NativeParityReporter {
@@ -93,6 +94,42 @@ extension NativeParityReporter {
     } else if command.hasPrefix("moveLauncherSelection:") {
       let raw = String(command.dropFirst("moveLauncherSelection:".count))
       runtime.launcher.model.moveSelection(Int(raw) ?? 0)
+    } else if command == "refreshRunningApps" {
+      runtime.runningApps.refresh()
+    } else if command.hasPrefix("setLauncherQuery:") {
+      runtime.launcher.model.query = String(command.dropFirst("setLauncherQuery:".count))
+    } else if command.hasPrefix("selectLauncherApp:") {
+      selectLauncherApp(String(command.dropFirst("selectLauncherApp:".count)), runtime: runtime)
+    } else if command.hasPrefix("seedAppHotkey:") {
+      seedAppHotkey(String(command.dropFirst("seedAppHotkey:".count)), runtime: runtime)
     }
+  }
+
+  private func selectLauncherApp(_ identifier: String, runtime: AppRuntime) {
+    let commandID = "app:\(identifier)"
+    if let ranked = runtime.launcher.model.results.first(where: {
+      $0.id.caseInsensitiveCompare(commandID) == .orderedSame
+    }) {
+      runtime.launcher.model.selectedID = ranked.id
+    }
+  }
+
+  private func seedAppHotkey(_ payload: String, runtime: AppRuntime) {
+    let parts = payload.split(separator: "|", maxSplits: 1, omittingEmptySubsequences: false)
+    guard parts.count == 2, let shortcut = KeyShortcut.parse(String(parts[1])) else {
+      return
+    }
+    let identifier = String(parts[0])
+    var keybinds = runtime.settings.keybinds
+    if let index = keybinds.appHotkeys.firstIndex(where: {
+      $0.bundleIdentifier.caseInsensitiveCompare(identifier) == .orderedSame
+    }) {
+      keybinds.appHotkeys[index].shortcut = shortcut
+    } else {
+      keybinds.appHotkeys.append(
+        AppHotkey(bundleIdentifier: identifier, name: identifier, shortcut: shortcut)
+      )
+    }
+    runtime.settings.keybinds = keybinds
   }
 }

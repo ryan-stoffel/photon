@@ -19,6 +19,7 @@ final class AppRuntime: ObservableObject {
   let notes: NotesIntegration
   let keybinds: KeybindsController
   let fileAccess: FileAccessCoordinator
+  let runningApps = RunningApplications()
   private let hotkey = HotkeyManager.shared
   private let frecencyURL: URL
   var fileSearch: FileSearchIntegration?
@@ -33,7 +34,12 @@ final class AppRuntime: ObservableObject {
     let dir = Self.applicationSupportDirectory()
     fileAccess = FileAccessCoordinator(defaults: defaults)
     frecencyURL = dir.appendingPathComponent("frecency.json")
-    launcher = LauncherPanelController(settings: settings, registry: registry, frecencyURL: frecencyURL)
+    launcher = LauncherPanelController(
+      settings: settings,
+      registry: registry,
+      frecencyURL: frecencyURL,
+      runningApps: runningApps
+    )
     let clipboardDirectory = dir.appendingPathComponent("Clipboard", isDirectory: true)
     if Self.usesNativeParityPasteTrustOverride {
       clipboard = ClipboardManager(
@@ -71,6 +77,7 @@ final class AppRuntime: ObservableObject {
     }
     observeSystemAppearance()
     applyAppearance()
+    runningApps.start()
     settings.onAppearanceChange = { [weak self] in
       self?.applyAppearance()
     }
@@ -156,6 +163,7 @@ final class AppRuntime: ObservableObject {
 
   func stop() {
     keybinds.stop()
+    runningApps.stop()
     notes.stop()
     hotkey.unregisterAll()
     clipboard.stop()

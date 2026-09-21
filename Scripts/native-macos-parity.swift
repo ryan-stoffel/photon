@@ -287,6 +287,10 @@ func foregroundTargetBundleIdentifier() -> String {
   return "com.apple.TextEdit"
 }
 
+func foregroundTargetQuery(_ identifier: String) -> String {
+  identifier.localizedCaseInsensitiveContains("textedit") ? "TextEdit" : "Calc"
+}
+
 func captureSettings(
   _ report: [String: Any],
   name: String,
@@ -1104,6 +1108,49 @@ do {
   }
   try sendRuntimeCommand("restoreAgent")
 
+  try sendRuntimeCommand("launchForeground:\(targetID)")
+  _ = try wait("target is running for Dock-style dots", timeout: 20) {
+    string($0["frontmostBundleID"]).caseInsensitiveCompare(targetID) == .orderedSame
+  }
+  try sendRuntimeCommand("restoreAgent")
+  try sendRuntimeCommand("seedAppHotkey:\(targetID)|cmd+/")
+  try sendRuntimeCommand("refreshRunningApps")
+  try sendRuntimeCommand("showLauncher")
+  _ = try wait("launcher reopens for running-dot and keybind chips") {
+    bool(launcher($0)["visible"])
+  }
+  let targetQuery = foregroundTargetQuery(targetID)
+  try sendRuntimeCommand("setLauncherQuery:\(targetQuery)")
+  _ = try wait("typed query lists the launched target app") {
+    strings(launcher($0)["displayedCommandIDs"]).contains {
+      $0.caseInsensitiveCompare("app:\(targetID)") == .orderedSame
+    }
+  }
+  try sendRuntimeCommand("selectLauncherApp:\(targetID)")
+  report = try wait("selected app row is running and shows keybind chips") {
+    let state = launcher($0)
+    return bool(state["visible"])
+      && bool(state["selectedIsRunning"])
+      && strings(state["selectedShortcutChips"]) == ["⌘", "/"]
+      && string(state["selectedCommandID"]).caseInsensitiveCompare("app:\(targetID)") == .orderedSame
+  }
+  try require(
+    strings(launcher(report)["runningAppRowTitles"]).contains {
+      $0.caseInsensitiveCompare(string(launcher(report)["selectedTitle"])) == .orderedSame
+    },
+    "running-dot titles include the selected app"
+  )
+  try captureLauncher(
+    report,
+    name: "launcher-running-dot",
+    expectedText: string(launcher(report)["selectedTitle"])
+  )
+  try captureLauncher(
+    report,
+    name: "launcher-keybind-chips",
+    expectedText: string(launcher(report)["selectedTitle"])
+  )
+  try sendRuntimeCommand("setLauncherQuery:")
   try sendRuntimeCommand("hideLauncher")
   _ = try wait("launcher recommendations close before drag checks") {
     !bool(launcher($0)["visible"])

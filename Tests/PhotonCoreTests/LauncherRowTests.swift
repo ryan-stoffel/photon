@@ -65,4 +65,35 @@ final class LauncherRowTests: XCTestCase {
     let command = Command(id: "clipboard:history", title: "Clipboard History", providerID: "clipboard")
     XCTAssertEqual(LauncherRow(command: command).id, command.id)
   }
+
+  func testOnlyRunningAppsShowADockDot() {
+    let safari = LauncherRow(command: Command(
+      id: "app:com.apple.Safari",
+      title: "Safari",
+      providerID: "apps"
+    ))
+    let pane = LauncherRow(command: Command(
+      id: "pane:com.apple.Accessibility-Settings.extension",
+      title: "Accessibility",
+      subtitle: "System Settings",
+      providerID: "apps"
+    ))
+    let note = LauncherRow(command: Command(id: "note:1", title: "Groceries", providerID: "notes"))
+    let file = LauncherRow(command: Command(
+      id: "file:/Users/ryan/Documents/report.pdf",
+      title: "report.pdf",
+      providerID: "files"
+    ))
+    let window = LauncherRow(command: Command(id: "window:leftHalf", title: "Left Half", providerID: "keybinds"))
+    let running: Set<String> = ["com.apple.Safari", "com.apple.finder"]
+
+    XCTAssertEqual(safari.applicationBundleIdentifier, "com.apple.Safari")
+    XCTAssertTrue(safari.showsRunningIndicator(runningBundleIDs: running))
+    XCTAssertFalse(safari.showsRunningIndicator(runningBundleIDs: ["com.apple.finder"]))
+    XCTAssertNil(pane.applicationBundleIdentifier)
+    XCTAssertFalse(pane.showsRunningIndicator(runningBundleIDs: running))
+    XCTAssertFalse(note.showsRunningIndicator(runningBundleIDs: running))
+    XCTAssertFalse(file.showsRunningIndicator(runningBundleIDs: running))
+    XCTAssertFalse(window.showsRunningIndicator(runningBundleIDs: running))
+  }
 }

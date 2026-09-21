@@ -283,8 +283,13 @@ final class NativeParityReporter: NSObject {
       "panelWidth": model.panelWidth,
       "resultCount": model.results.count,
       "displayedRowTitles": displayedTitles,
+      "displayedCommandIDs": model.rows.map(\.id),
       "selectedIndex": model.results.firstIndex { $0.id == model.selectedID } ?? -1,
       "selectedTitle": model.selectedRow?.title ?? "",
+      "selectedCommandID": model.selectedRow?.id ?? "",
+      "selectedIsRunning": selectedIsRunning(model),
+      "selectedShortcutChips": selectedShortcutChips(model),
+      "runningAppRowTitles": runningAppRowTitles(model),
       "visibleRecommendationRows": LauncherLayout.visibleRecommendationRows,
       "fileSelectedName": runtime?.fileSearch?.controller.selected?.displayName ?? "",
       "fileSelectedType": runtime?.fileSearch?.controller.selected?.contentType ?? "",
@@ -342,6 +347,33 @@ final class NativeParityReporter: NSObject {
       "title": controller.screenshotWindow?.title ?? "",
       "characterCount": controller.currentNote?.characterCount ?? 0,
     ]
+  }
+
+  private func selectedIsRunning(_ model: LauncherViewModel) -> Bool {
+    guard let row = model.selectedRow else {
+      return false
+    }
+    return row.showsRunningIndicator(runningBundleIDs: runtime?.runningApps.bundleIdentifiers ?? [])
+  }
+
+  private func selectedShortcutChips(_ model: LauncherViewModel) -> [String] {
+    guard let row = model.selectedRow, let runtime else {
+      return []
+    }
+    return LauncherRowChrome.shortcutChips(
+      commandID: row.id,
+      keybinds: runtime.settings.keybinds,
+      clipboardHotkeyEnabled: runtime.settings.clipboardHotkeyEnabled,
+      clipboardHotkey: runtime.settings.clipboardHotkey,
+      notesHotkey: runtime.settings.notesHotkey
+    )
+  }
+
+  private func runningAppRowTitles(_ model: LauncherViewModel) -> [String] {
+    let running = runtime?.runningApps.bundleIdentifiers ?? []
+    return model.rows.compactMap { row in
+      row.showsRunningIndicator(runningBundleIDs: running) ? row.title : nil
+    }
   }
 
   private func contentName(_ content: LauncherContent) -> String {

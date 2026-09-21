@@ -170,6 +170,29 @@ public struct KeyShortcut: Hashable, Codable, Sendable {
     modifiers.symbols + keyName
   }
 
+  /// Separate trailing chips for a launcher row, e.g. `["⌘", "/"]` or `["✦", "←"]`.
+  public var chipLabels: [String] {
+    var chips: [String] = []
+    if modifiers.isHyper {
+      chips.append("✦")
+    } else {
+      if modifiers.contains(.control) {
+        chips.append("⌃")
+      }
+      if modifiers.contains(.option) {
+        chips.append("⌥")
+      }
+      if modifiers.contains(.shift) {
+        chips.append("⇧")
+      }
+      if modifiers.contains(.command) {
+        chips.append("⌘")
+      }
+    }
+    chips.append(keyName)
+    return chips
+  }
+
   /// Parses forms like "hyper+left", "cmd+shift+k", "ctrl-alt-delete", "⌃⌥⇧⌘Return", "✦←".
   public static func parse(_ text: String) -> KeyShortcut? {
     var modifiers = KeyModifiers()

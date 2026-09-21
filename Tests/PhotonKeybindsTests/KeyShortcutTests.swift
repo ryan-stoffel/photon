@@ -91,4 +91,17 @@ final class KeyShortcutTests: XCTestCase {
     XCTAssertEqual(object, ["keyCode": 123, "modifiers": 15])
     XCTAssertEqual(try JSONDecoder().decode(KeyShortcut.self, from: data), shortcut)
   }
+
+  func testChipLabelsSplitModifiersAndTheKey() {
+    XCTAssertEqual(KeyShortcut(keyCode: 44, modifiers: .command).chipLabels, ["⌘", "/"])
+    XCTAssertEqual(
+      KeyShortcut(keyCode: 40, modifiers: [.shift, .command]).chipLabels,
+      ["⇧", "⌘", "K"]
+    )
+    XCTAssertEqual(KeyShortcut(keyCode: 123, modifiers: .hyper).chipLabels, ["✦", "←"])
+    XCTAssertEqual(
+      KeyShortcut(keyCode: 36, modifiers: [.control, .option]).chipLabels,
+      ["⌃", "⌥", "Return"]
+    )
+  }
 }
