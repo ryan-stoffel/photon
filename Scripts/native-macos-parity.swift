@@ -125,6 +125,14 @@ func notes(_ report: [String: Any]) -> [String: Any] {
   dictionary(report["notes"])
 }
 
+func settingsWindow(_ report: [String: Any]) -> [String: Any] {
+  dictionary(report["settingsWindow"])
+}
+
+func host(_ report: [String: Any]) -> [String: Any] {
+  dictionary(report["host"])
+}
+
 func frame(_ report: [String: Any]) -> [String: Any] {
   dictionary(launcher(report)["frame"])
 }
@@ -270,6 +278,65 @@ func captureNotes(
   }
 }
 
+func foregroundTargetBundleIdentifier() -> String {
+  for identifier in ["com.apple.calculator", "com.apple.Calculator", "com.apple.TextEdit"] {
+    if NSWorkspace.shared.urlForApplication(withBundleIdentifier: identifier) != nil {
+      return identifier
+    }
+  }
+  return "com.apple.TextEdit"
+}
+
+func captureSettings(
+  _ report: [String: Any],
+  name: String,
+  expectedText: String,
+  additionalExpectedText: [String] = []
+) throws {
+  try FileManager.default.createDirectory(
+    at: screenshotDirectory,
+    withIntermediateDirectories: true
+  )
+  RunLoop.current.run(until: Date().addingTimeInterval(0.75))
+  let destination = screenshotDirectory.appendingPathComponent(name + ".png")
+  let process = Process()
+  process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+  process.arguments = [
+    "-x",
+    "-l",
+    String(int(settingsWindow(report)["windowNumber"])),
+    destination.path,
+  ]
+  try process.run()
+  let captureDeadline = Date().addingTimeInterval(8)
+  while process.isRunning, Date() < captureDeadline {
+    RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+  }
+  if process.isRunning {
+    process.terminate()
+    throw ParityFailure.failed("screencapture timed out for \(name).png")
+  }
+  let size = (try? destination.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+  try require(process.terminationStatus == 0 && size > 0, "captured \(name).png")
+  let recognition = VNRecognizeTextRequest()
+  recognition.recognitionLevel = .accurate
+  let handler = VNImageRequestHandler(url: destination)
+  try handler.perform([recognition])
+  let renderedText = (recognition.results ?? [])
+    .compactMap { $0.topCandidates(1).first?.string }
+    .joined(separator: "\n")
+  try require(
+    ocrContains(renderedText, expectedText),
+    "\(name).png visibly contains \(expectedText)"
+  )
+  for expected in additionalExpectedText {
+    try require(
+      ocrContains(renderedText, expected),
+      "\(name).png visibly contains \(expected)"
+    )
+  }
+}
+
 func requireMetadataDoesNotOverlapFooter(at url: URL, name: String, renderedText: String) throws {
   let forbidden = [
     "Modified in Finder",
@@ -318,6 +385,14 @@ func requireMetadataDoesNotOverlapFooter(at url: URL, name: String, renderedText
 
 func sendRuntimeCommand(_ command: String) throws {
   try command.write(to: commandURL, atomically: true, encoding: .utf8)
+  let deadline = Date().addingTimeInterval(15)
+  while Date() < deadline {
+    if !FileManager.default.fileExists(atPath: commandURL.path) {
+      return
+    }
+    RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+  }
+  throw ParityFailure.failed("Photon did not consume command \(command)")
 }
 
 func postKey(_ keyCode: CGKeyCode, flags: CGEventFlags = []) {
@@ -491,15 +566,27 @@ func dragAndReset(
   // Expanded Files sits near the bottom of GitHub's Mac display. Dragging
   // down is clamped, and a 90pt X move stays inside the snap corridor.
   let deltaY: Double = roomDown > 80 ? 55 : -70
-  let guides = dragLauncher(
+  var guides = dragLauncher(
     report,
     xFromLeft: xFromLeft,
     yFromTop: yFromTop,
     deltaX: 90,
     deltaY: deltaY
   )
-  report = try wait("\(name) drag moves the panel") {
+  let moved: ([String: Any]) -> Bool = {
     abs(double(frame($0)["x"]) - startX) > 15 || abs(double(frame($0)["y"]) - startY) > 12
+  }
+  if let live = try? wait("\(name) drag moves the panel", timeout: 6, condition: moved) {
+    report = live
+  } else {
+    guides = dragLauncher(
+      report,
+      xFromLeft: xFromLeft,
+      yFromTop: yFromTop,
+      deltaX: 90,
+      deltaY: deltaY
+    ) || guides
+    report = try wait("\(name) drag moves the panel", condition: moved)
   }
   try require(guides, "\(name) drag displays center guides")
   try sendRuntimeCommand("resetLauncherPosition")
@@ -866,6 +953,11 @@ func setSystemAppearance(dark: Bool) {
     : ["delete", "-g", "AppleInterfaceStyle"]
   try? process.run()
   process.waitUntilExit()
+  let flush = Process()
+  flush.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
+  flush.arguments = ["cfprefsd"]
+  try? flush.run()
+  flush.waitUntilExit()
   DistributedNotificationCenter.default().post(
     name: Notification.Name("AppleInterfaceThemeChangedNotification"),
     object: nil
@@ -877,6 +969,8 @@ do {
   let pid = pid_t(int(report["pid"]))
   let app = NSRunningApplication(processIdentifier: pid)
   try require(app != nil, "NSRunningApplication resolves Photon")
+  print("GitHub Actions host OS: \(string(host(report)["os"]))")
+  print("Liquid Glass NSGlassEffectView: \(bool(host(report)["glassAvailable"]))")
   try require(app?.activationPolicy == .accessory, "activation policy is accessory (no Dock app)")
   try require(
     int(report["activationPolicy"]) == NSApplication.ActivationPolicy.accessory.rawValue,
@@ -979,6 +1073,37 @@ do {
   }
   try captureLauncher(report, name: "launcher-recs", expectedText: "Photon")
 
+  postKey(43, flags: .maskCommand)
+  report = try wait("Command-comma from the key launcher opens Settings") {
+    bool(settingsWindow($0)["visible"])
+      && bool(settingsWindow($0)["exists"])
+  }
+  try captureSettings(
+    report,
+    name: "settings-general",
+    expectedText: "General",
+    additionalExpectedText: ["Open launcher"]
+  )
+  try sendRuntimeCommand("hideSettings")
+  _ = try wait("Settings closes after the Command-comma proof") {
+    !bool(settingsWindow($0)["visible"])
+  }
+
+  let targetID = foregroundTargetBundleIdentifier()
+  try sendRuntimeCommand("launchForeground:\(targetID)")
+  report = try wait("launched target app is frontmost", timeout: 20) {
+    string($0["frontmostBundleID"]).caseInsensitiveCompare(targetID) == .orderedSame
+  }
+  try require(
+    string(report["frontmostBundleID"]).caseInsensitiveCompare(targetID) == .orderedSame,
+    "target app is the frontmost app after Photon launch"
+  )
+  try sendRuntimeCommand("hideForeground:\(targetID)")
+  _ = try wait("target app hides after the foreground proof") {
+    string($0["frontmostBundleID"]).caseInsensitiveCompare(targetID) != .orderedSame
+  }
+  try sendRuntimeCommand("restoreAgent")
+
   try sendRuntimeCommand("hideLauncher")
   _ = try wait("launcher recommendations close before drag checks") {
     !bool(launcher($0)["visible"])
@@ -1023,14 +1148,7 @@ do {
   let corridorHalf = panelWidth / 2
   let canLeaveCorridor = maxLeftTravel > corridorHalf + 40
   let escapeDelta = canLeaveCorridor ? -(corridorHalf + 80) : -90
-  let firstGuides = dragLauncher(
-    report,
-    xFromLeft: 12,
-    yFromTop: 30,
-    deltaX: escapeDelta,
-    deltaY: 70
-  )
-  report = try wait("left chrome drag keeps outside-corridor X free and adjusts Y") {
+  let chromeMoved: ([String: Any]) -> Bool = {
     let yMoved = abs(double(frame($0)["y"]) - firstY) > 30
     guard yMoved else {
       return false
@@ -1040,6 +1158,32 @@ do {
         && bool(dictionary(dictionary($0["settings"])["launcherPosition"])["centered"]) == false
     }
     return true
+  }
+  var firstGuides = dragLauncher(
+    report,
+    xFromLeft: 12,
+    yFromTop: 30,
+    deltaX: escapeDelta,
+    deltaY: 70
+  )
+  if let live = try? wait(
+    "left chrome drag keeps outside-corridor X free and adjusts Y",
+    timeout: 6,
+    condition: chromeMoved
+  ) {
+    report = live
+  } else {
+    firstGuides = dragLauncher(
+      report,
+      xFromLeft: 12,
+      yFromTop: 30,
+      deltaX: escapeDelta,
+      deltaY: 70
+    ) || firstGuides
+    report = try wait(
+      "left chrome drag keeps outside-corridor X free and adjusts Y",
+      condition: chromeMoved
+    )
   }
   try require(firstGuides, "left chrome drag displays center guides")
   try require(
@@ -1505,7 +1649,8 @@ do {
 
   let light = dictionary(report["appearance"])
   setSystemAppearance(dark: true)
-  report = try wait("running UI follows live dark appearance") {
+  try sendRuntimeCommand("refreshAppearance")
+  report = try wait("running UI follows live dark appearance", timeout: 20) {
     string(dictionary($0["appearance"])["name"]).contains("DarkAqua")
   }
   try captureLauncher(
@@ -1522,7 +1667,8 @@ do {
     + abs(double(lightBackground["blue"]) - double(darkBackground["blue"]))
   try require(colorDistance > 0.1, "light and dark runtime colors differ")
   setSystemAppearance(dark: false)
-  _ = try wait("running UI follows live light appearance") {
+  try sendRuntimeCommand("refreshAppearance")
+  _ = try wait("running UI follows live light appearance", timeout: 20) {
     string(dictionary($0["appearance"])["name"]).contains("Aqua")
       && !string(dictionary($0["appearance"])["name"]).contains("Dark")
   }

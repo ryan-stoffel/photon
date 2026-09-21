@@ -63,7 +63,7 @@ extension AppRuntime {
       return []
     case .settings:
       return NSApp.windows.filter {
-        ["General", "Appearance", "Settings"].contains($0.title)
+        ["General", "Appearance", "Settings", "Photon"].contains($0.title)
           || $0.className.contains("Settings")
       }
     case .notes:
@@ -117,7 +117,7 @@ extension AppRuntime {
     guard let window = settingsWindow else {
       return
     }
-    UIScenarioWindowLayout.position(window, size: NSSize(width: 640, height: 480))
+    UIScenarioWindowLayout.position(window, size: NSSize(width: 760, height: 520))
   }
 
   @MainActor

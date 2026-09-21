@@ -14,9 +14,13 @@ public enum AppActivator {
     }
 
     if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) {
+      NSApp.yieldActivation(toApplicationWithBundleIdentifier: bundleIdentifier)
       let configuration = NSWorkspace.OpenConfiguration()
       configuration.activates = true
-      _ = try await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+      configuration.addsToRecentItems = true
+      let launched = try await NSWorkspace.shared.openApplication(at: url, configuration: configuration)
+      NSApp.yieldActivation(to: launched)
+      _ = launched.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
       return
     }
 
@@ -24,7 +28,8 @@ public enum AppActivator {
       throw AppActivatorError.notInstalled(bundleIdentifier)
     }
     running.unhide()
-    running.activate(options: [.activateAllWindows])
+    NSApp.yieldActivation(to: running)
+    _ = running.activate(options: [.activateAllWindows, .activateIgnoringOtherApps])
   }
 }
 

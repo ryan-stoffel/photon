@@ -38,6 +38,13 @@ jobs:
     steps:
       - name: Check out
         uses: actions/checkout@v7
+      - name: Record runner OS and SDK
+        run: |
+          echo "sw_vers:"
+          sw_vers
+          echo "xcodebuild:"
+          xcodebuild -version
+          echo "SDK: $(xcrun --sdk macosx --show-sdk-version)"
       - name: Install lint tools
         run: |
           if ! command -v swiftformat >/dev/null; then brew install swiftformat; fi
@@ -104,6 +111,15 @@ jobs:
           path: build
       - name: Unpack
         run: ditto -x -k build/Photon.app.zip build
+      - name: Record runner OS and SDK
+        run: |
+          {
+            echo "sw_vers:"
+            sw_vers
+            echo "xcodebuild:"
+            xcodebuild -version
+            echo "SDK: $(xcrun --sdk macosx --show-sdk-version)"
+          } | tee "${{ runner.temp }}/gha-macos-runner.txt"
       - name: Launch and watch
         env:
           SMOKE_LOG: ${{ runner.temp }}/photon-smoke.log
@@ -119,6 +135,13 @@ jobs:
           name: native-parity-screenshots
           path: ${{ runner.temp }}/photon-native-parity-screenshots/*.png
           if-no-files-found: error
+      - name: Upload runner OS
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gha-macos-runner
+          path: ${{ runner.temp }}/gha-macos-runner.txt
+          if-no-files-found: ignore
       - name: Upload smoke test log
         if: always()
         uses: actions/upload-artifact@v7

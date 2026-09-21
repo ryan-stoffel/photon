@@ -9,14 +9,19 @@ enum ResolvedCommandIcon {
 
 /// Turns `CommandIcon` values into images, once each.
 ///
-/// Safe to use from any thread: `NSWorkspace.icon(forFile:)` and image loading
-/// are thread-safe and `NSCache` synchronises itself, so the app index can warm
-/// the cache in the background and rows still resolve synchronously on first draw.
+/// Cache hits are synchronous. Misses never load Finder icons on the main
+/// thread: the row shows a symbol placeholder and the cache fills in the
+/// background. `prefetch` is safe from any thread.
 final class CommandIconCache: @unchecked Sendable {
   static let shared = CommandIconCache()
+  /// Coalesced UI refresh after a background miss load. Set from the launcher.
+  @MainActor
+  static var onImagesLoaded: (() -> Void)?
 
   private let images = NSCache<NSString, NSImage>()
   private let misses = NSCache<NSString, NSNumber>()
+  private let inflight = NSLock()
+  private var loading = Set<String>()
 
   init() {
     images.countLimit = 1200
@@ -48,18 +53,56 @@ final class CommandIconCache: @unchecked Sendable {
     if misses.object(forKey: key) != nil {
       return nil
     }
+    if Thread.isMainThread {
+      scheduleLoad(icon, key: key as String)
+      return nil
+    }
+    return store(icon, key: key)
+  }
+
+  func prefetch(_ icons: [CommandIcon]) {
+    for icon in icons {
+      _ = store(icon, key: Self.key(for: icon) as NSString)
+    }
+  }
+
+  private func scheduleLoad(_ icon: CommandIcon, key: String) {
+    guard beginLoad(key) else {
+      return
+    }
+    Task.detached(priority: .utility) {
+      let cache = CommandIconCache.shared
+      _ = cache.store(icon, key: key as NSString)
+      cache.endLoad(key)
+      await MainActor.run {
+        CommandIconCache.onImagesLoaded?()
+      }
+    }
+  }
+
+  private func beginLoad(_ key: String) -> Bool {
+    inflight.lock()
+    let inserted = loading.insert(key).inserted
+    inflight.unlock()
+    return inserted
+  }
+
+  private func endLoad(_ key: String) {
+    inflight.lock()
+    loading.remove(key)
+    inflight.unlock()
+  }
+
+  private func store(_ icon: CommandIcon, key: NSString) -> NSImage? {
+    if let hit = images.object(forKey: key) {
+      return hit
+    }
     guard let image = load(icon), image.isValid else {
       misses.setObject(1, forKey: key)
       return nil
     }
     images.setObject(image, forKey: key)
     return image
-  }
-
-  func prefetch(_ icons: [CommandIcon]) {
-    for icon in icons {
-      _ = image(for: icon)
-    }
   }
 
   private func load(_ icon: CommandIcon) -> NSImage? {

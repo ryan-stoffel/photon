@@ -27,6 +27,7 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
   var autoHideSuppressedUntil = Date.distantPast
   /// App that was frontmost before a mode asked us to activate; restored on hide.
   private var previousApplication: NSRunningApplication?
+  private var iconRefreshTask: Task<Void, Never>?
 
   init(settings: SettingsStore, registry: CommandRegistry, frecencyURL: URL) {
     self.settings = settings
@@ -150,6 +151,9 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
 
   /// Resolves every provider's icons in the background so the first list draws without a stall.
   func warmIcons() {
+    CommandIconCache.onImagesLoaded = { [weak self] in
+      self?.scheduleIconRefresh()
+    }
     let frecency = model.frecency
     Task.detached(priority: .utility) { [registry] in
       let ranked = await registry.search("", frecency: frecency)
@@ -170,6 +174,7 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
   }
 
   func show() {
+    let started = PhotonTiming.start()
     preload()
     guard let panel else {
       return
@@ -182,9 +187,12 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     panel.makeKey()
     model.requestSearchFocus()
     startMonitor()
+    PhotonTiming.end("launcher.visible", from: started)
     Task {
+      await model.refresh()
       await registry.reloadAll()
       await model.refresh()
+      warmIcons()
     }
   }
 
@@ -292,7 +300,7 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     startMonitor()
   }
 
-  func hide() {
+  func hide(restorePrevious: Bool = true) {
     model.prepareForHide()
     filesProvider?.prepareForFullSession()
     model.resetForHide()
@@ -300,7 +308,11 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     panel?.orderOut(nil)
     stopMonitor()
     persistFrecency()
-    restorePreviousApplication()
+    if restorePrevious {
+      restorePreviousApplication()
+    } else {
+      previousApplication = nil
+    }
   }
 
   func windowDidResignKey(_: Notification) {
@@ -328,6 +340,17 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
       try model.frecency.save(to: frecencyURL)
     } catch {
       NSLog("Photon: could not save frecency: \(error)")
+    }
+  }
+
+  private func scheduleIconRefresh() {
+    iconRefreshTask?.cancel()
+    iconRefreshTask = Task { @MainActor in
+      try? await Task.sleep(for: .milliseconds(16))
+      guard !Task.isCancelled else {
+        return
+      }
+      model.refreshLayout()
     }
   }
 
@@ -392,29 +415,19 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     }
     panel.installSearchBarDragMonitor()
 
-    // System material behind the whole panel, clipped to the rounded shape. The window
-    // shadow follows the opaque region, so the corners stay clean.
-    let background = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
-    background.material = .popover
-    background.blendingMode = .behindWindow
-    background.state = .active
-    background.wantsLayer = true
-    background.layer?.cornerRadius = LauncherLayout.cornerRadius
-    background.layer?.cornerCurve = .continuous
-    background.layer?.masksToBounds = true
-    background.autoresizingMask = [.width, .height]
-
     let host = NSHostingView(rootView: LauncherView(
       model: model,
       onRun: { [weak self] in
-        self?.hide()
+        self?.hide(restorePrevious: false)
       }
     ).environmentObject(settings))
     host.safeAreaRegions = []
-    host.translatesAutoresizingMaskIntoConstraints = true
-    host.frame = background.bounds
-    host.autoresizingMask = [.width, .height]
-    background.addSubview(host)
+    let background = PhotonPanelChrome.embed(
+      host,
+      frame: NSRect(origin: .zero, size: size),
+      cornerRadius: LauncherLayout.cornerRadius,
+      material: .popover
+    )
     panel.contentView = background
     return panel
   }

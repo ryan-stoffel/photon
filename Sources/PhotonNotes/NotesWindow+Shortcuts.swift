@@ -13,6 +13,9 @@ extension NotesWindow {
       presentActions()
       return true
     }
+    if flags == [.command], event.keyCode == 43 || event.charactersIgnoringModifiers == "," {
+      return false
+    }
     if flags == [.shift, .command], let key = event.charactersIgnoringModifiers?.lowercased() {
       return runShiftCommand(key)
     }

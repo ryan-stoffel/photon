@@ -4,41 +4,53 @@ struct SettingsRootView: View {
   @EnvironmentObject private var settings: SettingsStore
 
   var body: some View {
-    TabView(selection: $settings.selectedPane) {
-      GeneralSettingsView()
-        .tabItem { Label("General", systemImage: "gearshape") }
-        .tag(SettingsPaneID.general)
-      AppearanceSettingsView()
-        .tabItem { Label("Appearance", systemImage: "paintpalette") }
-        .tag(SettingsPaneID.appearance)
-      ClipboardSettingsView()
-        .tabItem { Label("Clipboard", systemImage: "clipboard") }
-        .tag(SettingsPaneID.clipboard)
-      NotesSettingsView()
-        .tabItem { Label("Notes", systemImage: "note.text") }
-        .tag(SettingsPaneID.notes)
-      FilesSettingsView()
-        .tabItem { Label("Files", systemImage: "folder") }
-        .tag(SettingsPaneID.files)
-      KeybindsSettingsView()
-        .tabItem { Label("Keybinds", systemImage: "keyboard") }
-        .tag(SettingsPaneID.keybinds)
-      AboutSettingsView()
-        .tabItem { Label("About", systemImage: "info.circle") }
-        .tag(SettingsPaneID.about)
+    NavigationSplitView {
+      List(selection: $settings.selectedPane) {
+        ForEach(SettingsPaneID.allCases) { pane in
+          Label(pane.title, systemImage: pane.symbolName)
+            .tag(pane)
+        }
+      }
+      .listStyle(.sidebar)
+      .navigationSplitViewColumnWidth(min: 180, ideal: 208, max: 240)
+      .navigationTitle("Photon")
+    } detail: {
+      SettingsDetailView(pane: settings.selectedPane)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .navigationTitle(settings.selectedPane.title)
     }
-    .environmentObject(settings)
-    .padding(20)
+    .navigationSplitViewStyle(.balanced)
+    .tint(.accentColor)
+    .font(.system(.body))
     .onAppear {
       if let pending = settings.pendingSettingsPane {
-        settings.selectedPane = Self.resolve(pending)
+        settings.selectedPane = pending
         settings.pendingSettingsPane = nil
       }
     }
   }
+}
 
-  private static func resolve(_ pane: SettingsPaneID) -> SettingsPaneID {
-    pane
+struct SettingsDetailView: View {
+  let pane: SettingsPaneID
+
+  var body: some View {
+    switch pane {
+    case .general:
+      GeneralSettingsView()
+    case .appearance:
+      AppearanceSettingsView()
+    case .clipboard:
+      ClipboardSettingsView()
+    case .notes:
+      NotesSettingsView()
+    case .files:
+      FilesSettingsView()
+    case .keybinds:
+      KeybindsSettingsView()
+    case .about:
+      AboutSettingsView()
+    }
   }
 }
 

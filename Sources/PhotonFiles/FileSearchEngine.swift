@@ -1,4 +1,5 @@
 import Foundation
+import PhotonCore
 
 /// Debounced, cancellable Spotlight search via `mdfind`. One engine serves one
 /// consumer: each new `search` supersedes the previous one, so stale results
@@ -66,12 +67,15 @@ public final class FileSearchEngine {
       return nil
     }
 
-    return await runQuery(
+    let started = PhotonTiming.start()
+    let response = await runQuery(
       request: request,
       queryString: queryString,
       trimmed: trimmed,
       token: token
     )
+    PhotonTiming.end("files.search", from: started)
+    return response
   }
 
   private func runQuery(
@@ -185,7 +189,10 @@ public final class FileSearchEngine {
     let recent = Array(files.prefix(limit)).enumerated().map { index, file in
       RankedFile(file: file, relevance: Double(limit - index))
     }
-    FileIconCache.shared.prefetch(recent.map(\.file))
+    let icons = recent.map(\.file)
+    await Task.detached(priority: .utility) {
+      FileIconCache.shared.prefetch(icons)
+    }.value
     return Response(query: "", files: recent, spotlightAvailable: outcome.spotlightAvailable)
   }
 
@@ -214,15 +221,18 @@ public final class FileSearchEngine {
   private func runMdfind(_ request: MdfindQueryRunner.Request) async -> MdfindQueryRunner.Outcome {
     let runner = MdfindQueryRunner()
     runners.append(runner)
-    let outcome: MdfindQueryRunner.Outcome = await withCheckedContinuation { continuation in
-      runner.start(request) { outcome in
-        continuation.resume(returning: outcome)
+    let timeout = FileSearchEngine.queryTimeout
+    let outcome: MdfindQueryRunner.Outcome = await Task.detached(priority: .userInitiated) {
+      await withCheckedContinuation { continuation in
+        runner.start(request) { outcome in
+          continuation.resume(returning: outcome)
+        }
+        Task {
+          try? await Task.sleep(for: timeout)
+          runner.expire()
+        }
       }
-      Task {
-        try? await Task.sleep(for: FileSearchEngine.queryTimeout)
-        runner.expire()
-      }
-    }
+    }.value
     runners.removeAll { $0 === runner }
     return outcome
   }
