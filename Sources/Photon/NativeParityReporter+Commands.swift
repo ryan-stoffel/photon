@@ -135,6 +135,7 @@ extension NativeParityReporter {
     }
     if command.hasPrefix("hideForeground:") {
       let identifier = String(command.dropFirst("hideForeground:".count))
+      runtime.launcher.hide(restorePrevious: false)
       ForegroundActivation.runningApplication(bundleIdentifier: identifier)?.hide()
       runtime.restoreAccessoryPolicy()
       return true

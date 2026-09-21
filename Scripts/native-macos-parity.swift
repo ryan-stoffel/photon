@@ -1162,6 +1162,10 @@ do {
     name: "launcher-running-apps-top",
     expectedText: foregroundTargetTitle(targetID)
   )
+  try sendRuntimeCommand("dismissLauncher")
+  _ = try wait("launcher closes before hiding the launched app") {
+    !bool(launcher($0)["visible"])
+  }
   try sendRuntimeCommand("hideForeground:\(targetID)")
   _ = try wait("target app hides after the foreground proof") {
     string($0["frontmostBundleID"]).caseInsensitiveCompare(targetID) != .orderedSame
