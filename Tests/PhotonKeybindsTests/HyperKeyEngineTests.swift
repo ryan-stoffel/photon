@@ -1,6 +1,6 @@
 import CoreGraphics
-@testable import PhotonKeybinds
 import XCTest
+@testable import PhotonKeybinds
 
 final class HyperKeyEngineTests: XCTestCase {
   func testHyperDownForcesCapsLockOffWhenSuppressed() {

@@ -11,6 +11,7 @@ enum PhotonSettingsChrome {
   static let contentIdentifier = NSUserInterfaceItemIdentifier("photon.settings.chrome")
 
   /// Matches the launcher panel: Liquid Glass / vibrancy, 12pt continuous corners, clear window.
+  @MainActor
   static func applyWindowChrome(_ window: NSWindow) {
     window.title = "Settings"
     window.titleVisibility = .hidden
@@ -38,7 +39,8 @@ enum PhotonSettingsChrome {
     window.contentView = wrapped
   }
 
-  static func makeWindow<Content: View>(rootView: Content) -> PhotonSettingsWindow {
+  @MainActor
+  static func makeWindow(rootView: some View) -> PhotonSettingsWindow {
     let host = NSHostingView(rootView: rootView)
     host.safeAreaRegions = []
     let window = PhotonSettingsWindow(

@@ -103,6 +103,7 @@ final class LauncherViewModel: ObservableObject {
       Task { await refresh() }
     }
   }
+
   /// Set by `AppRuntime` once the clipboard feature is available.
   var clipboard: ClipboardHistoryViewModel? {
     didSet {
