@@ -1140,6 +1140,7 @@ do {
       && bool(launcher($0)["key"])
       && string(launcher($0)["content"]) == "searchOnly"
   }
+  try sendRuntimeCommand("suppressAutoHide")
   let centeredX = double(frame(report)["x"])
   let firstY = double(frame(report)["y"])
   let panelWidth = double(frame(report)["width"])

@@ -53,6 +53,8 @@ extension NativeParityReporter {
       runtime.applyAppearance()
     } else if command == "restoreAgent" {
       runtime.restoreAccessoryPolicy()
+    } else if command == "suppressAutoHide" {
+      runtime.launcher.suppressAutoHide(for: 60)
     } else {
       handleLauncherPrefixCommand(command, runtime: runtime)
     }
