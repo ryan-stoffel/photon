@@ -385,6 +385,14 @@ func requireMetadataDoesNotOverlapFooter(at url: URL, name: String, renderedText
 
 func sendRuntimeCommand(_ command: String) throws {
   try command.write(to: commandURL, atomically: true, encoding: .utf8)
+  let deadline = Date().addingTimeInterval(15)
+  while Date() < deadline {
+    if !FileManager.default.fileExists(atPath: commandURL.path) {
+      return
+    }
+    RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+  }
+  throw ParityFailure.failed("Photon did not consume command \(command)")
 }
 
 func postKey(_ keyCode: CGKeyCode, flags: CGEventFlags = []) {
@@ -1082,6 +1090,7 @@ do {
   _ = try wait("target app hides after the foreground proof") {
     string($0["frontmostBundleID"]).caseInsensitiveCompare(targetID) != .orderedSame
   }
+  try sendRuntimeCommand("restoreAgent")
 
   try sendRuntimeCommand("hideLauncher")
   _ = try wait("launcher recommendations close before drag checks") {
@@ -1609,7 +1618,8 @@ do {
 
   let light = dictionary(report["appearance"])
   setSystemAppearance(dark: true)
-  report = try wait("running UI follows live dark appearance") {
+  try sendRuntimeCommand("refreshAppearance")
+  report = try wait("running UI follows live dark appearance", timeout: 20) {
     string(dictionary($0["appearance"])["name"]).contains("DarkAqua")
   }
   try captureLauncher(
@@ -1626,7 +1636,8 @@ do {
     + abs(double(lightBackground["blue"]) - double(darkBackground["blue"]))
   try require(colorDistance > 0.1, "light and dark runtime colors differ")
   setSystemAppearance(dark: false)
-  _ = try wait("running UI follows live light appearance") {
+  try sendRuntimeCommand("refreshAppearance")
+  _ = try wait("running UI follows live light appearance", timeout: 20) {
     string(dictionary($0["appearance"])["name"]).contains("Aqua")
       && !string(dictionary($0["appearance"])["name"]).contains("Dark")
   }

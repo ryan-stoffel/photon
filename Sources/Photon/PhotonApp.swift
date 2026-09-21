@@ -43,6 +43,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     runtime.openNotes(from: urls)
   }
 
+  func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool {
+    false
+  }
+
   func applicationWillTerminate(_: Notification) {
     NativeParityReporter.stop()
     runtime.stop()

@@ -246,6 +246,11 @@ final class AppRuntime: ObservableObject {
   func closeSettings() {
     existingSettingsWindow()?.orderOut(nil)
     settingsWindowController?.window?.orderOut(nil)
+    restoreAccessoryPolicy()
+  }
+
+  func restoreAccessoryPolicy() {
+    NSApp.setActivationPolicy(.accessory)
   }
 
   func existingSettingsWindow() -> NSWindow? {

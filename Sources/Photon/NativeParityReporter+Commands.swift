@@ -51,6 +51,8 @@ extension NativeParityReporter {
       runtime.closeSettings()
     } else if command == "refreshAppearance" {
       runtime.applyAppearance()
+    } else if command == "restoreAgent" {
+      runtime.restoreAccessoryPolicy()
     } else {
       handleLauncherPrefixCommand(command, runtime: runtime)
     }
@@ -80,10 +82,12 @@ extension NativeParityReporter {
       runtime.launcher.hide(restorePrevious: false)
       Task { @MainActor in
         _ = try? await ForegroundActivation.launch(bundleIdentifier: identifier)
+        runtime.restoreAccessoryPolicy()
       }
     } else if command.hasPrefix("hideForeground:") {
       let identifier = String(command.dropFirst("hideForeground:".count))
       ForegroundActivation.runningApplication(bundleIdentifier: identifier)?.hide()
+      runtime.restoreAccessoryPolicy()
     } else if command.hasPrefix("moveLauncherSelection:") {
       let raw = String(command.dropFirst("moveLauncherSelection:".count))
       runtime.launcher.model.moveSelection(Int(raw) ?? 0)
