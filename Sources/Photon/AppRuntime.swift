@@ -239,6 +239,8 @@ final class AppRuntime: ObservableObject {
       }
       window.delegate = settingsWindowDelegate
       settingsWindowController = NSWindowController(window: window)
+    } else if let window = settingsWindowController?.window as? PhotonSettingsWindow {
+      window.setRootView(settingsRootView)
     }
     settingsWindowController?.showWindow(nil)
     settingsWindowController?.window?.makeKeyAndOrderFront(nil)
@@ -246,7 +248,7 @@ final class AppRuntime: ObservableObject {
   }
 
   private var settingsRootView: some View {
-    SettingsRootView()
+    SettingsRootView(settings: settings)
       .environmentObject(settings)
       .environmentObject(clipboard)
       .environmentObject(keybinds)

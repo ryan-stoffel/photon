@@ -41,7 +41,7 @@ enum PhotonSettingsChrome {
 
   @MainActor
   static func makeWindow(rootView: some View) -> PhotonSettingsWindow {
-    let host = NSHostingView(rootView: rootView)
+    let host = NSHostingView(rootView: AnyView(rootView))
     host.safeAreaRegions = []
     host.sizingOptions = []
     host.frame = NSRect(origin: .zero, size: windowSize)
@@ -51,6 +51,7 @@ enum PhotonSettingsChrome {
       backing: .buffered,
       defer: false
     )
+    window.hostingView = host
     window.setContentSize(windowSize)
     let chrome = PhotonPanelChrome.embed(
       host,
@@ -66,12 +67,20 @@ enum PhotonSettingsChrome {
 }
 
 final class PhotonSettingsWindow: NSWindow {
+  var hostingView: NSHostingView<AnyView>?
+
   override var canBecomeKey: Bool {
     true
   }
 
   override var canBecomeMain: Bool {
     true
+  }
+
+  func setRootView(_ view: some View) {
+    hostingView?.rootView = AnyView(view)
+    hostingView?.needsDisplay = true
+    hostingView?.layoutSubtreeIfNeeded()
   }
 }
 

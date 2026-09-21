@@ -3,7 +3,7 @@ import PhotonCore
 import SwiftUI
 
 struct SettingsRootView: View {
-  @EnvironmentObject private var settings: SettingsStore
+  @ObservedObject var settings: SettingsStore
 
   var body: some View {
     HStack(spacing: 0) {

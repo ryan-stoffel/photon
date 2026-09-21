@@ -7,7 +7,7 @@ struct PhotonApp: App {
 
   var body: some Scene {
     Settings {
-      SettingsRootView()
+      SettingsRootView(settings: appDelegate.runtime.settings)
         .environmentObject(appDelegate.runtime.settings)
         .environmentObject(appDelegate.runtime.clipboard)
         .environmentObject(appDelegate.runtime.keybinds)
