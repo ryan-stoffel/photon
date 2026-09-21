@@ -1145,9 +1145,7 @@ do {
     name: "launcher-keybind-chips",
     expectedText: string(launcher(report)["selectedTitle"])
   )
-  try sendRuntimeCommand("setLauncherQuery:")
   try sendRuntimeCommand("dismissLauncher")
-  try sendRuntimeCommand("terminateForeground:\(targetID)")
   _ = try wait("launcher recommendations close before drag checks") {
     !bool(launcher($0)["visible"])
   }
