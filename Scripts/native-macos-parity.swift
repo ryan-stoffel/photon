@@ -1531,14 +1531,34 @@ do {
   report = try wait("row remains clickable after dragging") {
     string(launcher($0)["query"]) == "clipboard" && int(launcher($0)["resultCount"]) > 0
   }
-  clickLauncher(
-    report,
-    xFromLeft: panelWidth / 2,
-    yFromTop: 56 + 1 + 6 + 20
-  )
-  _ = try wait("row click enters clipboard instead of starting a drag") {
-    string(launcher($0)["session"]) == "clipboard"
+  // The filtered row can still be settling after drag checks, so a single
+  // click sometimes lands before the row is under the cursor.
+  RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+  var enteredClipboard = false
+  let rowTops: [Double] = [56 + 1 + 6 + 20, 56 + 1 + 6 + 32, 110]
+  for rowTop in rowTops {
+    if let latest = readReport() {
+      report = latest
+    }
+    clickLauncher(
+      report,
+      xFromLeft: panelWidth / 2,
+      yFromTop: rowTop
+    )
+    let deadline = Date().addingTimeInterval(2)
+    while Date() < deadline {
+      if let latest = readReport(), string(launcher(latest)["session"]) == "clipboard" {
+        report = latest
+        enteredClipboard = true
+        break
+      }
+      RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+    }
+    if enteredClipboard {
+      break
+    }
   }
+  try require(enteredClipboard, "row click enters clipboard instead of starting a drag")
   try sendRuntimeCommand("hideLauncher")
   _ = try wait("drag interaction checks close cleanly") {
     !bool(launcher($0)["visible"])
