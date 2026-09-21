@@ -130,7 +130,8 @@ struct PhotonSettingsPage<Content: View>: View {
       Text(title)
         .font(.system(size: 20, weight: .medium))
         .padding(.horizontal, 20)
-        .frame(maxWidth: .infinity, height: LauncherLayout.searchFieldHeight, alignment: .leading)
+        .frame(height: LauncherLayout.searchFieldHeight, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
       PhotonSettingsHairline(emphasized: true)
       ScrollView {
         VStack(alignment: .leading, spacing: 16) {
