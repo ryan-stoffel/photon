@@ -92,7 +92,7 @@ enum UIScenario: Equatable, Sendable {
   }
 }
 
-enum SettingsPaneID: String, Hashable, Sendable {
+enum SettingsPaneID: String, Hashable, Sendable, CaseIterable, Identifiable {
   case general
   case appearance
   case clipboard
@@ -100,4 +100,32 @@ enum SettingsPaneID: String, Hashable, Sendable {
   case files
   case keybinds
   case about
+
+  var id: String {
+    rawValue
+  }
+
+  var title: String {
+    switch self {
+    case .general: "General"
+    case .appearance: "Appearance"
+    case .clipboard: "Clipboard"
+    case .notes: "Notes"
+    case .files: "Files"
+    case .keybinds: "Keybinds"
+    case .about: "About"
+    }
+  }
+
+  var symbolName: String {
+    switch self {
+    case .general: "gearshape"
+    case .appearance: "paintpalette"
+    case .clipboard: "clipboard"
+    case .notes: "note.text"
+    case .files: "folder"
+    case .keybinds: "keyboard"
+    case .about: "info.circle"
+    }
+  }
 }

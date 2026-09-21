@@ -186,7 +186,10 @@ final class LauncherViewModel: ObservableObject {
     }
     searchGeneration += 1
     let generation = searchGeneration
-    isLoading = results.isEmpty
+    let started = PhotonTiming.start()
+    if results.isEmpty {
+      isLoading = true
+    }
     let ranked = await registry.search(query, frecency: frecency)
     guard showsCommandList, generation == searchGeneration else {
       return
@@ -197,6 +200,7 @@ final class LauncherViewModel: ObservableObject {
     }
     isLoading = false
     prefetchIcons(for: results)
+    PhotonTiming.end("launcher.search", from: started)
   }
 
   func moveSelection(_ delta: Int) {

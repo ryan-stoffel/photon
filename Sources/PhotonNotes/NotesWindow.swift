@@ -196,12 +196,7 @@ final class NotesWindow: NSObject {
   // MARK: Setup
 
   private func configureContent() {
-    effectView.material = .hudWindow
-    effectView.blendingMode = .behindWindow
-    effectView.state = .active
-    effectView.wantsLayer = true
-    effectView.layer?.cornerRadius = NotesLayout.cornerRadius
-    effectView.layer?.masksToBounds = true
+    NotesChrome.apply(to: effectView, cornerRadius: NotesLayout.cornerRadius)
 
     scrollView.drawsBackground = false
     scrollView.translatesAutoresizingMaskIntoConstraints = false

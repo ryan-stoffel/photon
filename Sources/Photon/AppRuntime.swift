@@ -24,6 +24,7 @@ final class AppRuntime: ObservableObject {
   var fileSearch: FileSearchIntegration?
   private var appearanceObserver: NSObjectProtocol?
   private var settingsWindowController: NSWindowController?
+  private var settingsShortcutMonitor: SettingsShortcutMonitor?
 
   init() {
     let defaults = Self.userDefaultsForLaunch()
@@ -72,6 +73,9 @@ final class AppRuntime: ObservableObject {
     applyAppearance()
     settings.onAppearanceChange = { [weak self] in
       self?.applyAppearance()
+    }
+    settingsShortcutMonitor = SettingsShortcutMonitor { [weak self] in
+      self?.openSettings()
     }
     launcher.preload()
     if UIScenario.current == nil {
@@ -160,6 +164,8 @@ final class AppRuntime: ObservableObject {
     settings.onClipboardChange = nil
     settings.onKeybindsChange = nil
     settings.onAppearanceChange = nil
+    settingsShortcutMonitor?.stop()
+    settingsShortcutMonitor = nil
     if let appearanceObserver {
       DistributedNotificationCenter.default().removeObserver(appearanceObserver)
       self.appearanceObserver = nil
@@ -167,7 +173,7 @@ final class AppRuntime: ObservableObject {
   }
 
   /// Settings > Appearance applies to every Photon window, including the launcher panel.
-  private func applyAppearance() {
+  func applyAppearance() {
     if settings.appearance == .system {
       let followsDarkSystem = UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
       NSApp.appearance = NSAppearance(named: followsDarkSystem ? .darkAqua : .aqua)
@@ -209,7 +215,13 @@ final class AppRuntime: ObservableObject {
   }
 
   func openSettings() {
+    launcher.hide(restorePrevious: false)
     NSApp.activate(ignoringOtherApps: true)
+    _ = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    if let existing = existingSettingsWindow() {
+      existing.makeKeyAndOrderFront(nil)
+      return
+    }
     if settingsWindowController == nil {
       let host = NSHostingController(
         rootView: SettingsRootView()
@@ -217,18 +229,50 @@ final class AppRuntime: ObservableObject {
           .environmentObject(clipboard)
           .environmentObject(keybinds)
           .environmentObject(fileAccess)
-          .frame(minWidth: 560, minHeight: 400)
+          .frame(minWidth: 720, minHeight: 480)
       )
       let window = NSWindow(contentViewController: host)
       window.title = "Settings"
       window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-      window.setContentSize(NSSize(width: 640, height: 480))
+      window.setContentSize(NSSize(width: 760, height: 520))
       window.isReleasedWhenClosed = false
       window.center()
       settingsWindowController = NSWindowController(window: window)
     }
     settingsWindowController?.showWindow(nil)
     settingsWindowController?.window?.makeKeyAndOrderFront(nil)
+  }
+
+  func closeSettings() {
+    existingSettingsWindow()?.orderOut(nil)
+    settingsWindowController?.window?.orderOut(nil)
+    restoreAccessoryPolicy()
+  }
+
+  func restoreAccessoryPolicy() {
+    NSApp.setActivationPolicy(.accessory)
+  }
+
+  func existingSettingsWindow() -> NSWindow? {
+    let hosted = settingsWindowController?.window
+    return NSApp.windows.first { window in
+      if window === launcher.panel {
+        return false
+      }
+      if window === hosted {
+        return true
+      }
+      if window.title.localizedCaseInsensitiveContains("Settings") {
+        return true
+      }
+      if window.title == "Photon" {
+        return true
+      }
+      if window.className.localizedCaseInsensitiveContains("Settings") {
+        return true
+      }
+      return SettingsPaneID.allCases.contains { $0.title == window.title }
+    }
   }
 
   /// Phase 2: add `registry.register(YourProvider())` here. Do not edit PhotonCore.

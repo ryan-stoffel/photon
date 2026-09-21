@@ -66,7 +66,7 @@ extension LauncherPanelController {
   func runSelection() {
     Task {
       if await model.runSelection() {
-        hide()
+        hide(restorePrevious: false)
       }
     }
   }
