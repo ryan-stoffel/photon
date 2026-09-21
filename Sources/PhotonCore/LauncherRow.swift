@@ -18,6 +18,27 @@ public struct LauncherRow: Identifiable, Hashable, Sendable {
     providerID = command.providerID
   }
 
+  /// Bundle ID for Dock-style running dots. Real apps only; never panes, files, notes, or commands.
+  public var applicationBundleIdentifier: String? {
+    Self.applicationBundleIdentifier(commandID: id, providerID: providerID)
+  }
+
+  /// True when this row is an application that is currently running.
+  public func showsRunningIndicator(runningBundleIDs: Set<String>) -> Bool {
+    guard let identifier = applicationBundleIdentifier else {
+      return false
+    }
+    return runningBundleIDs.contains { $0.caseInsensitiveCompare(identifier) == .orderedSame }
+  }
+
+  public static func applicationBundleIdentifier(commandID: String, providerID: String) -> String? {
+    guard providerID == "apps", commandID.hasPrefix("app:") else {
+      return nil
+    }
+    let identifier = String(commandID.dropFirst(4))
+    return identifier.isEmpty ? nil : identifier
+  }
+
   /// Verb for the footer hint: window commands run, calculator copies, everything else opens.
   public var actionVerb: String {
     switch providerID {

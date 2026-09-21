@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Dock-style running dots under open application icons in the launcher. Apps only; the dot hides when the app is not running.
+- Trailing Raycast-style keybind chips on rows that have an assigned shortcut, split into separate glyphs (for example ⌘ and /). Window command shortcuts move out of the subtitle into chips.
+
 ## [0.4.0] - 2026-09-21
 
 Ryan foreground launch, snappy launcher, native Settings, and macOS 26/27 chrome release.

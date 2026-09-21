@@ -110,4 +110,23 @@ final class KeybindsConfigurationTests: XCTestCase {
     XCTAssertEqual(HyperKeySource.destinationKeyCode, 79)
     XCTAssertEqual(KeyNames.name(for: HyperKeySource.destinationKeyCode), "F18")
   }
+
+  func testLooksUpAssignedShortcutsByCommandID() {
+    var configuration = KeybindsConfiguration.default
+    let safari = AppHotkey(
+      bundleIdentifier: "com.apple.Safari",
+      name: "Safari",
+      shortcut: commandSpace
+    )
+    let unbound = AppHotkey(bundleIdentifier: "com.apple.Notes", name: "Notes", shortcut: nil)
+    configuration.appHotkeys = [safari, unbound]
+
+    XCTAssertEqual(configuration.shortcut(forCommandID: "app:com.apple.Safari"), commandSpace)
+    XCTAssertEqual(configuration.shortcut(forCommandID: "app:COM.APPLE.SAFARI"), commandSpace)
+    XCTAssertNil(configuration.shortcut(forCommandID: "app:com.apple.Notes"))
+    XCTAssertNil(configuration.shortcut(forCommandID: "app:com.apple.Finder"))
+    XCTAssertEqual(configuration.shortcut(forCommandID: "window:leftHalf"), hyperLeft)
+    XCTAssertNil(configuration.shortcut(forCommandID: "note:1"))
+    XCTAssertNil(configuration.shortcut(forCommandID: "file:/tmp/a.pdf"))
+  }
 }
