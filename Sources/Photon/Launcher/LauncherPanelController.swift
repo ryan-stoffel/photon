@@ -325,6 +325,9 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
       guard Date() >= autoHideSuppressedUntil else {
         return
       }
+      guard !isDraggingLauncher else {
+        return
+      }
       guard generation == focusTransitionGeneration else {
         return
       }
