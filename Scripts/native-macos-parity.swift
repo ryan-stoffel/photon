@@ -1563,6 +1563,7 @@ do {
     }
   }
   try require(enteredClipboard, "row click enters clipboard instead of starting a drag")
+  try sendRuntimeCommand("releaseCommandList")
   try sendRuntimeCommand("hideLauncher")
   _ = try wait("drag interaction checks close cleanly") {
     !bool(launcher($0)["visible"])

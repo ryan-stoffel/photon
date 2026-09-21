@@ -61,6 +61,8 @@ extension NativeParityReporter {
     } else if command == "holdCommandList" {
       Self.suppressFilesPromotion = true
       runtime.launcher.model.exitMode(clearingQuery: false)
+    } else if command == "releaseCommandList" {
+      Self.suppressFilesPromotion = false
     } else {
       handleLauncherPrefixCommand(command, runtime: runtime)
     }
