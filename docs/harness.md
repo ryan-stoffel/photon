@@ -2,7 +2,7 @@
 
 Photon has two required test layers.
 
-`Scripts/check-harness.sh` runs focused Swift fixtures for compact launcher geometry, anchored resizing and snap math, clipboard filtering/persistence, app and System Settings metadata, `ember` file ranking and home scope, notes, configurable shortcuts, and window layouts. CI also runs the complete `swift test` suite.
+`Scripts/check-harness.sh` runs focused Swift fixtures for compact launcher geometry, anchored resizing and snap math, running-app ranking, clipboard filtering/persistence, app and System Settings metadata, `ember` file ranking and home scope, notes, configurable shortcuts, app-hotkey catalog merge, Caps Lock Hyper suppression, and window layouts. CI also runs the complete `swift test` suite.
 
 `Scripts/check-native-parity.sh build/Photon.app` runs only on macOS and tests the packaged application as a process. It:
 

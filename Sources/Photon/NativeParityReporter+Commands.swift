@@ -47,6 +47,12 @@ extension NativeParityReporter {
       }
     } else if command == "openSettings" {
       runtime.openSettings()
+    } else if command.hasPrefix("selectSettingsPane:") {
+      let raw = String(command.dropFirst("selectSettingsPane:".count))
+      if let pane = SettingsPaneID(rawValue: raw) {
+        runtime.settings.selectedPane = pane
+        runtime.openSettings()
+      }
     } else if command == "hideSettings" {
       runtime.closeSettings()
     } else if command == "refreshAppearance" {
@@ -209,5 +215,20 @@ extension NativeParityReporter {
     return model.rows.compactMap { row in
       row.showsRunningIndicator(runningBundleIDs: running) ? row.title : nil
     }
+  }
+
+  func runningAppsLeadList(_ model: LauncherViewModel) -> Bool {
+    let running = runtime?.runningApps.bundleIdentifiers ?? []
+    var seenRest = false
+    for row in model.rows {
+      if row.showsRunningIndicator(runningBundleIDs: running) {
+        if seenRest {
+          return false
+        }
+      } else {
+        seenRest = true
+      }
+    }
+    return true
   }
 }

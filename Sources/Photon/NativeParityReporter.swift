@@ -3,6 +3,7 @@ import Foundation
 import PhotonApps
 import PhotonCore
 import PhotonFiles
+import PhotonKeybinds
 import PhotonNotes
 
 /// Writes live state from the packaged app for the macOS runtime parity harness.
@@ -194,10 +195,13 @@ final class NativeParityReporter: NSObject {
       "settingsWindow": settingsWindowReport(runtime),
       "settings": [
         "appearance": runtime.settings.appearance.rawValue,
+        "pane": runtime.settings.selectedPane.rawValue,
         "launcherHotkey": "\(launcherHotkey.keyCode):\(launcherHotkey.carbonModifiers)",
         "clipboardHotkey": "\(clipboardHotkey.keyCode):\(clipboardHotkey.carbonModifiers)",
         "launcherPosition": launcherPositionReport(runtime.settings.launcherStoredPosition),
+        "appHotkeyNames": runtime.settings.keybinds.appHotkeys.map(\.name),
       ],
+      "capsLockOn": CapsLockState.isOn,
       "features": [
         "notesRegistered": model.results.contains { $0.command.providerID == "notes" },
         "filesModeRegistered": model.modes.contains { $0.id == "files" },
@@ -290,6 +294,7 @@ final class NativeParityReporter: NSObject {
       "selectedIsRunning": selectedIsRunning(model),
       "selectedShortcutChips": selectedShortcutChips(model),
       "runningAppRowTitles": runningAppRowTitles(model),
+      "runningAppsLeadList": runningAppsLeadList(model),
       "visibleRecommendationRows": LauncherLayout.visibleRecommendationRows,
       "fileSelectedName": runtime?.fileSearch?.controller.selected?.displayName ?? "",
       "fileSelectedType": runtime?.fileSearch?.controller.selected?.contentType ?? "",
@@ -323,6 +328,10 @@ final class NativeParityReporter: NSObject {
       "key": window.isKeyWindow,
       "title": window.title,
       "windowNumber": window.windowNumber,
+      "class": window.className,
+      "photonChrome": window is PhotonSettingsWindow
+        || window.contentView?.identifier?.rawValue == PhotonSettingsChrome.contentIdentifier.rawValue,
+      "cornerRadius": LauncherLayout.cornerRadius,
     ]
   }
 

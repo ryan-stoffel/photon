@@ -83,6 +83,13 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
         position(panel)
       }
       .store(in: &cancellables)
+    runningApps.$bundleIdentifiers
+      .removeDuplicates()
+      .sink { [weak self] identifiers in
+        self?.model.runningBundleIDs = identifiers
+      }
+      .store(in: &cancellables)
+    model.runningBundleIDs = runningApps.bundleIdentifiers
   }
 
   func currentFrecency() -> FrecencyStore {

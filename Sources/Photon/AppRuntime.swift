@@ -26,6 +26,7 @@ final class AppRuntime: ObservableObject {
   private var appearanceObserver: NSObjectProtocol?
   private var settingsWindowController: NSWindowController?
   private var settingsShortcutMonitor: SettingsShortcutMonitor?
+  private var settingsWindowDelegate = PhotonSettingsWindowCloseDelegate()
 
   init() {
     let defaults = Self.userDefaultsForLaunch()
@@ -225,30 +226,32 @@ final class AppRuntime: ObservableObject {
   func openSettings() {
     launcher.hide(restorePrevious: false)
     NSApp.activate(ignoringOtherApps: true)
-    _ = NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-    if let existing = existingSettingsWindow() {
-      existing.makeKeyAndOrderFront(nil)
-      return
+    if let pending = settings.pendingSettingsPane {
+      settings.selectedPane = pending
+      settings.pendingSettingsPane = nil
     }
     if settingsWindowController == nil {
-      let host = NSHostingController(
-        rootView: SettingsRootView()
-          .environmentObject(settings)
-          .environmentObject(clipboard)
-          .environmentObject(keybinds)
-          .environmentObject(fileAccess)
-          .frame(minWidth: 720, minHeight: 480)
-      )
-      let window = NSWindow(contentViewController: host)
-      window.title = "Settings"
-      window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
-      window.setContentSize(NSSize(width: 760, height: 520))
-      window.isReleasedWhenClosed = false
+      let window = PhotonSettingsChrome.makeWindow(rootView: settingsRootView)
       window.center()
+      window.isReleasedWhenClosed = false
+      settingsWindowDelegate.onClose = { [weak self] in
+        self?.restoreAccessoryPolicy()
+      }
+      window.delegate = settingsWindowDelegate
       settingsWindowController = NSWindowController(window: window)
     }
     settingsWindowController?.showWindow(nil)
     settingsWindowController?.window?.makeKeyAndOrderFront(nil)
+  }
+
+  private var settingsRootView: some View {
+    SettingsRootView()
+      .environmentObject(settings)
+      .environmentObject(clipboard)
+      .environmentObject(keybinds)
+      .environmentObject(fileAccess)
+      .environmentObject(runningApps)
+      .frame(minWidth: 680, minHeight: 420)
   }
 
   func closeSettings() {
@@ -268,6 +271,9 @@ final class AppRuntime: ObservableObject {
         return false
       }
       if window === hosted {
+        return true
+      }
+      if window is PhotonSettingsWindow {
         return true
       }
       if window.title.localizedCaseInsensitiveContains("Settings") {

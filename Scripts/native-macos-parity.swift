@@ -129,6 +129,10 @@ func settingsWindow(_ report: [String: Any]) -> [String: Any] {
   dictionary(report["settingsWindow"])
 }
 
+func settings(_ report: [String: Any]) -> [String: Any] {
+  dictionary(report["settings"])
+}
+
 func host(_ report: [String: Any]) -> [String: Any] {
   dictionary(report["host"])
 }
@@ -289,6 +293,10 @@ func foregroundTargetBundleIdentifier() -> String {
 
 func foregroundTargetQuery(_ identifier: String) -> String {
   identifier.localizedCaseInsensitiveContains("textedit") ? "TextEdit" : "Calc"
+}
+
+func foregroundTargetTitle(_ identifier: String) -> String {
+  identifier.localizedCaseInsensitiveContains("textedit") ? "TextEdit" : "Calculator"
 }
 
 func captureSettings(
@@ -1100,7 +1108,20 @@ do {
     report,
     name: "settings-general",
     expectedText: "General",
-    additionalExpectedText: ["Open launcher"]
+    additionalExpectedText: ["Open launcher", "Photon"]
+  )
+  try require(bool(settingsWindow(report)["photonChrome"]), "Settings uses Photon panel chrome")
+  try require(!bool(report["capsLockOn"]), "Caps Lock stays off")
+  try sendRuntimeCommand("selectSettingsPane:keybinds")
+  report = try wait("Settings Keybinds pane lists app hotkeys") {
+    bool(settingsWindow($0)["visible"])
+      && string(settings($0)["pane"]) == "keybinds"
+  }
+  try captureSettings(
+    report,
+    name: "app-hotkeys",
+    expectedText: "App hotkeys",
+    additionalExpectedText: ["Add missing app", "Filter apps"]
   )
   try sendRuntimeCommand("hideSettings")
   _ = try wait("Settings closes after the Command-comma proof") {
@@ -1115,6 +1136,28 @@ do {
   try require(
     string(report["frontmostBundleID"]).caseInsensitiveCompare(targetID) == .orderedSame,
     "target app is the frontmost app after Photon launch"
+  )
+  try sendRuntimeCommand("restoreAgent")
+  try sendRuntimeCommand("refreshRunningApps")
+  try sendRuntimeCommand("showLauncher")
+  _ = try wait("launcher reopens after foreground launch") {
+    bool(launcher($0)["visible"])
+  }
+  clickSearchField(report)
+  postKey(125)
+  report = try wait("running apps lead the launcher recommendations") {
+    string(launcher($0)["content"]) == "recommendations"
+      && int(launcher($0)["resultCount"]) > 0
+      && bool(launcher($0)["runningAppsLeadList"])
+      && strings(launcher($0)["runningAppRowTitles"]).contains {
+        $0.localizedCaseInsensitiveContains(foregroundTargetTitle(targetID))
+      }
+  }
+  try require(bool(launcher(report)["runningAppsLeadList"]), "running applications sit at the top of the list")
+  try captureLauncher(
+    report,
+    name: "launcher-running-apps-top",
+    expectedText: foregroundTargetTitle(targetID)
   )
   try sendRuntimeCommand("hideForeground:\(targetID)")
   _ = try wait("target app hides after the foreground proof") {
