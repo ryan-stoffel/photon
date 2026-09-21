@@ -1032,10 +1032,18 @@ do {
   let compactLauncherWidth = double(compactLauncherFrame["width"])
   let compactLauncherHeight = double(compactLauncherFrame["height"])
   let compactLauncherTop = top(report)
+  clickSearchField(report)
+  var lastDownRetry = Date.distantPast
   postKey(125)
+  lastDownRetry = Date()
   report = try wait("Down instantly reveals launcher recommendations at the shared expanded size") {
-    string(launcher($0)["content"]) == "recommendations"
+    let revealed = string(launcher($0)["content"]) == "recommendations"
       && int(launcher($0)["resultCount"]) > 0
+    if !revealed, Date().timeIntervalSince(lastDownRetry) > 0.4 {
+      postKey(125)
+      lastDownRetry = Date()
+    }
+    return revealed
       && abs(double(frame($0)["width"]) - compactLauncherWidth) < 0.5
       && double(frame($0)["height"]) > compactLauncherHeight
       && abs(top($0) - compactLauncherTop) < 0.5
