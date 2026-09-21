@@ -13,9 +13,10 @@ public enum PhotonTiming: Sendable {
     return .now
   }
 
-  public static func milliseconds(from start: ContinuousClock.Instant, to end: ContinuousClock.Instant = .now)
-    -> Double
-  {
+  public static func milliseconds(
+    from start: ContinuousClock.Instant,
+    to end: ContinuousClock.Instant = .now
+  ) -> Double {
     let elapsed = start.duration(to: end)
     let millisecondAttoseconds = 1_000_000_000_000_000.0
     return Double(elapsed.components.seconds) * 1000

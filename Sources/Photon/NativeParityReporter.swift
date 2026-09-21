@@ -121,6 +121,10 @@ final class NativeParityReporter: NSObject {
     Task { @MainActor in
       await runtime.registry.reloadAll()
       let results = await runtime.registry.search("saf", frecency: runtime.launcher.model.frecency)
+      let icons = results.compactMap(\.command.icon)
+      await Task.detached(priority: .utility) {
+        CommandIconCache.shared.prefetch(icons)
+      }.value
       appIconProbeCount = results.filter { result in
         guard result.command.providerID == "apps", let icon = result.command.icon else {
           return false
