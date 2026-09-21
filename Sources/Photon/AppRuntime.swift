@@ -173,7 +173,7 @@ final class AppRuntime: ObservableObject {
   }
 
   /// Settings > Appearance applies to every Photon window, including the launcher panel.
-  private func applyAppearance() {
+  func applyAppearance() {
     if settings.appearance == .system {
       let followsDarkSystem = UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark"
       NSApp.appearance = NSAppearance(named: followsDarkSystem ? .darkAqua : .aqua)

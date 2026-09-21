@@ -933,6 +933,11 @@ func setSystemAppearance(dark: Bool) {
     : ["delete", "-g", "AppleInterfaceStyle"]
   try? process.run()
   process.waitUntilExit()
+  let flush = Process()
+  flush.executableURL = URL(fileURLWithPath: "/usr/bin/killall")
+  flush.arguments = ["cfprefsd"]
+  try? flush.run()
+  flush.waitUntilExit()
   DistributedNotificationCenter.default().post(
     name: Notification.Name("AppleInterfaceThemeChangedNotification"),
     object: nil

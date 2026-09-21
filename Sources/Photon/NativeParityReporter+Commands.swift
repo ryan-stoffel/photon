@@ -49,6 +49,8 @@ extension NativeParityReporter {
       runtime.openSettings()
     } else if command == "hideSettings" {
       runtime.closeSettings()
+    } else if command == "refreshAppearance" {
+      runtime.applyAppearance()
     } else {
       handleLauncherPrefixCommand(command, runtime: runtime)
     }
