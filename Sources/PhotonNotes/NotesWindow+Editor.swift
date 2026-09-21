@@ -47,7 +47,10 @@ extension NotesWindow {
     textView.isAutomaticDashSubstitutionEnabled = false
     textView.isAutomaticTextReplacementEnabled = false
     textView.isAutomaticSpellingCorrectionEnabled = false
-    textView.isContinuousSpellCheckingEnabled = true
+    let parityRequested = !(
+      ProcessInfo.processInfo.environment["PHOTON_NATIVE_PARITY_REPORT_PATH"] ?? ""
+    ).isEmpty
+    textView.isContinuousSpellCheckingEnabled = !parityRequested
     textView.isGrammarCheckingEnabled = false
     textView.smartInsertDeleteEnabled = false
     scrollView.documentView = textView

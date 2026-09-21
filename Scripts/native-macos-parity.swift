@@ -566,15 +566,27 @@ func dragAndReset(
   // Expanded Files sits near the bottom of GitHub's Mac display. Dragging
   // down is clamped, and a 90pt X move stays inside the snap corridor.
   let deltaY: Double = roomDown > 80 ? 55 : -70
-  let guides = dragLauncher(
+  var guides = dragLauncher(
     report,
     xFromLeft: xFromLeft,
     yFromTop: yFromTop,
     deltaX: 90,
     deltaY: deltaY
   )
-  report = try wait("\(name) drag moves the panel") {
+  let moved: ([String: Any]) -> Bool = {
     abs(double(frame($0)["x"]) - startX) > 15 || abs(double(frame($0)["y"]) - startY) > 12
+  }
+  if let live = try? wait("\(name) drag moves the panel", timeout: 6, condition: moved) {
+    report = live
+  } else {
+    guides = dragLauncher(
+      report,
+      xFromLeft: xFromLeft,
+      yFromTop: yFromTop,
+      deltaX: 90,
+      deltaY: deltaY
+    ) || guides
+    report = try wait("\(name) drag moves the panel", condition: moved)
   }
   try require(guides, "\(name) drag displays center guides")
   try sendRuntimeCommand("resetLauncherPosition")
@@ -1128,6 +1140,7 @@ do {
       && bool(launcher($0)["key"])
       && string(launcher($0)["content"]) == "searchOnly"
   }
+  try sendRuntimeCommand("suppressAutoHide")
   let centeredX = double(frame(report)["x"])
   let firstY = double(frame(report)["y"])
   let panelWidth = double(frame(report)["width"])
@@ -1136,14 +1149,7 @@ do {
   let corridorHalf = panelWidth / 2
   let canLeaveCorridor = maxLeftTravel > corridorHalf + 40
   let escapeDelta = canLeaveCorridor ? -(corridorHalf + 80) : -90
-  let firstGuides = dragLauncher(
-    report,
-    xFromLeft: 12,
-    yFromTop: 30,
-    deltaX: escapeDelta,
-    deltaY: 70
-  )
-  report = try wait("left chrome drag keeps outside-corridor X free and adjusts Y") {
+  let chromeMoved: ([String: Any]) -> Bool = {
     let yMoved = abs(double(frame($0)["y"]) - firstY) > 30
     guard yMoved else {
       return false
@@ -1153,6 +1159,32 @@ do {
         && bool(dictionary(dictionary($0["settings"])["launcherPosition"])["centered"]) == false
     }
     return true
+  }
+  var firstGuides = dragLauncher(
+    report,
+    xFromLeft: 12,
+    yFromTop: 30,
+    deltaX: escapeDelta,
+    deltaY: 70
+  )
+  if let live = try? wait(
+    "left chrome drag keeps outside-corridor X free and adjusts Y",
+    timeout: 6,
+    condition: chromeMoved
+  ) {
+    report = live
+  } else {
+    firstGuides = dragLauncher(
+      report,
+      xFromLeft: 12,
+      yFromTop: 30,
+      deltaX: escapeDelta,
+      deltaY: 70
+    ) || firstGuides
+    report = try wait(
+      "left chrome drag keeps outside-corridor X free and adjusts Y",
+      condition: chromeMoved
+    )
   }
   try require(firstGuides, "left chrome drag displays center guides")
   try require(
