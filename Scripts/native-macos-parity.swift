@@ -1143,14 +1143,22 @@ do {
   try sendRuntimeCommand("restoreAgent")
   try sendRuntimeCommand("refreshRunningApps")
   try sendRuntimeCommand("showLauncher")
-  _ = try wait("launcher reopens after foreground launch") {
+  report = try wait("launcher reopens after foreground launch") {
     bool(launcher($0)["visible"])
   }
-  clickSearchField(report)
-  postKey(125)
-  report = try wait("running apps lead the launcher recommendations") {
-    string(launcher($0)["content"]) == "recommendations"
+  try sendRuntimeCommand("suppressAutoHide")
+  try sendRuntimeCommand("moveLauncherSelection:1")
+  var recsAttempt = Date()
+  var retriedRecs = false
+  report = try wait("running apps lead the launcher recommendations", timeout: 20) {
+    let recs = string(launcher($0)["content"]) == "recommendations"
       && int(launcher($0)["resultCount"]) > 0
+    if !recs, !retriedRecs, Date().timeIntervalSince(recsAttempt) > 1.5 {
+      clickSearchField($0)
+      postKey(125)
+      retriedRecs = true
+    }
+    return recs
       && bool(launcher($0)["runningAppsLeadList"])
       && strings(launcher($0)["runningAppRowTitles"]).contains {
         $0.localizedCaseInsensitiveContains(foregroundTargetTitle(targetID))
