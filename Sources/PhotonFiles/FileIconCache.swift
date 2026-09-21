@@ -32,23 +32,21 @@ public final class FileIconCache: @unchecked Sendable {
 
   public func prefetch(_ files: [FileResult]) {
     for file in files {
-      let key = file.path as NSString
-      if cache.object(forKey: key) != nil {
-        continue
-      }
-      let image = NSWorkspace.shared.icon(forFile: file.path)
-      cache.setObject(image, forKey: key)
+      loadIfNeeded(file.path)
     }
   }
 
   private func scheduleLoad(_ path: String) {
-    Task.detached(priority: .utility) { [self] in
-      let key = path as NSString
-      if cache.object(forKey: key) != nil {
-        return
-      }
-      let image = NSWorkspace.shared.icon(forFile: path)
-      cache.setObject(image, forKey: key)
+    Task.detached(priority: .utility) {
+      FileIconCache.shared.loadIfNeeded(path)
     }
+  }
+
+  private func loadIfNeeded(_ path: String) {
+    let key = path as NSString
+    if cache.object(forKey: key) != nil {
+      return
+    }
+    cache.setObject(NSWorkspace.shared.icon(forFile: path), forKey: key)
   }
 }

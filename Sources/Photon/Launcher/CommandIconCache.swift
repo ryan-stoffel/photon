@@ -67,21 +67,30 @@ final class CommandIconCache: @unchecked Sendable {
   }
 
   private func scheduleLoad(_ icon: CommandIcon, key: String) {
-    inflight.lock()
-    let already = !loading.insert(key).inserted
-    inflight.unlock()
-    guard !already else {
+    guard beginLoad(key) else {
       return
     }
-    Task.detached(priority: .utility) { [self] in
-      _ = self.store(icon, key: key as NSString)
-      inflight.lock()
-      loading.remove(key)
-      inflight.unlock()
+    Task.detached(priority: .utility) {
+      let cache = CommandIconCache.shared
+      _ = cache.store(icon, key: key as NSString)
+      cache.endLoad(key)
       await MainActor.run {
-        Self.onImagesLoaded?()
+        CommandIconCache.onImagesLoaded?()
       }
     }
+  }
+
+  private func beginLoad(_ key: String) -> Bool {
+    inflight.lock()
+    let inserted = loading.insert(key).inserted
+    inflight.unlock()
+    return inserted
+  }
+
+  private func endLoad(_ key: String) {
+    inflight.lock()
+    loading.remove(key)
+    inflight.unlock()
   }
 
   private func store(_ icon: CommandIcon, key: NSString) -> NSImage? {
