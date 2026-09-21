@@ -6,15 +6,14 @@ The `lint` and `smoke` jobs print `sw_vers`, `xcodebuild -version`, and `xcrun -
 
 ## As of Photon 0.4.0
 
-Fill in from the first green `smoke` log on `feature/GH-178-launch-settings-perf` / `v0.4.0`:
+Recorded on `macos-latest` (`macos-26-arm64`, image `20260907.0351`) during PR [#183](https://github.com/ryan-stoffel/photon/pull/183):
 
 | Field | Value |
 | --- | --- |
-| `ProductName` / `ProductVersion` | See the `Record runner OS and SDK` step |
-| `xcodebuild` | See the same step |
-| macOS SDK | See `SDK:` in that step |
-| `NSGlassEffectView` | Printed by `Scripts/native-macos-parity.swift` as `Liquid Glass NSGlassEffectView: true/false` |
+| ProductName | macOS |
+| ProductVersion | 26.6.2 (Build 25G83) |
+| Xcode | 26.6 (17F113) |
+| macOS SDK | 26.5 |
+| `NSGlassEffectView` | true |
 
-Deployment target stays **macOS 14**. Liquid Glass is a runtime fallback, not a raised minimum.
-
-If `macos-latest` is still 15 or 26, availability + the latest SDK on that image is enough; do not break CI by requiring macOS 27 types at compile time.
+Deployment target stays **macOS 14**. Liquid Glass is selected at runtime when `NSGlassEffectView` exists. The 26.5 SDK knows that type; Photon still does not reference it at compile time so older toolchains keep building.
