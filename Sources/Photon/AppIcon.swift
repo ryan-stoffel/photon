@@ -53,9 +53,8 @@ enum PhotonAppIcon {
       return nil
     }
     let base = (named as NSString).deletingPathExtension
-    if let url = bundle.url(forResource: base, withExtension: "icns"),
-       let image = NSImage(contentsOf: url)
-    {
+    let url = bundle.url(forResource: base, withExtension: "icns")
+    if let url, let image = NSImage(contentsOf: url) {
       return image
     }
     let file = named.hasSuffix(".icns") ? named : named + ".icns"

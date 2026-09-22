@@ -39,9 +39,8 @@ enum IconBitmap {
     let largest = image.representations.max { lhs, rhs in
       lhs.pixelsWide * lhs.pixelsHigh < rhs.pixelsWide * rhs.pixelsHigh
     }
-    if let largest, largest.pixelsWide > 0, largest.pixelsHigh > 0,
-       let cgImage = largest.cgImage(forProposedRect: nil, context: nil, hints: nil)
-    {
+    let cgImage = largest?.cgImage(forProposedRect: nil, context: nil, hints: nil)
+    if let cgImage, let largest, largest.pixelsWide > 0, largest.pixelsHigh > 0 {
       return cgImage
     }
     var proposed = NSRect(origin: .zero, size: image.size)
