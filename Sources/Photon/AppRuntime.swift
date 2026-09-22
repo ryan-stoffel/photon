@@ -235,7 +235,7 @@ final class AppRuntime: ObservableObject {
       defaults.set(true, forKey: FirstLaunch.permissionsKey)
       keybinds.requestFirstLaunchPermissions()
     }
-    if !defaults.bool(forKey: FirstLaunch.onboardingKey) {
+    if FirstLaunch.needsInteractiveOnboarding(defaults) {
       let controller = makeOnboarding()
       controller.onFinish = { [weak self] in
         guard let self else {

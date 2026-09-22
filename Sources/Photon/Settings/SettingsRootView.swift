@@ -87,7 +87,7 @@ struct SettingsRootView: View {
   private var sidebar: some View {
     VStack(alignment: .leading, spacing: 0) {
       HStack(spacing: 10) {
-        Image(nsImage: NSApp.applicationIconImage)
+        Image(nsImage: PhotonAppIcon.current)
           .resizable()
           .interpolation(.high)
           .frame(width: 28, height: 28)
