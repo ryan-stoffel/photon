@@ -1,123 +1,34 @@
 import AppKit
 import Carbon
-import PhotonCore
+import PhotonKeybinds
 import SwiftUI
-
-enum OnboardingPractice: Equatable {
-  case none
-  case launcherShortcut
-  case search
-  case clipboard
-  case note
-  case files
-  case settingsShortcut
-}
-
-enum OnboardingStep: Int, CaseIterable, Equatable {
-  case welcome
-  case launcher
-  case suggestions
-  case search
-  case clipboard
-  case notes
-  case files
-  case settings
-
-  var title: String {
-    switch self {
-    case .welcome: "Photon"
-    case .launcher: "Open from anywhere"
-    case .suggestions: "Suggestions"
-    case .search: "Search"
-    case .clipboard: "Clipboard"
-    case .notes: "Notes"
-    case .files: "Files"
-    case .settings: "Settings"
-    }
-  }
-
-  var kicker: String? {
-    switch self {
-    case .welcome: nil
-    case .launcher: "Launcher"
-    case .suggestions: "Most used"
-    case .search: "One list"
-    case .clipboard: "Recent copies"
-    case .notes: "Quick notes"
-    case .files: "Home folder"
-    case .settings: "Anytime"
-    }
-  }
-
-  var body: String {
-    switch self {
-    case .welcome:
-      "A short tour you can try. Open Photon, search, and use the pieces that stay on this Mac."
-    case .launcher:
-      "Press this shortcut with the tour focused. Photon comes up over whatever you are doing."
-    case .suggestions:
-      "The apps you open most sit at the top. A dot marks one that is running, wherever it sits."
-    case .search:
-      "Type a few letters. Apps, clipboard, notes, and files come up together."
-    case .clipboard:
-      "Search finds what you copied. Return pastes the one you have selected."
-    case .notes:
-      "Write a line. The note stays searchable from the launcher."
-    case .files:
-      "Names in your home folder mix into the same list. Try ember."
-    case .settings:
-      "Press ⌘, for the hotkey, clipboard, notes, files, and keybinds."
-    }
-  }
-
-  var practice: OnboardingPractice {
-    switch self {
-    case .welcome, .suggestions: .none
-    case .launcher: .launcherShortcut
-    case .search: .search
-    case .clipboard: .clipboard
-    case .notes: .note
-    case .files: .files
-    case .settings: .settingsShortcut
-    }
-  }
-
-  var continues: String {
-    self == .settings ? "Start using Photon" : "Continue"
-  }
-
-  var triesText: Bool {
-    switch practice {
-    case .search, .note, .files: true
-    case .none, .launcherShortcut, .clipboard, .settingsShortcut: false
-    }
-  }
-
-  var next: OnboardingStep? {
-    OnboardingStep(rawValue: rawValue + 1)
-  }
-
-  var previous: OnboardingStep? {
-    OnboardingStep(rawValue: rawValue - 1)
-  }
-}
 
 @MainActor
 final class OnboardingController: ObservableObject {
-  @Published var step: OnboardingStep = .welcome
+  @Published var step: OnboardingStep = .reveal
   @Published var hotkey: HotkeyCombo
-  @Published var practiceQuery = ""
-  @Published var noteDraft = ""
-  @Published var clipboardPasted = false
-  @Published var shortcutLanded = false
+  @Published var permissionNotice: String?
+  @Published var permissionWaiting = false
+  @Published private(set) var revealStarted = Date()
+
   var onFinish: (() -> Void)?
+  var onPermissionResolved: (() -> Void)?
 
   private var window: OnboardingWindow?
+  private var confettiWindow: NSWindow?
   private var keyMonitor: Any?
-  private var advanceTask: Task<Void, Never>?
+  private var schedule: Task<Void, Never>?
+  private var permissionSession: OnboardingPermissionSession?
+  private var finished = false
+  private var celebrated = false
+  private var permissionSettled = false
 
   init(hotkey: HotkeyCombo) {
     self.hotkey = hotkey
+  }
+
+  var instant: Bool {
+    NativeParityReporter.isRequested
   }
 
   var isVisible: Bool {
@@ -128,107 +39,276 @@ final class OnboardingController: ObservableObject {
     window?.windowNumber ?? 0
   }
 
+  var isWaitingForLauncher: Bool {
+    isVisible && step == .tryIt && !celebrated && !finished
+  }
+
   func present(hotkey: HotkeyCombo) {
     self.hotkey = hotkey
-    resetPractice()
-    step = .welcome
+    finished = false
+    celebrated = false
+    permissionSettled = false
+    permissionNotice = nil
+    permissionWaiting = false
+    revealStarted = Date()
+    step = .reveal
     if window == nil {
-      let host = NSHostingView(rootView: AnyView(OnboardingView(model: self)))
+      let host = NSHostingView(rootView: OnboardingView(model: self))
       window = OnboardingChrome.makeWindow(host: host)
+    }
+    if let window {
+      window.alphaValue = 1
+      window.level = .statusBar
+      window.setFrame(OnboardingChrome.screenFrame(), display: true)
     }
     installKeyMonitor()
     NSApp.activate(ignoringOtherApps: true)
-    window?.center()
     window?.makeKeyAndOrderFront(nil)
+    armAutoAdvance()
   }
 
   func advance() {
-    advanceTask?.cancel()
-    if let next = step.next {
-      withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-        step = next
-        resetPractice()
-      }
-    } else {
+    let pending = schedule
+    schedule = nil
+    pending?.cancel()
+    cancelPermissionWatch()
+    if step.isPermission {
+      onPermissionResolved?()
+    }
+    permissionNotice = nil
+    permissionWaiting = false
+    permissionSettled = false
+    guard let next = step.next else {
       finish()
+      return
+    }
+    if instant {
+      step = next
+    } else {
+      withAnimation(.easeInOut(duration: OnboardingTiming.content)) {
+        step = next
+      }
+    }
+    armAutoAdvance()
+  }
+
+  func advanceFromPointer() {
+    switch step {
+    case .reveal, .feature:
+      advance()
+    case .permission, .tryIt:
+      break
     }
   }
 
-  func retreat() {
-    guard let previous = step.previous else {
+  func grantPermission() {
+    guard case let .permission(kind) = step, !permissionSettled, !instant else {
       return
     }
-    advanceTask?.cancel()
-    withAnimation(.spring(response: 0.42, dampingFraction: 0.86)) {
-      step = previous
-      resetPractice()
+    permissionWaiting = true
+    window?.level = .normal
+    window?.orderBack(nil)
+    let session = OnboardingPermissionSession()
+    session.onResolve = { @MainActor [weak self] granted in
+      self?.resolvePermission(granted: granted)
+    }
+    permissionSession = session
+    session.start(
+      request: { Self.request(kind) },
+      isGranted: { Self.isGranted(kind) }
+    )
+  }
+
+  func skipPermission() {
+    guard case let .permission(kind) = step, !permissionSettled else {
+      return
+    }
+    permissionSettled = true
+    cancelPermissionWatch()
+    permissionWaiting = false
+    if instant {
+      advance()
+      return
+    }
+    permissionNotice = kind.withheld
+    scheduleAdvance(after: OnboardingTiming.permissionNotice)
+  }
+
+  func noteLauncherOpened(visible: Bool, frame: NSRect) {
+    guard isWaitingForLauncher, visible, frame.width > 1 else {
+      return
+    }
+    celebrated = true
+    let pending = schedule
+    schedule = nil
+    pending?.cancel()
+    removeKeyMonitor()
+    window?.animator().alphaValue = 0
+    let screenFrame = frame
+    Task { @MainActor in
+      try? await Task.sleep(for: .seconds(OnboardingTiming.content))
+      self.window?.orderOut(nil)
+      self.window?.alphaValue = 1
+      self.playConfetti(around: screenFrame)
     }
   }
 
   func finish() {
-    advanceTask?.cancel()
+    guard !finished else {
+      return
+    }
+    finished = true
+    let pending = schedule
+    schedule = nil
+    pending?.cancel()
+    cancelPermissionWatch()
     removeKeyMonitor()
     FirstLaunch.markInteractiveOnboardingComplete()
     window?.orderOut(nil)
+    confettiWindow?.orderOut(nil)
     let callback = onFinish
     onFinish = nil
     callback?()
   }
 
-  func handle(keyCode: UInt16, modifiers: UInt32) -> Bool {
-    switch step.practice {
-    case .launcherShortcut:
-      guard matches(keyCode: keyCode, modifiers: modifiers, combo: hotkey) else {
-        return false
-      }
-      landShortcut()
+  func handle(keyCode: UInt16, modifiers _: UInt32) -> Bool {
+    if keyCode == UInt16(kVK_Escape) {
+      return consumeEscape()
+    }
+    if isReturn(keyCode), step.isPermission {
+      grantPermission()
       return true
-    case .settingsShortcut:
-      guard keyCode == UInt16(kVK_ANSI_Comma), carbonModifiers(modifiers) == UInt32(cmdKey) else {
-        return false
-      }
-      landShortcut()
+    }
+    if isAdvanceKey(keyCode), step == .reveal || isFeature {
+      advance()
       return true
-    case .clipboard:
-      guard keyCode == UInt16(kVK_Return) || keyCode == UInt16(kVK_ANSI_KeypadEnter) else {
-        return false
-      }
-      withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-        clipboardPasted = true
-      }
+    }
+    return false
+  }
+
+  private var isFeature: Bool {
+    if case .feature = step {
       return true
-    case .none, .search, .note, .files:
-      return false
+    }
+    return false
+  }
+
+  private func consumeEscape() -> Bool {
+    if step.isPermission {
+      return true
+    }
+    advance()
+    return true
+  }
+
+  private func isReturn(_ keyCode: UInt16) -> Bool {
+    keyCode == UInt16(kVK_Return) || keyCode == UInt16(kVK_ANSI_KeypadEnter)
+  }
+
+  private func isAdvanceKey(_ keyCode: UInt16) -> Bool {
+    isReturn(keyCode) || keyCode == UInt16(kVK_Space) || keyCode == UInt16(kVK_RightArrow)
+  }
+
+  private func resolvePermission(granted: Bool) {
+    guard !permissionSettled, case let .permission(kind) = step else {
+      return
+    }
+    permissionSettled = true
+    permissionWaiting = false
+    window?.level = .statusBar
+    window?.orderFrontRegardless()
+    if granted {
+      advance()
+      return
+    }
+    permissionNotice = kind.withheld
+    scheduleAdvance(after: OnboardingTiming.permissionNotice)
+  }
+
+  private func armAutoAdvance() {
+    switch step {
+    case .reveal:
+      let delay = OnboardingTiming.revealDuration(reduceMotion: reduceMotion)
+      scheduleAdvance(after: delay)
+    case .feature:
+      scheduleAdvance(after: OnboardingTiming.featureHold)
+    case .permission, .tryIt:
+      break
     }
   }
 
-  private func landShortcut() {
-    withAnimation(.spring(response: 0.28, dampingFraction: 0.7)) {
-      shortcutLanded = true
+  private func scheduleAdvance(after seconds: TimeInterval) {
+    let pending = schedule
+    schedule = nil
+    pending?.cancel()
+    guard !instant else {
+      return
     }
-    advanceTask?.cancel()
-    advanceTask = Task { @MainActor in
-      try? await Task.sleep(for: .milliseconds(560))
-      guard !Task.isCancelled, shortcutLanded else {
+    schedule = Task { @MainActor in
+      try? await Task.sleep(for: .seconds(seconds))
+      guard !Task.isCancelled else {
         return
       }
       advance()
     }
   }
 
-  private func matches(keyCode: UInt16, modifiers: UInt32, combo: HotkeyCombo) -> Bool {
-    UInt32(keyCode) == combo.keyCode && carbonModifiers(modifiers) == combo.carbonModifiers
+  private var reduceMotion: Bool {
+    NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
   }
 
-  private func carbonModifiers(_ modifiers: UInt32) -> UInt32 {
-    HotkeyCombo.carbonModifiers(fromApple: modifiers)
+  private static func request(_ kind: OnboardingPermission) -> Bool {
+    switch kind {
+    case .accessibility:
+      AccessibilityPermission.requestTrust()
+    case .inputMonitoring:
+      AccessibilityPermission.requestInputMonitoring()
+    }
   }
 
-  private func resetPractice() {
-    practiceQuery = ""
-    noteDraft = ""
-    clipboardPasted = false
-    shortcutLanded = false
+  private static func isGranted(_ kind: OnboardingPermission) -> Bool {
+    switch kind {
+    case .accessibility:
+      AccessibilityPermission.isTrusted
+    case .inputMonitoring:
+      AccessibilityPermission.hasInputMonitoring
+    }
+  }
+
+  private func playConfetti(around frame: NSRect) {
+    let pad: CGFloat = 96
+    let rect = frame.insetBy(dx: -pad, dy: -pad)
+    let host = NSHostingView(
+      rootView: OnboardingConfettiView(started: Date(), reduceMotion: reduceMotion)
+    )
+    host.frame = NSRect(origin: .zero, size: rect.size)
+    let overlay = OnboardingOverlayWindow(
+      contentRect: rect,
+      styleMask: [.borderless],
+      backing: .buffered,
+      defer: false
+    )
+    overlay.isOpaque = false
+    overlay.backgroundColor = .clear
+    overlay.hasShadow = false
+    overlay.ignoresMouseEvents = true
+    overlay.level = .statusBar
+    overlay.contentView = host
+    overlay.orderFrontRegardless()
+    confettiWindow = overlay
+    Task { @MainActor in
+      try? await Task.sleep(for: .seconds(OnboardingTiming.confetti + 0.12))
+      overlay.orderOut(nil)
+      if self.confettiWindow === overlay {
+        self.confettiWindow = nil
+      }
+      self.finish()
+    }
+  }
+
+  private func cancelPermissionWatch() {
+    permissionSession?.cancel()
+    permissionSession = nil
   }
 
   private func installKeyMonitor() {
@@ -259,52 +339,5 @@ private struct OnboardingBox: @unchecked Sendable {
 
   init(_ value: OnboardingController) {
     self.value = value
-  }
-}
-
-enum OnboardingChrome {
-  static let windowSize = NSSize(width: 640, height: 600)
-
-  @MainActor
-  static func makeWindow(host: NSHostingView<AnyView>) -> OnboardingWindow {
-    host.safeAreaRegions = []
-    host.sizingOptions = []
-    host.frame = NSRect(origin: .zero, size: windowSize)
-    let window = OnboardingWindow(
-      contentRect: NSRect(origin: .zero, size: windowSize),
-      styleMask: [.titled, .closable, .fullSizeContentView],
-      backing: .buffered,
-      defer: false
-    )
-    window.title = "Photon"
-    window.titleVisibility = .hidden
-    window.titlebarAppearsTransparent = true
-    window.isOpaque = false
-    window.backgroundColor = .clear
-    window.hasShadow = true
-    window.isMovableByWindowBackground = true
-    window.setContentSize(windowSize)
-    let chrome = PhotonPanelChrome.embed(
-      host,
-      frame: NSRect(origin: .zero, size: windowSize),
-      cornerRadius: LauncherLayout.cornerRadius,
-      material: .popover
-    )
-    chrome.identifier = NSUserInterfaceItemIdentifier("photon.onboarding")
-    window.contentView = chrome
-    window.hostingView = host
-    return window
-  }
-}
-
-final class OnboardingWindow: NSWindow {
-  var hostingView: NSHostingView<AnyView>?
-
-  override var canBecomeKey: Bool {
-    true
-  }
-
-  override var canBecomeMain: Bool {
-    true
   }
 }

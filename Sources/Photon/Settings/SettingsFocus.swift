@@ -22,7 +22,7 @@ enum SettingsFocusTarget: Hashable {
   private static func content(for pane: SettingsPaneID) -> [String] {
     switch pane {
     case .general:
-      ["general.keyboardSettings", "general.launchAtLogin"]
+      ["general.keyboardSettings", "general.launchAtLogin", "general.replayOnboarding"]
     case .appearance:
       ["appearance.suggestions", "appearance.width", "appearance.reset", "appearance.mode"]
     case .clipboard:

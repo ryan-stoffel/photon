@@ -58,10 +58,10 @@ Photon is a menu-bar agent (`LSUIElement`). It does not appear in the Dock.
 | Permission | When | Why |
 | --- | --- | --- |
 | none for the launcher itself | Phase 1 | `RegisterEventHotKey` does not require Input Monitoring. |
-| Keyboard shortcuts | first launch | macOS Spotlight also defaults to `Cmd+Space`. Photon detects the conflict and tells you how to disable Spotlight's shortcut under **System Settings > Keyboard > Keyboard Shortcuts > Spotlight**. |
+| Keyboard shortcuts | after the introduction | macOS Spotlight also defaults to `Cmd+Space`. Photon detects the conflict and tells you how to disable Spotlight's shortcut under **System Settings > Keyboard > Keyboard Shortcuts > Spotlight**. |
 | Login Item | optional | "Launch at login" on the General settings tab uses `SMAppService`. |
-| Accessibility | Clipboard (optional), Keybinds | Pasting a clipboard item into the frontmost app (Photon sends `Cmd+V`; without it, Return copies the item and shows a hint). Required for the Hyper key (a keyboard event tap) and window management (moving windows through the Accessibility API). Photon asks once on first launch and shows the status under **Settings > Keybinds**. Without it Caps Lock keeps its normal behaviour. |
-| Input Monitoring | Keybinds (optional) | macOS may also list Photon here when the Hyper key is on. Accessibility alone is enough. |
+| Accessibility | first-run sequence | Pasting a clipboard item into the frontmost app (Photon sends `Cmd+V`; without it, Return copies the item and shows a hint). Required for the Hyper key (a keyboard event tap) and window management (moving windows through the Accessibility API). The introduction asks on its own screen. Status stays under **Settings > Keybinds**. Without it Caps Lock keeps its normal behaviour. |
+| Input Monitoring | first-run sequence | Asked so Photon can hear the launcher shortcut while another app is in front. The shortcut itself is still a Carbon hotkey. |
 | Full Disk Access | optional | File search only sees what Spotlight indexes; folders in Spotlight Privacy stay hidden. Photon adds its own excluded-folders list under **Settings > Files**. |
 
 ### How the Hyper key works
@@ -86,3 +86,5 @@ Architecture: [docs/architecture.md](docs/architecture.md). Harness: [docs/harne
 ## License
 
 [MIT](LICENSE)
+
+Onboarding text uses [Sora](https://fonts.google.com/specimen/Sora) by the Sora Project Authors, under the [SIL Open Font License](Resources/Fonts/OFL.txt).
