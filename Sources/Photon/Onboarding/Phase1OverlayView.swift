@@ -133,8 +133,9 @@ private struct Phase1Beam: View {
     guard fade > 0.02 else {
       return
     }
-    let radius = Phase1Metrics.beamHairlineRadius * (0.15 + 0.85 * fade)
-    let alpha = geometry.brightness * Phase1Metrics.beamTailAlpha * fade
+    let presence = fade * fade
+    let radius = Phase1Metrics.beamHairlineRadius * (0.2 + 0.8 * fade)
+    let alpha = geometry.brightness * Phase1Metrics.beamTailAlpha * presence
     let x = geometry.startX + geometry.span * along
     let rect = CGRect(x: x - radius, y: geometry.midY - radius, width: radius * 2, height: radius * 2)
     context.fill(
@@ -205,8 +206,8 @@ private struct Phase1Beam: View {
     return [
       .init(color: white, location: 0),
       .init(color: white, location: core),
-      .init(color: cyan, location: min(1, core + 0.1)),
-      .init(color: cyan.opacity(0.28), location: 0.48),
+      .init(color: cyan, location: min(1, core + 0.12)),
+      .init(color: cyan.opacity(0.42), location: 0.55),
       .init(color: clear, location: 1),
     ]
   }

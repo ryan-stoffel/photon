@@ -10,10 +10,10 @@ enum Phase1Metrics {
   static let beamTailLength: CGFloat = 340
   static let beamHeadCoreDiameter: CGFloat = 5
   static let beamBloomRadius: CGFloat = 36
-  static let beamBloomOpacity: CGFloat = 0.48
-  static let beamHairlineRadius: CGFloat = 1.8
-  static let beamSampleSpacing: CGFloat = 0.7
-  static let beamTailAlpha: CGFloat = 0.92
+  static let beamBloomOpacity: CGFloat = 0.72
+  static let beamHairlineRadius: CGFloat = 1.15
+  static let beamSampleSpacing: CGFloat = 0.5
+  static let beamTailAlpha: CGFloat = 0.34
   static let beamMinBrightness: CGFloat = 0.72
   static let beamBloomMin: CGFloat = 0.86
   static let beamBloomMax: CGFloat = 1
