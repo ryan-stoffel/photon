@@ -20,7 +20,7 @@ enum Phase1Space {
     guard let desktop = requestedDesktop, desktop > 0, let target = space(desktop: desktop) else {
       return false
     }
-    guard move(window, to: target.uuid) else {
+    guard move(window, to: target.id) else {
       return false
     }
     Thread.sleep(forTimeInterval: 0.15)
@@ -71,7 +71,7 @@ enum Phase1Space {
     return spaces.compactMap { ($0 as? NSNumber)?.uint64Value }
   }
 
-  private static func move(_ window: NSWindow, to uuid: String) -> Bool {
+  private static func move(_ window: NSWindow, to space: UInt64) -> Bool {
     guard window.windowNumber > 0, let sky = dlopen(skyLight, RTLD_LAZY) else {
       return false
     }
@@ -80,7 +80,7 @@ enum Phase1Space {
     else {
       return false
     }
-    typealias Move = @convention(c) (Int32, CFArray, CFString) -> Void
+    typealias Move = @convention(c) (Int32, CFArray, UInt64) -> Void
     typealias Connection = @convention(c) () -> Int32
     let moveWindow = unsafeBitCast(moveSymbol, to: Move.self)
     let connection = unsafeBitCast(connectionSymbol, to: Connection.self)
@@ -88,7 +88,7 @@ enum Phase1Space {
     guard let number = CFNumberCreate(nil, .sInt32Type, &identifier) else {
       return false
     }
-    moveWindow(connection(), [number] as CFArray, uuid as CFString)
+    moveWindow(connection(), [number] as CFArray, space)
     return true
   }
 
