@@ -13,7 +13,7 @@ enum Phase1Metrics {
   static let beamBloomOpacity: CGFloat = 0.72
   static let beamHairlineRadius: CGFloat = 1
   static let beamSampleSpacing: CGFloat = 0.45
-  static let beamTailAlpha: CGFloat = 0.15
+  static let beamTailAlpha: CGFloat = 0.32
   static let beamMinBrightness: CGFloat = 0.72
   static let beamBloomMin: CGFloat = 0.86
   static let beamBloomMax: CGFloat = 1
