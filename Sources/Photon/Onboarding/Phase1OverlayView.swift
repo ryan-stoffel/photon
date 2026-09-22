@@ -45,7 +45,7 @@ private struct Phase1Scene: View {
         Phase1Beam(progress: frame.beamProgress, collapse: frame.beamCollapse)
       }
       if frame.flashOpacity > 0 {
-        Phase1Flash(opacity: frame.flashOpacity, progress: frame.flashProgress)
+        Phase1Flash(opacity: frame.flashOpacity)
       }
       Phase1Mark(opacity: frame.markOpacity, scale: frame.markScale)
     }
@@ -130,11 +130,12 @@ private struct Phase1Beam: View {
     along: CGFloat
   ) {
     let fade = smooth(along)
-    guard fade > 0.02 else {
+    guard fade > 0.015 else {
       return
     }
-    let radius = Phase1Metrics.beamHairlineRadius * (0.2 + 0.8 * fade)
-    let alpha = geometry.brightness * Phase1Metrics.beamTailAlpha * fade
+    let presence = pow(fade, 0.35)
+    let radius = Phase1Metrics.beamHairlineRadius * (0.22 + 0.78 * fade)
+    let alpha = geometry.brightness * Phase1Metrics.beamTailAlpha * presence
     let x = geometry.startX + geometry.span * along
     let rect = CGRect(x: x - radius, y: geometry.midY - radius, width: radius * 2, height: radius * 2)
     context.fill(
@@ -152,7 +153,7 @@ private struct Phase1Beam: View {
     let color = tailColor(along: along, alpha: alpha)
     return [
       .init(color: color, location: 0),
-      .init(color: color.opacity(0.35), location: 0.42),
+      .init(color: color.opacity(0.55), location: 0.38),
       .init(color: color.opacity(0), location: 1),
     ]
   }
@@ -205,8 +206,9 @@ private struct Phase1Beam: View {
     return [
       .init(color: white, location: 0),
       .init(color: white, location: core),
-      .init(color: cyan, location: min(1, core + 0.12)),
-      .init(color: cyan.opacity(0.42), location: 0.55),
+      .init(color: cyan, location: min(1, core + 0.06)),
+      .init(color: cyan.opacity(0.72), location: 0.38),
+      .init(color: cyan.opacity(0.3), location: 0.68),
       .init(color: clear, location: 1),
     ]
   }
@@ -246,17 +248,11 @@ private struct BeamGeometry {
 
 private struct Phase1Flash: View {
   var opacity: CGFloat
-  var progress: CGFloat
 
   var body: some View {
-    let scale = Phase1Metrics.flashScaleStart
-      + (Phase1Metrics.flashScaleEnd - Phase1Metrics.flashScaleStart) * progress
-    Circle()
-      .fill(Phase1Metrics.flashColor)
-      .frame(width: Phase1Metrics.flashDiameter, height: Phase1Metrics.flashDiameter)
-      .scaleEffect(scale)
-      .blur(radius: Phase1Metrics.flashBlur)
+    Color.white
       .opacity(opacity)
+      .ignoresSafeArea()
       .allowsHitTesting(false)
   }
 }

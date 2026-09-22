@@ -7,14 +7,14 @@ enum Phase1Metrics {
   static let dimColor = Color(red: 0.02, green: 0.03, blue: 0.06)
   static let backgroundFade: TimeInterval = 1.5
   static let beamDuration: TimeInterval = 3.6
-  static let beamTailLength: CGFloat = 340
-  static let beamHeadCoreDiameter: CGFloat = 5
-  static let beamBloomRadius: CGFloat = 36
-  static let beamBloomOpacity: CGFloat = 0.72
-  static let beamHairlineRadius: CGFloat = 1
-  static let beamSampleSpacing: CGFloat = 0.45
-  static let beamTailAlpha: CGFloat = 0.32
-  static let beamMinBrightness: CGFloat = 0.72
+  static let beamTailLength: CGFloat = 720
+  static let beamHeadCoreDiameter: CGFloat = 16
+  static let beamBloomRadius: CGFloat = 140
+  static let beamBloomOpacity: CGFloat = 1
+  static let beamHairlineRadius: CGFloat = 2.8
+  static let beamSampleSpacing: CGFloat = 0.65
+  static let beamTailAlpha: CGFloat = 0.88
+  static let beamMinBrightness: CGFloat = 0.92
   static let beamBloomMin: CGFloat = 0.86
   static let beamBloomMax: CGFloat = 1
   static let beamMinSpan: CGFloat = 0.5
@@ -30,12 +30,8 @@ enum Phase1Metrics {
   static let beamBloomRed: CGFloat = 0.68
   static let beamBloomGreen: CGFloat = 0.93
   static let beamBloomBlue: CGFloat = 1
-  static let flashDuration: TimeInterval = 0.5
-  static let flashColor = Color(red: 0.78, green: 0.9, blue: 1)
-  static let flashDiameter: CGFloat = 200
-  static let flashBlur: CGFloat = 28
-  static let flashScaleStart: CGFloat = 0.35
-  static let flashScaleEnd: CGFloat = 1.8
+  static let flashHold: TimeInterval = 1
+  static let flashFade: TimeInterval = 1
   static let iconSize: CGFloat = 108
   static let iconStartScale: CGFloat = 0.82
   static let wordmarkSize: CGFloat = 40
@@ -63,10 +59,9 @@ enum Phase1Metrics {
   static let dismissFallbackDelay: TimeInterval = 0.08
   static let windowLevel = NSWindow.Level.screenSaver
   static let collectionBehavior: NSWindow.CollectionBehavior = [
+    .managed,
     .fullScreenAuxiliary,
-    .transient,
     .ignoresCycle,
-    .stationary,
   ]
   static let restingStep = "Photon"
 
@@ -148,8 +143,12 @@ enum Phase1Clock {
       )
     }
     let afterBeam = afterBackground - Phase1Metrics.beamDuration
-    if afterBeam < Phase1Metrics.flashDuration {
-      return flash(progress: CGFloat(afterBeam / Phase1Metrics.flashDuration))
+    if afterBeam < Phase1Metrics.flashHold {
+      return holdWhite()
+    }
+    let afterHold = afterBeam - Phase1Metrics.flashHold
+    if afterHold < Phase1Metrics.flashFade {
+      return revealMark(progress: CGFloat(afterHold / Phase1Metrics.flashFade))
     }
     return .resting
   }
@@ -168,20 +167,39 @@ enum Phase1Clock {
     )
   }
 
-  private static func flash(progress: CGFloat) -> Phase1Frame {
-    let mark = min(1, max(0, (progress - 0.2) / 0.8))
-    let scale = Phase1Metrics.iconStartScale + (1 - Phase1Metrics.iconStartScale) * mark
+  private static func holdWhite() -> Phase1Frame {
+    Phase1Frame(
+      background: 1,
+      beamProgress: 1,
+      beamVisible: false,
+      beamCollapse: 1,
+      flashOpacity: 1,
+      flashProgress: 0,
+      markOpacity: 0,
+      markScale: Phase1Metrics.iconStartScale,
+      isResting: false
+    )
+  }
+
+  private static func revealMark(progress: CGFloat) -> Phase1Frame {
+    let fade = smooth(progress)
+    let scale = Phase1Metrics.iconStartScale + (1 - Phase1Metrics.iconStartScale) * fade
     return Phase1Frame(
       background: 1,
       beamProgress: 1,
-      beamVisible: true,
-      beamCollapse: Phase1Metrics.easeIn(progress),
-      flashOpacity: CGFloat(sin(Double(progress) * .pi)),
-      flashProgress: progress,
-      markOpacity: mark,
+      beamVisible: false,
+      beamCollapse: 1,
+      flashOpacity: 1 - fade,
+      flashProgress: fade,
+      markOpacity: fade,
       markScale: scale,
       isResting: false
     )
+  }
+
+  private static func smooth(_ t: CGFloat) -> CGFloat {
+    let x = min(1, max(0, t))
+    return x * x * (3 - 2 * x)
   }
 }
 
