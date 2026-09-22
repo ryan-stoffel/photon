@@ -38,6 +38,19 @@ struct GeneralSettingsView: View {
             .padding(.bottom, 6)
         }
       }
+
+      PhotonSettingsCard(title: "Introduction") {
+        PhotonSettingsRow(
+          title: "First-run sequence",
+          detail: "Plays the introduction again on this Mac."
+        ) {
+          Button("Show again") {
+            settings.replayOnboarding?()
+          }
+          .buttonStyle(.borderless)
+          .settingsFocused(.control("general.replayOnboarding"))
+        }
+      }
     }
   }
 }

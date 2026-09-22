@@ -315,6 +315,63 @@ func frequentSuggestionTitle(_ identifier: String) -> String {
   return foregroundTargetTitle(identifier)
 }
 
+/// Settled frames only. The packaged app skips the beam while this harness is attached.
+func driveCinematicOnboarding() throws {
+  try sendRuntimeCommand("showOnboarding")
+  var report = try wait("cinematic onboarding opens on the reveal") {
+    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Photon"
+  }
+  try captureOnboarding(report, name: "onboarding-reveal", expectedText: "Photon")
+
+  try sendRuntimeCommand("advanceOnboarding")
+  report = try wait("onboarding reaches Accessibility") {
+    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Accessibility"
+  }
+  try captureOnboarding(
+    report,
+    name: "onboarding-permission",
+    expectedText: "Accessibility",
+    additionalExpectedText: ["Grant"]
+  )
+
+  try sendRuntimeCommand("advanceOnboarding")
+  _ = try wait("onboarding reaches Input Monitoring") {
+    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Input Monitoring"
+  }
+
+  let featureTitles = ["Search", "Suggestions", "Clipboard", "Notes", "Files", "Settings"]
+  for title in featureTitles {
+    try sendRuntimeCommand("advanceOnboarding")
+    report = try wait("onboarding reaches \(title)") {
+      bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == title
+    }
+    if title == "Suggestions" {
+      try captureOnboarding(
+        report,
+        name: "onboarding-feature",
+        expectedText: "Suggestions",
+        additionalExpectedText: ["running"]
+      )
+    }
+  }
+
+  try sendRuntimeCommand("advanceOnboarding")
+  report = try wait("onboarding reaches the launcher shortcut") {
+    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Press it to open Photon"
+  }
+  try sendRuntimeCommand("showOnboardingHotkey:default")
+  try captureOnboarding(
+    report,
+    name: "onboarding-try-it",
+    expectedText: "Press it to open Photon",
+    additionalExpectedText: ["Space"]
+  )
+  try sendRuntimeCommand("dismissOnboarding")
+  _ = try wait("cinematic onboarding closes") {
+    !bool(onboarding($0)["visible"])
+  }
+}
+
 func captureOnboarding(
   _ report: [String: Any],
   name: String,
@@ -1264,90 +1321,7 @@ do {
     expectedText: "Appearance",
     additionalExpectedText: ["General", "Open launcher"]
   )
-  try sendRuntimeCommand("showOnboarding")
-  report = try wait("first-run walkthrough opens") {
-    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Photon"
-  }
-  try captureOnboarding(
-    report,
-    name: "onboarding-welcome",
-    expectedText: "Photon",
-    additionalExpectedText: ["Continue", "Skip"]
-  )
-  try sendRuntimeCommand("advanceOnboarding")
-  report = try wait("walkthrough reaches the launcher shortcut") {
-    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Open from anywhere"
-  }
-  try captureOnboarding(
-    report,
-    name: "onboarding-launcher",
-    expectedText: "Open from anywhere",
-    additionalExpectedText: ["Continue"]
-  )
-  try sendRuntimeCommand("advanceOnboarding")
-  report = try wait("walkthrough reaches Suggestions") {
-    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Suggestions"
-  }
-  try captureOnboarding(
-    report,
-    name: "onboarding-suggestions",
-    expectedText: "Suggestions",
-    additionalExpectedText: ["Most opened", "Continue"]
-  )
-  try sendRuntimeCommand("advanceOnboarding")
-  report = try wait("walkthrough reaches search") {
-    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Search"
-  }
-  try captureOnboarding(
-    report,
-    name: "onboarding-search",
-    expectedText: "Search",
-    additionalExpectedText: ["Clipboard", "Notes", "Files"]
-  )
-  try sendRuntimeCommand("advanceOnboarding")
-  report = try wait("walkthrough reaches clipboard") {
-    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Clipboard"
-  }
-  try captureOnboarding(
-    report,
-    name: "onboarding-clipboard",
-    expectedText: "Clipboard",
-    additionalExpectedText: ["Return"]
-  )
-  try sendRuntimeCommand("advanceOnboarding")
-  report = try wait("walkthrough reaches notes") {
-    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Notes"
-  }
-  try captureOnboarding(
-    report,
-    name: "onboarding-notes",
-    expectedText: "Notes",
-    additionalExpectedText: ["Write a line"]
-  )
-  try sendRuntimeCommand("advanceOnboarding")
-  report = try wait("walkthrough reaches files") {
-    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Files"
-  }
-  try captureOnboarding(
-    report,
-    name: "onboarding-files",
-    expectedText: "Files",
-    additionalExpectedText: ["ember"]
-  )
-  try sendRuntimeCommand("advanceOnboarding")
-  report = try wait("walkthrough reaches settings") {
-    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Settings"
-  }
-  try captureOnboarding(
-    report,
-    name: "onboarding-settings",
-    expectedText: "Settings",
-    additionalExpectedText: ["keybinds"]
-  )
-  try sendRuntimeCommand("dismissOnboarding")
-  _ = try wait("walkthrough closes") {
-    !bool(onboarding($0)["visible"])
-  }
+  try driveCinematicOnboarding()
   try sendRuntimeCommand("selectSettingsPane:keybinds")
   report = try wait("Settings Keybinds pane lists app hotkeys") {
     bool(settingsWindow($0)["visible"])

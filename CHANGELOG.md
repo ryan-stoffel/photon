@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A full-screen first-run sequence. A beam of light reveals the Photon mark, then Accessibility and Input Monitoring, a short look at search, Suggestions, clipboard, notes, files, and Settings, and the launcher shortcut. Escape skips every step except the permission screens. People who finished the 0.4.3 or 0.4.4 tour see this once. Settings > General can show it again.
+
+### Changed
+
+- Those two permissions are requested inside the sequence, each on its own screen, instead of both system prompts appearing before the tour.
+
 ## [0.4.4] - 2026-09-22
 
 Ryan interactive first-run tour and full app icon release.
