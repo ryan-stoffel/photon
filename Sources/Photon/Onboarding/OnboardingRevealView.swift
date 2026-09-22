@@ -80,8 +80,7 @@ struct OnboardingRevealClock {
       return 0
     }
     if time < OnboardingTiming.decayStart {
-      let bloom = min(1, (time - OnboardingTiming.flashStart) / 0.06)
-      return bloom
+      return min(1, (time - OnboardingTiming.flashStart) / 0.06)
     }
     return 1 - (time - OnboardingTiming.decayStart) / OnboardingTiming.flashDecay
   }
