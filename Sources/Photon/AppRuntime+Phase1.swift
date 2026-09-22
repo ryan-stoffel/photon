@@ -34,6 +34,13 @@ extension AppRuntime {
       SpotlightConflict.adviseIfNeeded(current: settings.hotkey)
     }
     controller.present(settled: false)
+    guard Phase1Space.requestedDesktop != nil else {
+      return
+    }
+    closeSettings()
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+      self?.closeSettings()
+    }
   }
 
   func replayOnboarding() {

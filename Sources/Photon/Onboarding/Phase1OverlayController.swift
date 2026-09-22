@@ -45,6 +45,7 @@ final class Phase1OverlayController {
     let pin = Phase1Space.requestedDesktop != nil
     if pin {
       panel.alphaValue = 0
+      panel.ignoresMouseEvents = true
     } else {
       NSApp.activate(ignoringOtherApps: true)
     }
@@ -56,6 +57,7 @@ final class Phase1OverlayController {
         self.model = nil
         return
       }
+      panel.ignoresMouseEvents = false
       panel.alphaValue = 1
     }
     installMonitors()
