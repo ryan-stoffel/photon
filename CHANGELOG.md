@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-09-22
+
+Ryan windowed first-run sequence.
+
+### Changed
+
+- The first-run sequence sits in a centered window instead of covering the screen. The reveal is a short beam and flash inside that window, and a muted particle burst plays there when the launcher shortcut opens Photon. People who finished 0.4.5 see this once.
+
 ## [0.4.5] - 2026-09-22
 
 Ryan cinematic full-screen onboarding.

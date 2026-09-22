@@ -4,9 +4,10 @@ enum FirstLaunch {
   static let permissionsKey = "hasRequestedFirstLaunchPermissions"
   static let onboardingKey = "hasCompletedOnboarding"
   /// 0.4.3 stored only `hasCompletedOnboarding`. Revision 2 is the 0.4.4 dialog
-  /// tour. Revision 3 is the full-screen sequence, so those installs see it once.
+  /// tour. Revision 3 is the 0.4.5 full-screen sequence. Revision 4 is the
+  /// windowed sequence, so those installs see it once.
   static let onboardingRevisionKey = "onboardingRevision"
-  static let cinematicOnboardingRevision = 3
+  static let cinematicOnboardingRevision = 4
 
   static func needsInteractiveOnboarding(_ defaults: UserDefaults = .standard) -> Bool {
     defaults.integer(forKey: onboardingRevisionKey) < cinematicOnboardingRevision

@@ -5,22 +5,22 @@ struct OnboardingPermissionView: View {
   var kind: OnboardingPermission
 
   var body: some View {
-    VStack(spacing: 22) {
+    VStack(spacing: 18) {
       Spacer()
       Text(kind.title)
-        .font(OnboardingFont.font(size: 44, weight: .medium))
+        .font(OnboardingFont.font(size: 36, weight: .medium))
         .foregroundStyle(.white)
       Text(kind.reason)
-        .font(OnboardingFont.font(size: 18, weight: .regular))
+        .font(OnboardingFont.font(size: 16, weight: .regular))
         .foregroundStyle(OnboardingColor.secondary)
         .multilineTextAlignment(.center)
-        .frame(maxWidth: 520)
+        .frame(maxWidth: 420)
       noticeOrActions
-        .padding(.top, 12)
+        .padding(.top, 28)
       Spacer()
       Spacer()
     }
-    .padding(.horizontal, 48)
+    .padding(.horizontal, 64)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
@@ -28,23 +28,19 @@ struct OnboardingPermissionView: View {
   private var noticeOrActions: some View {
     if let notice = model.permissionNotice {
       Text(notice)
-        .font(OnboardingFont.font(size: 16, weight: .regular))
-        .foregroundStyle(.white)
+        .font(OnboardingFont.font(size: 15, weight: .regular))
+        .foregroundStyle(.white.opacity(0.86))
         .multilineTextAlignment(.center)
-        .frame(maxWidth: 460)
+        .frame(maxWidth: 420)
     } else {
-      VStack(spacing: 18) {
+      VStack(spacing: 16) {
         Button(action: { model.grantPermission() }, label: {
           Text(model.permissionWaiting ? "Waiting…" : "Grant")
-            .font(OnboardingFont.font(size: 20, weight: .medium))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .overlay(alignment: .bottom) {
-              Rectangle()
-                .fill(OnboardingColor.beam.opacity(0.9))
-                .frame(height: 1)
-            }
+            .font(OnboardingFont.font(size: 16, weight: .medium))
+            .foregroundStyle(Color.black.opacity(0.88))
+            .padding(.horizontal, 28)
+            .padding(.vertical, 10)
+            .background(Capsule().fill(Color.white))
         })
         .buttonStyle(.plain)
         .disabled(model.permissionWaiting)
@@ -52,8 +48,8 @@ struct OnboardingPermissionView: View {
           model.skipPermission()
         }
         .buttonStyle(.plain)
-        .font(OnboardingFont.font(size: 14, weight: .regular))
-        .foregroundStyle(Color.white.opacity(0.45))
+        .font(OnboardingFont.font(size: 13, weight: .regular))
+        .foregroundStyle(Color.white.opacity(0.42))
       }
     }
   }
