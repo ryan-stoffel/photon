@@ -3,14 +3,18 @@ import AppKit
 /// The same Photon artwork Finder shows for `Photon.app`.
 enum PhotonAppIcon {
   private static let bundleID = "com.ryanstoffel.photon"
+
+  @MainActor
   private static var cached: NSImage?
 
+  @MainActor
   static func install() {
     let image = make()
     cached = image
     NSApp.applicationIconImage = image
   }
 
+  @MainActor
   static var current: NSImage {
     if let cached {
       return cached
@@ -28,6 +32,7 @@ enum PhotonAppIcon {
     return IconBitmap.forInterface(bundled)
   }
 
+  @MainActor
   private static func make() -> NSImage {
     if let bundled = bundledIcon(at: Bundle.main.bundlePath) {
       return IconBitmap.forInterface(bundled)
@@ -49,7 +54,8 @@ enum PhotonAppIcon {
     }
     let base = (named as NSString).deletingPathExtension
     if let url = bundle.url(forResource: base, withExtension: "icns"),
-       let image = NSImage(contentsOf: url) {
+       let image = NSImage(contentsOf: url)
+    {
       return image
     }
     let file = named.hasSuffix(".icns") ? named : named + ".icns"

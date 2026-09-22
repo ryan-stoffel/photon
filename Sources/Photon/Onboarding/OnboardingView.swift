@@ -84,19 +84,10 @@ struct OnboardingView: View {
       model.advance()
     }
     .buttonStyle(.borderedProminent)
-    .modifier(OnboardingContinueShortcut(enabled: model.step.practice != .clipboard && model.step != .notes))
+    .keyboardShortcut(continueShortcut)
   }
-}
 
-private struct OnboardingContinueShortcut: ViewModifier {
-  var enabled: Bool
-
-  @ViewBuilder
-  func body(content: Content) -> some View {
-    if enabled {
-      content.keyboardShortcut(.defaultAction)
-    } else {
-      content
-    }
+  private var continueShortcut: KeyboardShortcut? {
+    model.step.practice != .clipboard && model.step != .notes ? .defaultAction : nil
   }
 }

@@ -40,7 +40,8 @@ enum IconBitmap {
       lhs.pixelsWide * lhs.pixelsHigh < rhs.pixelsWide * rhs.pixelsHigh
     }
     if let largest, largest.pixelsWide > 0, largest.pixelsHigh > 0,
-       let cgImage = largest.cgImage(forProposedRect: nil, context: nil, hints: nil) {
+       let cgImage = largest.cgImage(forProposedRect: nil, context: nil, hints: nil)
+    {
       return cgImage
     }
     var proposed = NSRect(origin: .zero, size: image.size)
@@ -62,7 +63,8 @@ enum IconBitmap {
   private static func croppedArtwork(_ image: CGImage, fraction: Double) -> CGImage {
     guard IconArtwork.needsCrop(contentFraction: fraction),
           let bounds = opaqueBounds(of: image),
-          let cropped = image.cropping(to: bounds) else {
+          let cropped = image.cropping(to: bounds)
+    else {
       return image
     }
     return cropped
@@ -97,7 +99,7 @@ enum IconBitmap {
     }
     let bytesPerRow = width * 4
     var pixels = [UInt8](repeating: 0, count: height * bytesPerRow)
-    let found = pixels.withUnsafeMutableBytes { buffer -> CGRect? in
+    return pixels.withUnsafeMutableBytes { buffer -> CGRect? in
       guard let base = buffer.baseAddress,
             let context = CGContext(
               data: base,
@@ -107,7 +109,8 @@ enum IconBitmap {
               bytesPerRow: bytesPerRow,
               space: CGColorSpaceCreateDeviceRGB(),
               bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-            ) else {
+            )
+      else {
         return CGRect(x: 0, y: 0, width: width, height: height)
       }
       context.translateBy(x: 0, y: CGFloat(height))
@@ -115,7 +118,6 @@ enum IconBitmap {
       context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
       return bounds(in: buffer, width: width, height: height, bytesPerRow: bytesPerRow)
     }
-    return found
   }
 
   private static func bounds(

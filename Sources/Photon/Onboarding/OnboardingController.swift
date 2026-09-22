@@ -175,22 +175,22 @@ final class OnboardingController: ObservableObject {
     callback?()
   }
 
-  func handleKey(_ event: NSEvent) -> Bool {
+  func handle(keyCode: UInt16, modifiers: UInt32) -> Bool {
     switch step.practice {
     case .launcherShortcut:
-      guard eventMatches(event, combo: hotkey) else {
+      guard matches(keyCode: keyCode, modifiers: modifiers, combo: hotkey) else {
         return false
       }
       landShortcut()
       return true
     case .settingsShortcut:
-      guard eventMatchesCommandComma(event) else {
+      guard keyCode == UInt16(kVK_ANSI_Comma), carbonModifiers(modifiers) == UInt32(cmdKey) else {
         return false
       }
       landShortcut()
       return true
     case .clipboard:
-      guard event.keyCode == UInt16(kVK_Return) || event.keyCode == UInt16(kVK_ANSI_KeypadEnter) else {
+      guard keyCode == UInt16(kVK_Return) || keyCode == UInt16(kVK_ANSI_KeypadEnter) else {
         return false
       }
       withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
@@ -216,16 +216,12 @@ final class OnboardingController: ObservableObject {
     }
   }
 
-  private func eventMatches(_ event: NSEvent, combo: HotkeyCombo) -> Bool {
-    UInt32(event.keyCode) == combo.keyCode && eventCarbonModifiers(event) == combo.carbonModifiers
+  private func matches(keyCode: UInt16, modifiers: UInt32, combo: HotkeyCombo) -> Bool {
+    UInt32(keyCode) == combo.keyCode && carbonModifiers(modifiers) == combo.carbonModifiers
   }
 
-  private func eventMatchesCommandComma(_ event: NSEvent) -> Bool {
-    event.keyCode == UInt16(kVK_ANSI_Comma) && eventCarbonModifiers(event) == UInt32(cmdKey)
-  }
-
-  private func eventCarbonModifiers(_ event: NSEvent) -> UInt32 {
-    HotkeyCombo.carbonModifiers(fromApple: UInt32(event.modifierFlags.rawValue))
+  private func carbonModifiers(_ modifiers: UInt32) -> UInt32 {
+    HotkeyCombo.carbonModifiers(fromApple: modifiers)
   }
 
   private func resetPractice() {
@@ -239,13 +235,14 @@ final class OnboardingController: ObservableObject {
     guard keyMonitor == nil else {
       return
     }
-    keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-      MainActor.assumeIsolated {
-        guard let self else {
-          return event
-        }
-        return handleKey(event) ? nil : event
+    let box = OnboardingBox(self)
+    keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+      let keyCode = event.keyCode
+      let modifiers = UInt32(event.modifierFlags.rawValue)
+      let handled = MainActor.assumeIsolated {
+        box.value?.handle(keyCode: keyCode, modifiers: modifiers) ?? false
       }
+      return handled ? nil : event
     }
   }
 
@@ -254,6 +251,14 @@ final class OnboardingController: ObservableObject {
       NSEvent.removeMonitor(keyMonitor)
     }
     keyMonitor = nil
+  }
+}
+
+private struct OnboardingBox: @unchecked Sendable {
+  weak var value: OnboardingController?
+
+  init(_ value: OnboardingController) {
+    self.value = value
   }
 }
 
