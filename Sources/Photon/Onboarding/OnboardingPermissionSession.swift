@@ -11,7 +11,10 @@ final class OnboardingPermissionSession {
   private var sawPrompt = false
   private var sawInactive = false
 
-  func start(request: @MainActor () -> Bool, isGranted: @MainActor () -> Bool) {
+  func start(
+    request: @escaping @MainActor () -> Bool,
+    isGranted: @escaping @MainActor () -> Bool
+  ) {
     task?.cancel()
     task = nil
     sawPrompt = false
