@@ -111,12 +111,18 @@ final class CommandIconCache: @unchecked Sendable {
       guard FileManager.default.fileExists(atPath: path) else {
         return nil
       }
+      if let photon = PhotonAppIcon.interfaceImage(forAppAt: path) {
+        return photon
+      }
       return NSWorkspace.shared.icon(forFile: path)
     case let .imageFile(path):
       return NSImage(contentsOfFile: path)
     case let .application(bundleIdentifier):
       guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleIdentifier) else {
         return nil
+      }
+      if let photon = PhotonAppIcon.interfaceImage(forAppAt: url.path) {
+        return photon
       }
       return NSWorkspace.shared.icon(forFile: url.path)
     case let .bundleResource(bundlePath, name):

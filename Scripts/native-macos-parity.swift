@@ -1272,9 +1272,18 @@ do {
     report,
     name: "onboarding-welcome",
     expectedText: "Photon",
-    additionalExpectedText: ["Continue"]
+    additionalExpectedText: ["Continue", "Skip"]
   )
   try sendRuntimeCommand("advanceOnboarding")
+  report = try wait("walkthrough reaches the launcher shortcut") {
+    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Open from anywhere"
+  }
+  try captureOnboarding(
+    report,
+    name: "onboarding-launcher",
+    expectedText: "Open from anywhere",
+    additionalExpectedText: ["Continue"]
+  )
   try sendRuntimeCommand("advanceOnboarding")
   report = try wait("walkthrough reaches Suggestions") {
     bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Suggestions"
@@ -1284,6 +1293,56 @@ do {
     name: "onboarding-suggestions",
     expectedText: "Suggestions",
     additionalExpectedText: ["Most opened", "Continue"]
+  )
+  try sendRuntimeCommand("advanceOnboarding")
+  report = try wait("walkthrough reaches search") {
+    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Search"
+  }
+  try captureOnboarding(
+    report,
+    name: "onboarding-search",
+    expectedText: "Search",
+    additionalExpectedText: ["Clipboard", "Notes", "Files"]
+  )
+  try sendRuntimeCommand("advanceOnboarding")
+  report = try wait("walkthrough reaches clipboard") {
+    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Clipboard"
+  }
+  try captureOnboarding(
+    report,
+    name: "onboarding-clipboard",
+    expectedText: "Clipboard",
+    additionalExpectedText: ["Return"]
+  )
+  try sendRuntimeCommand("advanceOnboarding")
+  report = try wait("walkthrough reaches notes") {
+    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Notes"
+  }
+  try captureOnboarding(
+    report,
+    name: "onboarding-notes",
+    expectedText: "Notes",
+    additionalExpectedText: ["Write a line"]
+  )
+  try sendRuntimeCommand("advanceOnboarding")
+  report = try wait("walkthrough reaches files") {
+    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Files"
+  }
+  try captureOnboarding(
+    report,
+    name: "onboarding-files",
+    expectedText: "Files",
+    additionalExpectedText: ["ember"]
+  )
+  try sendRuntimeCommand("advanceOnboarding")
+  report = try wait("walkthrough reaches settings") {
+    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Settings"
+  }
+  try captureOnboarding(
+    report,
+    name: "onboarding-settings",
+    expectedText: "Settings",
+    additionalExpectedText: ["keybinds"]
   )
   try sendRuntimeCommand("dismissOnboarding")
   _ = try wait("walkthrough closes") {
@@ -1403,7 +1462,32 @@ do {
     expectedText: string(launcher(report)["selectedTitle"])
   )
   try sendRuntimeCommand("dismissLauncher")
-  _ = try wait("launcher recommendations close before drag checks") {
+  _ = try wait("launcher recommendations close before the Photon icon proof") {
+    !bool(launcher($0)["visible"])
+  }
+
+  try sendRuntimeCommand("showLauncher")
+  _ = try wait("launcher opens to measure the Photon icon") {
+    bool(launcher($0)["visible"])
+  }
+  try sendRuntimeCommand("setLauncherQuery:Photon")
+  report = try wait("Photon row uses the full Finder icon", timeout: 20) {
+    let icon = dictionary(launcher($0)["photonIcon"])
+    return bool(launcher($0)["visible"])
+      && bool(icon["ready"])
+      && int(icon["representations"]) == 1
+      && double(icon["fill"]) >= 0.7
+      && strings(launcher($0)["displayedRowTitles"]).contains {
+        $0.localizedCaseInsensitiveCompare("Photon") == .orderedSame
+      }
+  }
+  try captureLauncher(
+    report,
+    name: "launcher-photon-icon",
+    expectedText: "Photon"
+  )
+  try sendRuntimeCommand("dismissLauncher")
+  _ = try wait("launcher closes after the Photon icon proof") {
     !bool(launcher($0)["visible"])
   }
 

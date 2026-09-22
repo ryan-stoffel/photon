@@ -9,7 +9,7 @@ struct AboutSettingsView: View {
         HStack {
           Spacer()
           VStack(spacing: 12) {
-            Image(nsImage: NSApp.applicationIconImage)
+            Image(nsImage: PhotonAppIcon.current)
               .resizable()
               .frame(width: 96, height: 96)
             Text("Photon")
