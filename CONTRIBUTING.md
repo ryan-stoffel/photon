@@ -67,6 +67,15 @@ open build/Photon.app
 
 `Scripts/package_app.sh` builds the `Photon` executable in Release, wraps it as `build/Photon.app`, writes the version from `VERSION` into `Info.plist`, and ad-hoc signs the bundle.
 
+A second copy that can stay open next to the release app:
+
+```sh
+Scripts/package_app.sh --dev
+open build/Photon-Dev.app
+```
+
+That bundle is `Photon-Dev`, bundle id `com.ryanstoffel.photon.dev`, with a yellow "dev" tag on the app icon and the menu-bar image. `PHOTON_DEV=1` is the same switch. The default command does not badge anything.
+
 ### Tests and lint
 
 ```sh

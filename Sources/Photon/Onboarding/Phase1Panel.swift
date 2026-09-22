@@ -20,7 +20,7 @@ final class Phase1Panel: NSPanel {
     panel.isMovable = false
     panel.isRestorable = false
     panel.level = Phase1Metrics.windowLevel
-    // Transient and stationary stay out of Mission Control. ignoresCycle stays out of ⌘`.
+    // Managed keeps the overlay on the space where it opened. It does not follow the active space.
     panel.collectionBehavior = Phase1Metrics.collectionBehavior
     panel.hidesOnDeactivate = false
     panel.isReleasedWhenClosed = false

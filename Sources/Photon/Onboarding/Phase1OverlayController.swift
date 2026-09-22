@@ -42,10 +42,28 @@ final class Phase1OverlayController {
     let panel = Phase1Panel.make(model: model)
     panel.alphaValue = 1
     self.panel = panel
-    installMonitors()
-    NSApp.activate(ignoringOtherApps: true)
+    let pin = Phase1Space.requestedDesktop != nil
+    if pin {
+      panel.alphaValue = 0
+      panel.ignoresMouseEvents = true
+    } else {
+      NSApp.activate(ignoringOtherApps: true)
+    }
     panel.orderFrontRegardless()
-    panel.makeKey()
+    if pin {
+      guard Phase1Space.pin(panel) else {
+        panel.orderOut(nil)
+        self.panel = nil
+        self.model = nil
+        return
+      }
+      panel.ignoresMouseEvents = false
+      panel.alphaValue = 1
+    }
+    installMonitors()
+    if !pin {
+      panel.makeKey()
+    }
   }
 
   /// Phase 2 is not this screen. Dismiss the overlay and stop.
