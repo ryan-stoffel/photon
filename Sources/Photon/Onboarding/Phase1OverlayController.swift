@@ -53,7 +53,7 @@ final class Phase1OverlayController {
       guard Phase1Space.pin(panel) else {
         panel.orderOut(nil)
         self.panel = nil
-        model = nil
+        self.model = nil
         return
       }
       panel.alphaValue = 1

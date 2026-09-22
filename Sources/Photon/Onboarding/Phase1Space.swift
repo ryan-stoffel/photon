@@ -4,6 +4,7 @@ import Foundation
 
 /// Dev builds can park Phase 1 on one desktop with PHOTON_PHASE1_SPACE.
 /// The overlay does not follow the active space.
+@MainActor
 enum Phase1Space {
   static var requestedDesktop: Int? {
     guard PhotonProduct.isDev else {
