@@ -42,7 +42,7 @@ private struct Phase1Scene: View {
       Phase1Haze(opacity: frame.background)
       Phase1Sky(opacity: frame.background, time: time)
       if frame.beamVisible {
-        Phase1Beam(progress: frame.beamProgress)
+        Phase1Beam(progress: frame.beamProgress, collapse: frame.beamCollapse)
       }
       if frame.flashOpacity > 0 {
         Phase1Flash(opacity: frame.flashOpacity, progress: frame.flashProgress)
@@ -58,6 +58,8 @@ private struct Phase1Haze: View {
 
   var body: some View {
     ZStack {
+      haze(.topLeading)
+      haze(.topTrailing)
       haze(.bottomLeading)
       haze(.bottomTrailing)
     }
@@ -85,7 +87,7 @@ private struct Phase1Sky: View {
     Canvas { context, size in
       for star in Phase1Stars.field {
         let alpha = Phase1Stars.brightness(star, at: time) * opacity
-        let origin = CGPoint(x: star.x * size.width, y: star.y * size.height)
+        let origin = Phase1Stars.origin(star, at: time, in: size)
         let rect = CGRect(
           x: origin.x - star.radius,
           y: origin.y - star.radius,
@@ -104,81 +106,150 @@ private struct Phase1Sky: View {
 
 private struct Phase1Beam: View {
   var progress: CGFloat
+  var collapse: CGFloat
 
   var body: some View {
     Canvas { context, size in
       var context = context
-      draw(progress: progress, in: &context, size: size)
+      draw(progress: progress, collapse: collapse, in: &context, size: size)
     }
     .allowsHitTesting(false)
   }
 
-  private func draw(progress: CGFloat, in context: inout GraphicsContext, size: CGSize) {
+  private func draw(
+    progress: CGFloat,
+    collapse: CGFloat,
+    in context: inout GraphicsContext,
+    size: CGSize
+  ) {
     let tipX = progress * size.width * Phase1Metrics.centerFraction
     let midY = size.height * Phase1Metrics.centerFraction
-    let startX = max(0, tipX - Phase1Metrics.beamTailLength)
-    let width = tipX - startX
-    guard width > Phase1Metrics.beamMinSpan else {
+    let span = (tipX - Phase1Metrics.beamOriginInset) * (1 - collapse)
+    let startX = tipX - span
+    guard span > Phase1Metrics.beamMinSpan else {
       return
     }
-    let brightness = Phase1Metrics.beamMinBrightness
-      + (1 - Phase1Metrics.beamMinBrightness) * progress
-    let glow = Phase1Metrics.beamGlowMin
-      + (Phase1Metrics.beamGlowMax - Phase1Metrics.beamGlowMin) * progress
-    fillGlow(
+    let brightness = (
+      Phase1Metrics.beamMinBrightness + (1 - Phase1Metrics.beamMinBrightness) * progress
+    ) * (1 - collapse)
+    let bloom = Phase1Metrics.beamBloomMin + (Phase1Metrics.beamBloomMax - Phase1Metrics.beamBloomMin) * progress
+    let geometry = BeamGeometry(startX: startX, tipX: tipX, midY: midY, span: span)
+    drawField(context, geometry: geometry, size: size, brightness: brightness, bloom: bloom)
+    drawRibbon(
       context,
-      rect: CGRect(
-        x: startX,
-        y: midY - Phase1Metrics.beamSoftGlowThickness / 2,
-        width: width,
-        height: Phase1Metrics.beamSoftGlowThickness
-      ),
-      radius: glow * Phase1Metrics.beamSoftGlowScale,
-      color: Phase1Metrics.beamGlowColor.opacity(brightness * Phase1Metrics.beamSoftGlowOpacity)
+      geometry: geometry,
+      thickness: Phase1Metrics.beamWashThickness * bloom,
+      blur: Phase1Metrics.beamWashBlur,
+      color: Phase1Metrics.beamGlowColor.opacity(brightness * Phase1Metrics.beamWashOpacity)
     )
-    fillGlow(
+    drawRibbon(
       context,
-      rect: CGRect(
-        x: startX,
-        y: midY - Phase1Metrics.beamGlowThickness / 2,
-        width: width,
-        height: Phase1Metrics.beamGlowThickness
-      ),
-      radius: glow,
-      color: Phase1Metrics.beamGlowColor.opacity(brightness * Phase1Metrics.beamGlowOpacity)
+      geometry: geometry,
+      thickness: Phase1Metrics.beamMidThickness * bloom,
+      blur: Phase1Metrics.beamMidBlur,
+      color: Phase1Metrics.beamGlowColor.opacity(brightness * Phase1Metrics.beamMidOpacity)
     )
-    let core = CGRect(
-      x: startX,
-      y: midY - Phase1Metrics.beamThickness / 2,
-      width: width,
+    drawRibbon(
+      context,
+      geometry: geometry,
+      thickness: Phase1Metrics.beamInnerThickness,
+      blur: Phase1Metrics.beamInnerBlur,
+      color: Phase1Metrics.beamCoreColor.opacity(brightness * Phase1Metrics.beamInnerOpacity)
+    )
+    drawCore(context, geometry: geometry, brightness: brightness)
+    drawHead(context, geometry: geometry, brightness: brightness, bloom: bloom, collapse: collapse)
+  }
+
+  private func drawField(
+    _ context: GraphicsContext,
+    geometry: BeamGeometry,
+    size: CGSize,
+    brightness: CGFloat,
+    bloom: CGFloat
+  ) {
+    let height = size.height * Phase1Metrics.beamFieldFraction * bloom
+    drawRibbon(
+      context,
+      geometry: geometry,
+      thickness: height,
+      blur: Phase1Metrics.beamFieldBlur,
+      color: Phase1Metrics.beamGlowColor.opacity(brightness * Phase1Metrics.beamFieldOpacity)
+    )
+  }
+
+  private func drawRibbon(
+    _ context: GraphicsContext,
+    geometry: BeamGeometry,
+    thickness: CGFloat,
+    blur: CGFloat,
+    color: Color
+  ) {
+    let rect = CGRect(
+      x: geometry.startX,
+      y: geometry.midY - thickness / 2,
+      width: geometry.span,
+      height: thickness
+    )
+    var layer = context
+    layer.addFilter(.blur(radius: blur))
+    layer.fill(
+      Path(roundedRect: rect, cornerRadius: thickness / 2),
+      with: .linearGradient(
+        Gradient(colors: [color.opacity(0), color]),
+        startPoint: CGPoint(x: geometry.startX, y: geometry.midY),
+        endPoint: CGPoint(x: geometry.tipX, y: geometry.midY)
+      )
+    )
+  }
+
+  private func drawCore(_ context: GraphicsContext, geometry: BeamGeometry, brightness: CGFloat) {
+    let rect = CGRect(
+      x: geometry.startX,
+      y: geometry.midY - Phase1Metrics.beamThickness / 2,
+      width: geometry.span,
       height: Phase1Metrics.beamThickness
     )
     context.fill(
-      Path(roundedRect: core, cornerRadius: Phase1Metrics.beamThickness / 2),
+      Path(roundedRect: rect, cornerRadius: Phase1Metrics.beamThickness / 2),
       with: .linearGradient(
         Gradient(colors: [
           Phase1Metrics.beamCoreColor.opacity(0),
           Phase1Metrics.beamCoreColor.opacity(brightness),
         ]),
-        startPoint: CGPoint(x: startX, y: midY),
-        endPoint: CGPoint(x: tipX, y: midY)
+        startPoint: CGPoint(x: geometry.startX, y: geometry.midY),
+        endPoint: CGPoint(x: geometry.tipX, y: geometry.midY)
       )
     )
   }
 
-  private func fillGlow(
+  private func drawHead(
     _ context: GraphicsContext,
-    rect: CGRect,
-    radius: CGFloat,
-    color: Color
+    geometry: BeamGeometry,
+    brightness: CGFloat,
+    bloom: CGFloat,
+    collapse: CGFloat
   ) {
+    let diameter = Phase1Metrics.beamHeadDiameter * bloom * (1 - min(0.85, collapse))
+    let rect = CGRect(
+      x: geometry.tipX - diameter / 2,
+      y: geometry.midY - diameter / 2,
+      width: diameter,
+      height: diameter
+    )
     var layer = context
-    layer.addFilter(.blur(radius: radius))
+    layer.addFilter(.blur(radius: Phase1Metrics.beamHeadBlur))
     layer.fill(
-      Path(roundedRect: rect, cornerRadius: rect.height / 2),
-      with: .color(color)
+      Path(ellipseIn: rect),
+      with: .color(Phase1Metrics.beamCoreColor.opacity(brightness * Phase1Metrics.beamHeadOpacity))
     )
   }
+}
+
+private struct BeamGeometry {
+  var startX: CGFloat
+  var tipX: CGFloat
+  var midY: CGFloat
+  var span: CGFloat
 }
 
 private struct Phase1Flash: View {

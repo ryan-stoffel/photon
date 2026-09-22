@@ -3,52 +3,64 @@ import SwiftUI
 
 /// Every timing, opacity, color, and size for the Phase 1 overlay.
 enum Phase1Metrics {
-  static let dimOpacity: CGFloat = 0.60
-  static let dimColor = Color(red: 0.02, green: 0.025, blue: 0.04)
+  static let dimOpacity: CGFloat = 0.42
+  static let dimColor = Color(red: 0.012, green: 0.02, blue: 0.055)
   static let backgroundFade: TimeInterval = 1.5
-  static let beamDuration: TimeInterval = 3.5
-  static let beamThickness: CGFloat = 2
-  static let beamTailLength: CGFloat = 160
-  static let beamGlowMin: CGFloat = 8
-  static let beamGlowMax: CGFloat = 28
-  static let beamGlowThickness: CGFloat = 10
-  static let beamSoftGlowThickness: CGFloat = 22
-  static let beamSoftGlowScale: CGFloat = 1.8
-  static let beamMinBrightness: CGFloat = 0.4
-  static let beamGlowOpacity: CGFloat = 0.9
-  static let beamSoftGlowOpacity: CGFloat = 0.5
+  static let beamDuration: TimeInterval = 3.8
+  static let beamOriginInset: CGFloat = -120
+  static let beamThickness: CGFloat = 7
+  static let beamInnerThickness: CGFloat = 36
+  static let beamInnerBlur: CGFloat = 16
+  static let beamMidThickness: CGFloat = 110
+  static let beamMidBlur: CGFloat = 34
+  static let beamWashThickness: CGFloat = 380
+  static let beamWashBlur: CGFloat = 72
+  static let beamFieldFraction: CGFloat = 0.7
+  static let beamFieldBlur: CGFloat = 48
+  static let beamHeadDiameter: CGFloat = 210
+  static let beamHeadBlur: CGFloat = 26
+  static let beamMinBrightness: CGFloat = 0.78
+  static let beamBloomMin: CGFloat = 0.62
+  static let beamBloomMax: CGFloat = 1
+  static let beamWashOpacity: CGFloat = 0.5
+  static let beamMidOpacity: CGFloat = 0.82
+  static let beamInnerOpacity: CGFloat = 0.95
+  static let beamFieldOpacity: CGFloat = 0.28
+  static let beamHeadOpacity: CGFloat = 0.9
   static let beamMinSpan: CGFloat = 0.5
   static let centerFraction: CGFloat = 0.5
   static let fallbackFrame = NSRect(x: 0, y: 0, width: 1440, height: 900)
   static let beamCoreColor = Color.white
-  static let beamGlowColor = Color(red: 0.25, green: 0.55, blue: 1)
-  static let flashDuration: TimeInterval = 0.5
-  static let flashColor = Color(red: 0.78, green: 0.88, blue: 1)
-  static let flashDiameter: CGFloat = 240
-  static let flashBlur: CGFloat = 40
-  static let flashScaleStart: CGFloat = 0.2
-  static let flashScaleEnd: CGFloat = 2.1
+  static let beamGlowColor = Color(red: 0.42, green: 0.7, blue: 1)
+  static let flashDuration: TimeInterval = 0.72
+  static let flashColor = Color(red: 0.86, green: 0.93, blue: 1)
+  static let flashDiameter: CGFloat = 560
+  static let flashBlur: CGFloat = 64
+  static let flashScaleStart: CGFloat = 0.08
+  static let flashScaleEnd: CGFloat = 3.4
   static let iconSize: CGFloat = 108
-  static let iconStartScale: CGFloat = 0.86
+  static let iconStartScale: CGFloat = 0.52
   static let wordmarkSize: CGFloat = 40
   static let wordmarkGap: CGFloat = 16
   static let wordmarkLineHeight: CGFloat = 48
   static let wordmarkTracking: CGFloat = 0.6
   static let wordmarkColor = Color.white
-  static let hazeColor = Color(red: 0.04, green: 0.10, blue: 0.28)
-  static let hazePeakOpacity: CGFloat = 0.55
+  static let hazeColor = Color(red: 0.12, green: 0.32, blue: 0.78)
+  static let hazePeakOpacity: CGFloat = 0.88
   static let hazeStartRadius: CGFloat = 0
-  static let hazeEndRadius: CGFloat = 620
-  static let starCount = 70
+  static let hazeEndRadius: CGFloat = 860
+  static let starCount = 240
   static let starColor = Color.white
-  static let starRadiusMin: CGFloat = 0.6
-  static let starRadiusMax: CGFloat = 1.6
-  static let starMinBrightness: CGFloat = 0.08
-  static let starMinPeak: CGFloat = 0.45
+  static let starRadiusMin: CGFloat = 0.7
+  static let starRadiusMax: CGFloat = 2.5
+  static let starMinBrightness: CGFloat = 0.14
+  static let starMinPeak: CGFloat = 0.62
   static let starMaxPeak: CGFloat = 1
-  static let starPeriodMin: TimeInterval = 1.4
-  static let starPeriodMax: TimeInterval = 4.8
-  static let starTwinkleExponent: Double = 8
+  static let starPeriodMin: TimeInterval = 1.6
+  static let starPeriodMax: TimeInterval = 5.2
+  static let starTwinkleExponent: Double = 6
+  static let starDriftPerSecond: CGFloat = 0.016
+  static let starDriftScaleMin: CGFloat = 0.35
   static let starSeed: UInt64 = 0x5048_4f4e
   static let dismissFade: TimeInterval = 0.28
   static let dismissFallbackDelay: TimeInterval = 0.08
@@ -72,6 +84,7 @@ struct Phase1Frame {
   var background: CGFloat
   var beamProgress: CGFloat
   var beamVisible: Bool
+  var beamCollapse: CGFloat
   var flashOpacity: CGFloat
   var flashProgress: CGFloat
   var markOpacity: CGFloat
@@ -82,6 +95,7 @@ struct Phase1Frame {
     background: 1,
     beamProgress: 0,
     beamVisible: false,
+    beamCollapse: 1,
     flashOpacity: 0,
     flashProgress: 1,
     markOpacity: 1,
@@ -107,6 +121,7 @@ enum Phase1Clock {
       background: fade,
       beamProgress: 0,
       beamVisible: false,
+      beamCollapse: 0,
       flashOpacity: 0,
       flashProgress: 0,
       markOpacity: fade,
@@ -127,6 +142,7 @@ enum Phase1Clock {
         background: 1,
         beamProgress: Phase1Metrics.easeIn(linear),
         beamVisible: true,
+        beamCollapse: 0,
         flashOpacity: 0,
         flashProgress: 0,
         markOpacity: 0,
@@ -146,6 +162,7 @@ enum Phase1Clock {
       background: background,
       beamProgress: 0,
       beamVisible: false,
+      beamCollapse: 0,
       flashOpacity: 0,
       flashProgress: 0,
       markOpacity: 0,
@@ -155,14 +172,15 @@ enum Phase1Clock {
   }
 
   private static func flash(progress: CGFloat) -> Phase1Frame {
-    let mark = min(1, max(0, progress))
+    let mark = min(1, max(0, (progress - 0.2) / 0.8))
     let scale = Phase1Metrics.iconStartScale + (1 - Phase1Metrics.iconStartScale) * mark
     return Phase1Frame(
       background: 1,
       beamProgress: 1,
-      beamVisible: false,
-      flashOpacity: CGFloat(sin(Double(mark) * .pi)),
-      flashProgress: mark,
+      beamVisible: true,
+      beamCollapse: Phase1Metrics.easeIn(progress),
+      flashOpacity: CGFloat(sin(Double(progress) * .pi)),
+      flashProgress: progress,
       markOpacity: mark,
       markScale: scale,
       isResting: false
@@ -178,6 +196,7 @@ struct Phase1Star {
   var maxBrightness: CGFloat
   var period: TimeInterval
   var phase: TimeInterval
+  var driftScale: CGFloat
 }
 
 struct Phase1RNG {
@@ -198,6 +217,13 @@ enum Phase1Stars {
     return star.minBrightness + (star.maxBrightness - star.minBrightness) * CGFloat(peak)
   }
 
+  static func origin(_ star: Phase1Star, at time: TimeInterval, in size: CGSize) -> CGPoint {
+    let drift = CGFloat(time) * Phase1Metrics.starDriftPerSecond * star.driftScale
+    let y = star.y + drift
+    let wrapped = y - floor(y)
+    return CGPoint(x: star.x * size.width, y: wrapped * size.height)
+  }
+
   private static func generate() -> [Phase1Star] {
     var rng = Phase1RNG(state: Phase1Metrics.starSeed)
     return (0 ..< Phase1Metrics.starCount).map { _ in
@@ -211,7 +237,8 @@ enum Phase1Stars {
         minBrightness: Phase1Metrics.starMinBrightness,
         maxBrightness: Phase1Metrics.starMinPeak + rng.nextUnit() * peakSpan,
         period: Phase1Metrics.starPeriodMin + Double(rng.nextUnit()) * periodSpan,
-        phase: Double(rng.nextUnit()) * Phase1Metrics.starPeriodMax
+        phase: Double(rng.nextUnit()) * Phase1Metrics.starPeriodMax,
+        driftScale: Phase1Metrics.starDriftScaleMin + rng.nextUnit() * (1 - Phase1Metrics.starDriftScaleMin)
       )
     }
   }
