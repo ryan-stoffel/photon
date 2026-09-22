@@ -6,7 +6,7 @@ struct OnboardingView: View {
 
   var body: some View {
     ZStack {
-      OnboardingBackdrop()
+      OnboardingBackdrop(model: model, reduceMotion: reduceMotion)
       if !model.step.isPermission, model.step != .tryIt {
         Color.clear
           .contentShape(Rectangle())
@@ -18,9 +18,13 @@ struct OnboardingView: View {
         .id(model.step.token)
         .transition(transition)
         .allowsHitTesting(model.step.isPermission)
+      if let started = model.burstStarted {
+        OnboardingBurstView(started: started)
+      }
     }
     .animation(motion, value: model.step.token)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .clipShape(RoundedRectangle(cornerRadius: OnboardingChrome.cornerRadius, style: .continuous))
   }
 
   @ViewBuilder
@@ -31,7 +35,7 @@ struct OnboardingView: View {
     case let .permission(kind):
       OnboardingPermissionView(model: model, kind: kind)
     case let .feature(kind):
-      OnboardingFeatureView(kind: kind, reduceMotion: reduceMotion)
+      OnboardingFeatureView(kind: kind)
     case .tryIt:
       OnboardingTryItView(model: model, reduceMotion: reduceMotion)
     }
@@ -43,11 +47,14 @@ struct OnboardingView: View {
     }
     return .asymmetric(
       insertion: .opacity.combined(with: .offset(y: OnboardingTiming.contentSlide)),
-      removal: .opacity.combined(with: .offset(y: -12))
+      removal: .opacity.combined(with: .offset(y: -OnboardingTiming.contentSlide))
     )
   }
 
   private var motion: Animation? {
-    model.instant ? nil : .easeInOut(duration: OnboardingTiming.content)
+    guard !model.instant else {
+      return nil
+    }
+    return .spring(response: OnboardingTiming.content, dampingFraction: 0.86)
   }
 }

@@ -55,13 +55,13 @@ enum OnboardingFeature: String, Equatable, CaseIterable {
   var body: String {
     switch self {
     case .search:
-      "Type a few letters. Apps, clipboard, notes, and files come up together."
+      "Type a few letters and apps, clipboard, notes, and files come up together."
     case .suggestions:
-      "The apps you open most sit at the top. A dot marks one that is running."
+      "The apps you open most sit at the top, with a dot on one that is running."
     case .clipboard:
-      "Copies stay searchable. Return pastes the one you have selected."
+      "Copies stay searchable, and Return pastes the one you have selected."
     case .notes:
-      "Write a line. The note stays on this Mac and shows up from the launcher."
+      "Write a line and it stays on this Mac, ready from the launcher."
     case .files:
       "File names in your home folder mix into the same list."
     case .settings:

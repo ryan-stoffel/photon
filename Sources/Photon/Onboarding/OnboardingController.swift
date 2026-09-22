@@ -10,12 +10,12 @@ final class OnboardingController: ObservableObject {
   @Published var permissionNotice: String?
   @Published var permissionWaiting = false
   @Published private(set) var revealStarted = Date()
+  @Published var burstStarted: Date?
 
   var onFinish: (() -> Void)?
   var onPermissionResolved: (() -> Void)?
 
   private var window: OnboardingWindow?
-  private var confettiWindow: NSWindow?
   private var keyMonitor: Any?
   private var schedule: Task<Void, Never>?
   private var permissionSession: OnboardingPermissionSession?
@@ -50,6 +50,7 @@ final class OnboardingController: ObservableObject {
     permissionSettled = false
     permissionNotice = nil
     permissionWaiting = false
+    burstStarted = nil
     revealStarted = Date()
     step = .reveal
     if window == nil {
@@ -59,7 +60,7 @@ final class OnboardingController: ObservableObject {
     if let window {
       window.alphaValue = 1
       window.level = .statusBar
-      window.setFrame(OnboardingChrome.screenFrame(), display: true)
+      window.setFrame(OnboardingChrome.windowFrame(), display: true)
     }
     installKeyMonitor()
     NSApp.activate(ignoringOtherApps: true)
@@ -85,7 +86,7 @@ final class OnboardingController: ObservableObject {
     if instant {
       step = next
     } else {
-      withAnimation(.easeInOut(duration: OnboardingTiming.content)) {
+      withAnimation(.spring(response: OnboardingTiming.content, dampingFraction: 0.86)) {
         step = next
       }
     }
@@ -139,18 +140,12 @@ final class OnboardingController: ObservableObject {
       return
     }
     celebrated = true
+    burstStarted = Date()
     let pending = schedule
     schedule = nil
     pending?.cancel()
     removeKeyMonitor()
-    window?.animator().alphaValue = 0
-    let screenFrame = frame
-    Task { @MainActor in
-      try? await Task.sleep(for: .seconds(OnboardingTiming.content))
-      self.window?.orderOut(nil)
-      self.window?.alphaValue = 1
-      self.playConfetti(around: screenFrame)
-    }
+    scheduleAdvance(after: OnboardingTiming.burst)
   }
 
   func finish() {
@@ -165,7 +160,6 @@ final class OnboardingController: ObservableObject {
     removeKeyMonitor()
     FirstLaunch.markInteractiveOnboardingComplete()
     window?.orderOut(nil)
-    confettiWindow?.orderOut(nil)
     let callback = onFinish
     onFinish = nil
     callback?()
@@ -272,37 +266,6 @@ final class OnboardingController: ObservableObject {
       AccessibilityPermission.isTrusted
     case .inputMonitoring:
       AccessibilityPermission.hasInputMonitoring
-    }
-  }
-
-  private func playConfetti(around frame: NSRect) {
-    let pad: CGFloat = 96
-    let rect = frame.insetBy(dx: -pad, dy: -pad)
-    let host = NSHostingView(
-      rootView: OnboardingConfettiView(started: Date(), reduceMotion: reduceMotion)
-    )
-    host.frame = NSRect(origin: .zero, size: rect.size)
-    let overlay = OnboardingOverlayWindow(
-      contentRect: rect,
-      styleMask: [.borderless],
-      backing: .buffered,
-      defer: false
-    )
-    overlay.isOpaque = false
-    overlay.backgroundColor = .clear
-    overlay.hasShadow = false
-    overlay.ignoresMouseEvents = true
-    overlay.level = .statusBar
-    overlay.contentView = host
-    overlay.orderFrontRegardless()
-    confettiWindow = overlay
-    Task { @MainActor in
-      try? await Task.sleep(for: .seconds(OnboardingTiming.confetti + 0.12))
-      overlay.orderOut(nil)
-      if self.confettiWindow === overlay {
-        self.confettiWindow = nil
-      }
-      self.finish()
     }
   }
 
