@@ -35,7 +35,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
   func applicationDidFinishLaunching(_: Notification) {
     NSApp.setActivationPolicy(.accessory)
-    OnboardingFont.registerAtLaunch()
+    Phase1Font.registerAtLaunch()
     PhotonAppIcon.install()
     installSettingsMenu()
     statusItemController = StatusItemController(runtime: runtime)

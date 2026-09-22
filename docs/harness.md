@@ -17,6 +17,6 @@ Photon has two required test layers.
 - changes the system appearance while Photon remains running and verifies both effective appearance and resolved colors update;
 - attempts Accessibility window introspection when the runner grants it, with `CGWindow` as the non-TCC fallback.
 
-The app-side reporter and controlled adapters are inert unless `PHOTON_NATIVE_PARITY_REPORT_PATH` is set. The harness also sets `PHOTON_ISOLATED_DATA_ROOT`, so it never reads or modifies the normal Photon profile. `showOnboarding` / `advanceOnboarding` / `dismissOnboarding` drive the windowed sequence on settled frames (no beam). `showOnboardingHotkey:default` only changes the key caps drawn on the try-it step.
+The app-side reporter and controlled adapters are inert unless `PHOTON_NATIVE_PARITY_REPORT_PATH` is set. The harness also sets `PHOTON_ISOLATED_DATA_ROOT`, so it never reads or modifies the normal Photon profile. `showOnboarding` opens the Phase 1 overlay already resting (no beam) and `dismissOnboarding` fades it out. `advanceOnboarding` and `showOnboardingHotkey:default` are accepted and do nothing.
 
 `Scripts/screenshots.sh` captures every real built scenario in light and dark appearance. `Scripts/check-screenshot-compact.sh` rejects traffic-light-like title chrome and oversized empty-launcher captures.
