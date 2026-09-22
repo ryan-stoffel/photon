@@ -57,25 +57,19 @@ private struct Phase1Haze: View {
   var opacity: CGFloat
 
   var body: some View {
-    ZStack {
-      haze(.topLeading)
-      haze(.topTrailing)
-      haze(.bottomLeading)
-      haze(.bottomTrailing)
-    }
-    .allowsHitTesting(false)
-  }
-
-  private func haze(_ center: UnitPoint) -> some View {
-    RadialGradient(
-      colors: [
-        Phase1Metrics.hazeColor.opacity(Phase1Metrics.hazePeakOpacity * opacity),
-        Phase1Metrics.hazeColor.opacity(0),
+    LinearGradient(
+      stops: [
+        .init(color: Phase1Metrics.hazeColor.opacity(0), location: 0),
+        .init(color: Phase1Metrics.hazeColor.opacity(0), location: Phase1Metrics.hazeClearStop),
+        .init(
+          color: Phase1Metrics.hazeColor.opacity(Phase1Metrics.hazePeakOpacity * opacity),
+          location: 1
+        ),
       ],
-      center: center,
-      startRadius: Phase1Metrics.hazeStartRadius,
-      endRadius: Phase1Metrics.hazeEndRadius
+      startPoint: .top,
+      endPoint: .bottom
     )
+    .allowsHitTesting(false)
   }
 }
 
@@ -124,7 +118,7 @@ private struct Phase1Beam: View {
   ) {
     let tipX = progress * size.width * Phase1Metrics.centerFraction
     let midY = size.height * Phase1Metrics.centerFraction
-    let span = (tipX - Phase1Metrics.beamOriginInset) * (1 - collapse)
+    let span = Phase1Metrics.beamTailLength * (1 - collapse)
     let startX = tipX - span
     guard span > Phase1Metrics.beamMinSpan else {
       return
@@ -134,20 +128,12 @@ private struct Phase1Beam: View {
     ) * (1 - collapse)
     let bloom = Phase1Metrics.beamBloomMin + (Phase1Metrics.beamBloomMax - Phase1Metrics.beamBloomMin) * progress
     let geometry = BeamGeometry(startX: startX, tipX: tipX, midY: midY, span: span)
-    drawField(context, geometry: geometry, size: size, brightness: brightness, bloom: bloom)
     drawRibbon(
       context,
       geometry: geometry,
-      thickness: Phase1Metrics.beamWashThickness * bloom,
-      blur: Phase1Metrics.beamWashBlur,
-      color: Phase1Metrics.beamGlowColor.opacity(brightness * Phase1Metrics.beamWashOpacity)
-    )
-    drawRibbon(
-      context,
-      geometry: geometry,
-      thickness: Phase1Metrics.beamMidThickness * bloom,
-      blur: Phase1Metrics.beamMidBlur,
-      color: Phase1Metrics.beamGlowColor.opacity(brightness * Phase1Metrics.beamMidOpacity)
+      thickness: Phase1Metrics.beamGlowThickness * bloom,
+      blur: Phase1Metrics.beamGlowBlur,
+      color: Phase1Metrics.beamGlowColor.opacity(brightness * Phase1Metrics.beamGlowOpacity)
     )
     drawRibbon(
       context,
@@ -158,23 +144,6 @@ private struct Phase1Beam: View {
     )
     drawCore(context, geometry: geometry, brightness: brightness)
     drawHead(context, geometry: geometry, brightness: brightness, bloom: bloom, collapse: collapse)
-  }
-
-  private func drawField(
-    _ context: GraphicsContext,
-    geometry: BeamGeometry,
-    size: CGSize,
-    brightness: CGFloat,
-    bloom: CGFloat
-  ) {
-    let height = size.height * Phase1Metrics.beamFieldFraction * bloom
-    drawRibbon(
-      context,
-      geometry: geometry,
-      thickness: height,
-      blur: Phase1Metrics.beamFieldBlur,
-      color: Phase1Metrics.beamGlowColor.opacity(brightness * Phase1Metrics.beamFieldOpacity)
-    )
   }
 
   private func drawRibbon(
