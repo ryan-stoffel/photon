@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-09-22
+
+Ryan interactive first-run tour and full app icon release.
+
 ### Added
 
 - An interactive first-run walkthrough: try the launcher shortcut, suggestions, search, clipboard, notes, files, and ⌘,. Skip still leaves the tour. People who already finished or skipped the 0.4.3 tour see this one once.
