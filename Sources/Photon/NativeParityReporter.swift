@@ -314,8 +314,30 @@ final class NativeParityReporter: NSObject {
       "clipboardSelectedKind": model.clipboard?.selectedItem?.kind.rawValue ?? "",
       "clipboardNotice": model.clipboard?.notice?.message ?? "",
       "resolvedAppIconCount": resolvedAppIcons,
+      "photonIcon": photonIconReport(model),
       "fileStatus": fileStatus(runtime?.fileSearch?.controller.status),
       "fileRequestingAccess": runtime?.fileSearch?.controller.isRequestingAccess == true,
     ]
+  }
+
+  private func photonIconReport(_ model: LauncherViewModel) -> [String: Any] {
+    guard let image = photonRowImage(model) else {
+      return ["representations": 0, "fill": 0.0, "ready": false]
+    }
+    let metrics = IconBitmap.metrics(image)
+    return [
+      "representations": metrics.representations,
+      "fill": metrics.fill,
+      "ready": true,
+    ]
+  }
+
+  private func photonRowImage(_ model: LauncherViewModel) -> NSImage? {
+    guard let row = model.rows.first(where: { row in
+      row.providerID == "apps" && row.title.localizedCaseInsensitiveCompare("Photon") == .orderedSame
+    }), let icon = row.icon else {
+      return nil
+    }
+    return CommandIconCache.shared.image(for: icon)
   }
 }

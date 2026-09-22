@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.4] - 2026-09-22
+
+Ryan interactive first-run tour and full app icon release.
+
+### Added
+
+- An interactive first-run walkthrough: try the launcher shortcut, suggestions, search, clipboard, notes, files, and ⌘,. Skip still leaves the tour. People who already finished or skipped the 0.4.3 tour see this one once.
+
+### Fixed
+
+- The Photon icon in the launcher, menus, and in-app chrome uses the full artwork Finder shows for Photon.app.
+
 ## [0.4.3] - 2026-09-21
 
 Ryan most-used Suggestions, Settings keyboard focus, first-launch permissions, and a short walkthrough.

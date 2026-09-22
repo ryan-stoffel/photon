@@ -294,7 +294,7 @@ struct LauncherView: View {
           .lineLimit(1)
           .truncationMode(.tail)
       } else {
-        Image(nsImage: NSApp.applicationIconImage)
+        Image(nsImage: PhotonAppIcon.current)
           .resizable()
           .interpolation(.high)
           .frame(width: 16, height: 16)
