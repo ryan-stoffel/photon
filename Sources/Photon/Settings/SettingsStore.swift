@@ -11,6 +11,7 @@ final class SettingsStore: ObservableObject {
   var onNotesChange: (() -> Void)?
   var onKeybindsChange: (() -> Void)?
   var onAppearanceChange: (() -> Void)?
+  var replayOnboarding: (() -> Void)?
 
   /// Selected settings tab (`UIScenario` and screenshot harness).
   @Published var selectedPane: SettingsPaneID = .general

@@ -87,6 +87,9 @@ final class AppRuntime: ObservableObject {
     settingsShortcutMonitor = SettingsShortcutMonitor { [weak self] in
       self?.openSettings()
     }
+    settings.replayOnboarding = { [weak self] in
+      self?.replayOnboarding()
+    }
     launcher.preload()
     if UIScenario.current == nil {
       clipboard.start()
@@ -231,23 +234,29 @@ final class AppRuntime: ObservableObject {
 
   func presentFirstLaunch() {
     let defaults = UserDefaults.standard
-    if !defaults.bool(forKey: FirstLaunch.permissionsKey) {
-      defaults.set(true, forKey: FirstLaunch.permissionsKey)
-      keybinds.requestFirstLaunchPermissions()
-    }
-    if FirstLaunch.needsInteractiveOnboarding(defaults) {
-      let controller = makeOnboarding()
-      controller.onFinish = { [weak self] in
-        guard let self else {
-          return
-        }
-        SpotlightConflict.adviseIfNeeded(current: settings.hotkey)
-      }
-      controller.present(hotkey: settings.hotkey)
-    } else {
+    guard FirstLaunch.needsInteractiveOnboarding(defaults) else {
       SpotlightConflict.adviseIfNeeded(current: settings.hotkey)
       keybinds.adviseAccessibilityIfNeeded()
+      return
     }
+    let controller = makeOnboarding()
+    controller.onFinish = { [weak self] in
+      guard let self else {
+        return
+      }
+      SpotlightConflict.adviseIfNeeded(current: settings.hotkey)
+    }
+    controller.onPermissionResolved = { [weak self] in
+      self?.keybinds.acknowledgeAccessibilityGuidance()
+      self?.keybinds.refreshAfterPermissionPrompt()
+    }
+    controller.present(hotkey: settings.hotkey)
+  }
+
+  func replayOnboarding() {
+    FirstLaunch.resetOnboarding()
+    closeSettings()
+    presentFirstLaunch()
   }
 
   func makeOnboarding() -> OnboardingController {
@@ -319,6 +328,9 @@ final class AppRuntime: ObservableObject {
       }
       if window.title.localizedCaseInsensitiveContains("Settings") {
         return true
+      }
+      if window.identifier == OnboardingChrome.identifier || window is OnboardingWindow {
+        return false
       }
       if window.title == "Photon" {
         return true
@@ -412,7 +424,17 @@ final class AppRuntime: ObservableObject {
 
   private func applyHotkey() {
     hotkey.onPressed = { [weak self] in
-      self?.toggleLauncher()
+      guard let self else {
+        return
+      }
+      let celebrate = onboarding?.isWaitingForLauncher == true
+      toggleLauncher()
+      if celebrate {
+        onboarding?.noteLauncherOpened(
+          visible: launcher.panel?.isVisible == true,
+          frame: launcher.panel?.frame ?? .zero
+        )
+      }
     }
     do {
       try hotkey.register(combo: settings.hotkey)

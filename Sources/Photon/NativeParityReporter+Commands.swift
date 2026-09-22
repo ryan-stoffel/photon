@@ -111,6 +111,8 @@ extension NativeParityReporter {
       runtime.onboarding?.advance()
     case "dismissOnboarding":
       runtime.onboarding?.finish()
+    case "showOnboardingHotkey:default":
+      runtime.onboarding?.hotkey = .defaultCombo
     default:
       return false
     }

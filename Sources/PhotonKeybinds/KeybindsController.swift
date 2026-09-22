@@ -109,6 +109,16 @@ public final class KeybindsController: ObservableObject {
     applyHyperKey()
   }
 
+  /// The cinematic sequence owns the first-run prompts. Do not show the later alert too.
+  public func acknowledgeAccessibilityGuidance() {
+    UserDefaults.standard.set(true, forKey: Self.accessibilityGuidanceKey)
+  }
+
+  /// Re-reads trust and starts the Hyper key when Accessibility was just granted.
+  public func refreshAfterPermissionPrompt() {
+    applyHyperKey()
+  }
+
   /// Asks for Accessibility and Input Monitoring together. Marks the later guidance alert as shown.
   public func requestFirstLaunchPermissions() {
     UserDefaults.standard.set(true, forKey: Self.accessibilityGuidanceKey)
