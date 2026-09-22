@@ -6,6 +6,7 @@ enum OnboardingChrome {
   static let size = NSSize(width: 800, height: 560)
   static let cornerRadius: CGFloat = 16
 
+  /// Centered on the screen under the pointer.
   @MainActor
   static func windowFrame() -> NSRect {
     let mouse = NSEvent.mouseLocation
@@ -14,42 +15,30 @@ enum OnboardingChrome {
       ?? NSScreen.screens.first
     let bounds = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
     return NSRect(
-      x: bounds.midX - size.width / 2,
-      y: bounds.midY - size.height / 2,
+      x: (bounds.midX - size.width / 2).rounded(),
+      y: (bounds.midY - size.height / 2).rounded(),
       width: size.width,
       height: size.height
     )
   }
 
+  /// A borderless, non-resizable window. The content is clipped to continuous
+  /// 16 pt corners and macOS shapes the soft shadow from that opaque region.
   @MainActor
   static func makeWindow(host: NSHostingView<OnboardingView>) -> OnboardingWindow {
     let frame = windowFrame()
+    let bounds = NSRect(origin: .zero, size: frame.size)
     host.safeAreaRegions = []
-    host.frame = NSRect(origin: .zero, size: frame.size)
+    host.frame = bounds
     host.autoresizingMask = [.width, .height]
 
-    let clip = NSView(frame: NSRect(origin: .zero, size: frame.size))
+    let clip = NSView(frame: bounds)
     clip.wantsLayer = true
     clip.layer?.cornerRadius = cornerRadius
+    clip.layer?.cornerCurve = .continuous
     clip.layer?.masksToBounds = true
     clip.layer?.backgroundColor = NSColor.black.cgColor
     clip.addSubview(host)
-
-    let root = NSView(frame: NSRect(origin: .zero, size: frame.size))
-    root.wantsLayer = true
-    root.layer?.masksToBounds = false
-    root.layer?.backgroundColor = NSColor.clear.cgColor
-    root.layer?.shadowColor = NSColor.black.cgColor
-    root.layer?.shadowOpacity = 0.42
-    root.layer?.shadowRadius = 32
-    root.layer?.shadowOffset = CGSize(width: 0, height: -12)
-    root.layer?.shadowPath = CGPath(
-      roundedRect: root.bounds,
-      cornerWidth: cornerRadius,
-      cornerHeight: cornerRadius,
-      transform: nil
-    )
-    root.addSubview(clip)
 
     let window = OnboardingWindow(
       contentRect: frame,
@@ -59,18 +48,20 @@ enum OnboardingChrome {
     )
     window.title = ""
     window.identifier = identifier
+    window.appearance = NSAppearance(named: .darkAqua)
     window.isOpaque = false
     window.backgroundColor = .clear
-    window.hasShadow = false
+    window.hasShadow = true
     window.isMovable = true
     window.isMovableByWindowBackground = true
     window.minSize = size
     window.maxSize = size
-    window.level = .statusBar
+    window.level = .floating
     window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     window.hidesOnDeactivate = false
     window.isReleasedWhenClosed = false
-    window.contentView = root
+    window.animationBehavior = .none
+    window.contentView = clip
     return window
   }
 }

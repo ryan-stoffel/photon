@@ -5,12 +5,15 @@ import SwiftUI
 
 @MainActor
 final class OnboardingController: ObservableObject {
-  @Published var step: OnboardingStep = .reveal
+  @Published private(set) var step: OnboardingStep = .reveal
   @Published var hotkey: HotkeyCombo
-  @Published var permissionNotice: String?
-  @Published var permissionWaiting = false
+  @Published private(set) var permissionNotice: String?
+  @Published private(set) var permissionWaiting = false
   @Published private(set) var revealStarted = Date()
-  @Published var burstStarted: Date?
+  /// Set when the reveal is skipped early so the backdrop can still fade in.
+  @Published private(set) var revealEnded: Date?
+  @Published private(set) var confettiStarted: Date?
+  @Published private(set) var keysPressed = false
 
   var onFinish: (() -> Void)?
   var onPermissionResolved: (() -> Void)?
@@ -18,6 +21,7 @@ final class OnboardingController: ObservableObject {
   private var window: OnboardingWindow?
   private var keyMonitor: Any?
   private var schedule: Task<Void, Never>?
+  private var keyRelease: Task<Void, Never>?
   private var permissionSession: OnboardingPermissionSession?
   private var finished = false
   private var celebrated = false
@@ -27,6 +31,7 @@ final class OnboardingController: ObservableObject {
     self.hotkey = hotkey
   }
 
+  /// Settled frames for the parity harness: no timers, every curve at its end.
   var instant: Bool {
     NativeParityReporter.isRequested
   }
@@ -50,28 +55,32 @@ final class OnboardingController: ObservableObject {
     permissionSettled = false
     permissionNotice = nil
     permissionWaiting = false
-    burstStarted = nil
+    confettiStarted = nil
+    keysPressed = false
+    revealEnded = nil
     revealStarted = Date()
     step = .reveal
     if window == nil {
       let host = NSHostingView(rootView: OnboardingView(model: self))
       window = OnboardingChrome.makeWindow(host: host)
     }
-    if let window {
-      window.alphaValue = 1
-      window.level = .statusBar
-      window.setFrame(OnboardingChrome.windowFrame(), display: true)
+    guard let window else {
+      return
     }
+    window.alphaValue = 1
+    window.level = .floating
+    window.setFrame(OnboardingChrome.windowFrame(), display: true)
     installKeyMonitor()
     NSApp.activate(ignoringOtherApps: true)
-    window?.makeKeyAndOrderFront(nil)
+    window.makeKeyAndOrderFront(nil)
+    Task { @MainActor in
+      window.invalidateShadow()
+    }
     armAutoAdvance()
   }
 
   func advance() {
-    let pending = schedule
-    schedule = nil
-    pending?.cancel()
+    cancelSchedule()
     cancelPermissionWatch()
     if step.isPermission {
       onPermissionResolved?()
@@ -83,32 +92,26 @@ final class OnboardingController: ObservableObject {
       finish()
       return
     }
+    if step == .reveal, revealEnded == nil {
+      revealEnded = Date()
+    }
     if instant {
       step = next
     } else {
-      withAnimation(.spring(response: OnboardingTiming.content, dampingFraction: 0.86)) {
+      withAnimation(stepAnimation) {
         step = next
       }
     }
     armAutoAdvance()
   }
 
-  func advanceFromPointer() {
-    switch step {
-    case .reveal, .feature:
-      advance()
-    case .permission, .tryIt:
-      break
-    }
-  }
-
   func grantPermission() {
-    guard case let .permission(kind) = step, !permissionSettled, !instant else {
+    guard case let .permission(kind) = step, !permissionSettled, !permissionWaiting, !instant else {
       return
     }
     permissionWaiting = true
+    // Below the system prompt while it is up; restored on resolution.
     window?.level = .normal
-    window?.orderBack(nil)
     let session = OnboardingPermissionSession()
     session.onResolve = { @MainActor [weak self] granted in
       self?.resolvePermission(granted: granted)
@@ -131,21 +134,23 @@ final class OnboardingController: ObservableObject {
       advance()
       return
     }
-    permissionNotice = kind.withheld
+    withAnimation(.easeInOut(duration: 0.3)) {
+      permissionNotice = kind.withheld
+    }
     scheduleAdvance(after: OnboardingTiming.permissionNotice)
   }
 
+  /// The real launcher hotkey opened the panel while the try-it step waited.
   func noteLauncherOpened(visible: Bool, frame: NSRect) {
     guard isWaitingForLauncher, visible, frame.width > 1 else {
       return
     }
     celebrated = true
-    burstStarted = Date()
-    let pending = schedule
-    schedule = nil
-    pending?.cancel()
+    cancelSchedule()
     removeKeyMonitor()
-    scheduleAdvance(after: OnboardingTiming.burst)
+    pressKeys()
+    confettiStarted = Date()
+    scheduleAdvance(after: OnboardingTiming.confetti)
   }
 
   func finish() {
@@ -153,11 +158,11 @@ final class OnboardingController: ObservableObject {
       return
     }
     finished = true
-    let pending = schedule
-    schedule = nil
-    pending?.cancel()
+    cancelSchedule()
     cancelPermissionWatch()
     removeKeyMonitor()
+    keyRelease?.cancel()
+    keyRelease = nil
     FirstLaunch.markInteractiveOnboardingComplete()
     window?.orderOut(nil)
     let callback = onFinish
@@ -165,34 +170,43 @@ final class OnboardingController: ObservableObject {
     callback?()
   }
 
-  func handle(keyCode: UInt16, modifiers _: UInt32) -> Bool {
+  func atmosphere(at date: Date, reduceMotion: Bool) -> Double {
+    if instant {
+      return 1
+    }
+    let clock = OnboardingRevealClock(time: date.timeIntervalSince(revealStarted), reduceMotion: reduceMotion)
+    guard let revealEnded else {
+      return clock.atmosphere
+    }
+    let ramp = date.timeIntervalSince(revealEnded) / OnboardingTiming.reducedCrossfade
+    return max(clock.atmosphere, OnboardingTiming.clamp(ramp))
+  }
+
+  /// Escape skips any step except permissions. Return and Space move on where
+  /// there is no other action to take. Anything with Command passes through.
+  func handle(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> Bool {
+    guard window?.isKeyWindow == true, !modifiers.contains(.command) else {
+      return false
+    }
     if keyCode == UInt16(kVK_Escape) {
-      return consumeEscape()
+      if !step.isPermission {
+        advance()
+      }
+      return true
     }
     if isReturn(keyCode), step.isPermission {
       grantPermission()
       return true
     }
-    if isAdvanceKey(keyCode), step == .reveal || isFeature {
+    if isAdvanceKey(keyCode), step == .reveal || step.isFeature {
       advance()
       return true
     }
     return false
   }
 
-  private var isFeature: Bool {
-    if case .feature = step {
-      return true
-    }
-    return false
-  }
-
-  private func consumeEscape() -> Bool {
-    if step.isPermission {
-      return true
-    }
-    advance()
-    return true
+  private var stepAnimation: Animation {
+    .spring(response: OnboardingTiming.stepResponse, dampingFraction: OnboardingTiming.stepDamping)
   }
 
   private func isReturn(_ keyCode: UInt16) -> Bool {
@@ -209,32 +223,40 @@ final class OnboardingController: ObservableObject {
     }
     permissionSettled = true
     permissionWaiting = false
-    window?.level = .statusBar
-    window?.orderFrontRegardless()
+    window?.level = .floating
+    NSApp.activate(ignoringOtherApps: true)
+    window?.makeKeyAndOrderFront(nil)
     if granted {
       advance()
       return
     }
-    permissionNotice = kind.withheld
+    withAnimation(.easeInOut(duration: 0.3)) {
+      permissionNotice = kind.withheld
+    }
     scheduleAdvance(after: OnboardingTiming.permissionNotice)
   }
 
-  private func armAutoAdvance() {
-    switch step {
-    case .reveal:
-      let delay = OnboardingTiming.revealDuration(reduceMotion: reduceMotion)
-      scheduleAdvance(after: delay)
-    case .feature:
-      scheduleAdvance(after: OnboardingTiming.featureHold)
-    case .permission, .tryIt:
-      break
+  private func pressKeys() {
+    keysPressed = true
+    keyRelease?.cancel()
+    keyRelease = Task { @MainActor in
+      try? await Task.sleep(for: .seconds(OnboardingTiming.keyPress))
+      guard !Task.isCancelled else {
+        return
+      }
+      keysPressed = false
     }
   }
 
+  private func armAutoAdvance() {
+    guard step == .reveal else {
+      return
+    }
+    scheduleAdvance(after: OnboardingTiming.revealDuration(reduceMotion: reduceMotion))
+  }
+
   private func scheduleAdvance(after seconds: TimeInterval) {
-    let pending = schedule
-    schedule = nil
-    pending?.cancel()
+    cancelSchedule()
     guard !instant else {
       return
     }
@@ -245,6 +267,12 @@ final class OnboardingController: ObservableObject {
       }
       advance()
     }
+  }
+
+  private func cancelSchedule() {
+    let pending = schedule
+    schedule = nil
+    pending?.cancel()
   }
 
   private var reduceMotion: Bool {
@@ -281,9 +309,9 @@ final class OnboardingController: ObservableObject {
     let box = OnboardingBox(self)
     keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
       let keyCode = event.keyCode
-      let modifiers = UInt32(event.modifierFlags.rawValue)
+      let modifiers = event.modifierFlags.rawValue
       let handled = MainActor.assumeIsolated {
-        box.value?.handle(keyCode: keyCode, modifiers: modifiers) ?? false
+        box.value?.handle(keyCode: keyCode, modifiers: NSEvent.ModifierFlags(rawValue: modifiers)) ?? false
       }
       return handled ? nil : event
     }

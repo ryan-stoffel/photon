@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The first-run sequence is rebuilt in the style of Raycast and Dia. The window stays 800×560 and now uses the native rounded shadow. The reveal opens black, sweeps a beam with a bright core and blue glow to center, collapses it into a white flash, and settles the mark in as the flash decays over a slowly drifting star field. Steps crossfade and slide horizontally. Permission and feature screens are one headline, one line, and one button, with a note under Skip for now saying what will not work. The try-it screen shows physical key caps for the configured hotkey. The confetti is new: muted rectangles and circles with gravity, drag, spin, and flutter, inside the window only, fired once on the first successful open. Reduce Motion replaces the beam, flash, and confetti with crossfades. People who finished 0.4.6 see this once.
+
 ## [0.4.6] - 2026-09-22
 
 Ryan windowed first-run sequence.

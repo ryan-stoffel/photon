@@ -13,12 +13,31 @@ enum OnboardingPermission: String, Equatable, CaseIterable {
     }
   }
 
+  var symbol: String {
+    switch self {
+    case .accessibility:
+      "accessibility"
+    case .inputMonitoring:
+      "keyboard"
+    }
+  }
+
   var reason: String {
     switch self {
     case .accessibility:
       "Photon uses this to paste, to run the Hyper key, and to move windows."
     case .inputMonitoring:
       "Photon uses this to hear the launcher shortcut while another app is in front."
+    }
+  }
+
+  /// Sits under Skip for now so the trade-off is visible before choosing.
+  var skipNote: String {
+    switch self {
+    case .accessibility:
+      "Without it, paste, the Hyper key, and window management will not work."
+    case .inputMonitoring:
+      "Without it, the launcher shortcut may not open Photon from other apps."
     }
   }
 
@@ -49,6 +68,17 @@ enum OnboardingFeature: String, Equatable, CaseIterable {
     case .notes: "Notes"
     case .files: "Files"
     case .settings: "Settings"
+    }
+  }
+
+  var symbol: String {
+    switch self {
+    case .search: "magnifyingglass"
+    case .suggestions: "sparkles"
+    case .clipboard: "doc.on.clipboard"
+    case .notes: "note.text"
+    case .files: "folder"
+    case .settings: "gearshape"
     }
   }
 
@@ -109,6 +139,13 @@ enum OnboardingStep: Equatable {
     return false
   }
 
+  var isFeature: Bool {
+    if case .feature = self {
+      return true
+    }
+    return false
+  }
+
   static let sequence: [OnboardingStep] = [
     .reveal,
     .permission(.accessibility),
@@ -131,5 +168,17 @@ enum OnboardingStep: Equatable {
       return nil
     }
     return Self.sequence[following]
+  }
+
+  /// Position among the steps after the reveal, for the progress dots.
+  var progressIndex: Int? {
+    guard self != .reveal, let index = Self.sequence.firstIndex(of: self) else {
+      return nil
+    }
+    return index - 1
+  }
+
+  static var progressCount: Int {
+    sequence.count - 1
   }
 }
