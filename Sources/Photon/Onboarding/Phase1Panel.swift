@@ -37,14 +37,20 @@ final class Phase1Panel: NSPanel {
     return panel
   }
 
-  override var canBecomeKey: Bool { true }
+  override var canBecomeKey: Bool {
+    true
+  }
 
-  override var canBecomeMain: Bool { true }
+  override var canBecomeMain: Bool {
+    true
+  }
 }
 
 /// NSHostingView is opaque unless told otherwise, which would hide the desktop.
 final class Phase1HostingView<Content: View>: NSHostingView<Content> {
-  override var isOpaque: Bool { false }
+  override var isOpaque: Bool {
+    false
+  }
 
   override func viewDidMoveToWindow() {
     super.viewDidMoveToWindow()

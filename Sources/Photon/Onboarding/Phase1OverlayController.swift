@@ -56,17 +56,17 @@ final class Phase1OverlayController {
     isDismissing = true
     let token = generation
     let box = Phase1Box(self)
-    NSAnimationContext.runAnimationGroup({ context in
+    NSAnimationContext.runAnimationGroup { context in
       context.duration = Phase1Metrics.dismissFade
       context.timingFunction = CAMediaTimingFunction(name: .easeOut)
       panel.animator().alphaValue = 0
-    }, completionHandler: {
+    } completionHandler: {
       DispatchQueue.main.async {
         MainActor.assumeIsolated {
           box.value?.completeDismiss(token: token)
         }
       }
-    })
+    }
     let fallback = DispatchWorkItem {
       MainActor.assumeIsolated {
         box.value?.completeDismiss(token: token)
