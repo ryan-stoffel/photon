@@ -25,10 +25,7 @@ enum Phase1Space {
     }
     Thread.sleep(forTimeInterval: 0.15)
     let ids = spaceIDs(for: window)
-    let parked = ids.contains(target.id) && !isOnCurrentScreen(window)
-    let note = "target \(target.id) spaces \(ids) parked \(parked)\n"
-    try? note.write(toFile: "/tmp/photon-phase1-space.txt", atomically: true, encoding: .utf8)
-    return parked
+    return ids.contains(target.id) && !isOnCurrentScreen(window)
   }
 
   private static func space(desktop: Int) -> (uuid: String, id: UInt64)? {
