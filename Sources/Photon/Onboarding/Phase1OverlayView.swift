@@ -133,9 +133,8 @@ private struct Phase1Beam: View {
     guard fade > 0.02 else {
       return
     }
-    let presence = fade * fade
     let radius = Phase1Metrics.beamHairlineRadius * (0.2 + 0.8 * fade)
-    let alpha = geometry.brightness * Phase1Metrics.beamTailAlpha * presence
+    let alpha = geometry.brightness * Phase1Metrics.beamTailAlpha * fade
     let x = geometry.startX + geometry.span * along
     let rect = CGRect(x: x - radius, y: geometry.midY - radius, width: radius * 2, height: radius * 2)
     context.fill(
@@ -159,7 +158,7 @@ private struct Phase1Beam: View {
   }
 
   private func tailColor(along: CGFloat, alpha: CGFloat) -> Color {
-    let whiteMix = along * along
+    let whiteMix = along * along * along
     let red = Phase1Metrics.beamTailRed + (Phase1Metrics.beamCoreRed - Phase1Metrics.beamTailRed) * whiteMix
     let green = Phase1Metrics.beamTailGreen + (Phase1Metrics.beamCoreGreen - Phase1Metrics.beamTailGreen) * whiteMix
     let blue = Phase1Metrics.beamTailBlue + (Phase1Metrics.beamCoreBlue - Phase1Metrics.beamTailBlue) * whiteMix
