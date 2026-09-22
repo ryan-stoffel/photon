@@ -76,6 +76,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the branching model, commit style, an
 git clone https://github.com/ryan-stoffel/photon.git
 cd photon
 Scripts/package_app.sh
+Scripts/package_app.sh --dev   # build/Photon-Dev.app, separate bundle id
 Scripts/check-harness.sh
 # macOS only; exercises the packaged Photon.app
 Scripts/check-native-parity.sh build/Photon.app

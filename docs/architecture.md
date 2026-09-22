@@ -1,6 +1,6 @@
 # Photon architecture
 
-Photon is a Swift 6 menu-bar agent (`LSUIElement`, bundle id `com.ryanstoffel.photon`) built with SwiftPM. There is no committed Xcode project. `Scripts/package_app.sh` wraps the `Photon` executable in `Photon.app`.
+Photon is a Swift 6 menu-bar agent (`LSUIElement`, bundle id `com.ryanstoffel.photon`) built with SwiftPM. There is no committed Xcode project. `Scripts/package_app.sh` wraps the `Photon` executable in `Photon.app`. `Scripts/package_app.sh --dev` (or `PHOTON_DEV=1`) writes `build/Photon-Dev.app` with bundle id `com.ryanstoffel.photon.dev` and a yellow "dev" tag on the icon, so it can run beside the release app. The default command stays the release bundle.
 
 Deployment target: macOS 14+. Newer materials (`NSGlassEffectView` / Liquid Glass) are used at runtime when the class exists; GitHub Actions `macos-latest` logs `sw_vers` and the SDK in the `lint` and `smoke` jobs. See [macos-runners.md](macos-runners.md).
 
