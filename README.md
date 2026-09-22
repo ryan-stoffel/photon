@@ -60,8 +60,8 @@ Photon is a menu-bar agent (`LSUIElement`). It does not appear in the Dock.
 | none for the launcher itself | Phase 1 | `RegisterEventHotKey` does not require Input Monitoring. |
 | Keyboard shortcuts | after the introduction | macOS Spotlight also defaults to `Cmd+Space`. Photon detects the conflict and tells you how to disable Spotlight's shortcut under **System Settings > Keyboard > Keyboard Shortcuts > Spotlight**. |
 | Login Item | optional | "Launch at login" on the General settings tab uses `SMAppService`. |
-| Accessibility | first-run sequence | Pasting a clipboard item into the frontmost app (Photon sends `Cmd+V`; without it, Return copies the item and shows a hint). Required for the Hyper key (a keyboard event tap) and window management (moving windows through the Accessibility API). The introduction asks on its own screen. Status stays under **Settings > Keybinds**. Without it Caps Lock keeps its normal behaviour. |
-| Input Monitoring | first-run sequence | Asked so Photon can hear the launcher shortcut while another app is in front. The shortcut itself is still a Carbon hotkey. |
+| Accessibility | Keybinds tab, or a one-time alert if the Hyper key is on | Pasting a clipboard item into the frontmost app (Photon sends `Cmd+V`; without it, Return copies the item and shows a hint). Required for the Hyper key (a keyboard event tap) and window management (moving windows through the Accessibility API). The introduction does not ask. Status stays under **Settings > Keybinds**. Without it Caps Lock keeps its normal behaviour. |
+| Input Monitoring | Keybinds tab | Not asked during the introduction. The launcher shortcut itself is still a Carbon hotkey. |
 | Full Disk Access | optional | File search only sees what Spotlight indexes; folders in Spotlight Privacy stay hidden. Photon adds its own excluded-folders list under **Settings > Files**. |
 
 ### How the Hyper key works
