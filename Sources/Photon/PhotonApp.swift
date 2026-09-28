@@ -60,7 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private func installSettingsMenu() {
     let mainMenu = NSMenu()
     let appItem = NSMenuItem()
-    let appMenu = NSMenu(title: "Photon")
+    let appMenu = NSMenu(title: PhotonProduct.displayName)
     let settingsItem = NSMenuItem(
       title: "Settings…",
       action: #selector(openSettingsMenu),
@@ -82,19 +82,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 final class StatusItemController: NSObject {
   let statusItem: NSStatusItem
   private let runtime: AppRuntime
+  private var appearanceObserver: NSObjectProtocol?
 
   init(runtime: AppRuntime) {
     self.runtime = runtime
     statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
     super.init()
 
+    let name = PhotonProduct.displayName
     if let button = statusItem.button {
-      button.image = NSImage(systemSymbolName: "sun.max.fill", accessibilityDescription: "Photon")
-      button.image?.isTemplate = true
-      button.toolTip = "Photon"
+      applyStatusImage(to: button)
+      button.toolTip = name
+      DispatchQueue.main.async { [weak self, weak button] in
+        guard let self, let button else { return }
+        applyStatusImage(to: button)
+      }
+    }
+    if PhotonProduct.isDev {
+      appearanceObserver = DistributedNotificationCenter.default().addObserver(
+        forName: Notification.Name("AppleInterfaceThemeChangedNotification"),
+        object: nil,
+        queue: .main
+      ) { [weak self] _ in
+        Task { @MainActor [weak self] in
+          guard let button = self?.statusItem.button else { return }
+          self?.applyStatusImage(to: button)
+        }
+      }
     }
 
-    let menu = NSMenu(title: "Photon")
+    let menu = NSMenu(title: name)
     menu.addItem(item("Open Launcher", action: #selector(openLauncher)))
     menu.addItem(item("Clipboard History", action: #selector(openClipboard)))
     menu.addItem(item("Notes", action: #selector(openNotes)))
@@ -103,8 +120,19 @@ final class StatusItemController: NSObject {
     settingsItem.keyEquivalentModifierMask = .command
     menu.addItem(settingsItem)
     menu.addItem(.separator())
-    menu.addItem(item("Quit Photon", action: #selector(quit)))
+    menu.addItem(item("Quit \(name)", action: #selector(quit)))
     statusItem.menu = menu
+  }
+
+  private func applyStatusImage(to button: NSStatusBarButton) {
+    let points = button.bounds.height > 1 ? button.bounds.height : 22
+    let scale = button.window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+    button.image = MenuBarStatusImage.make(
+      devBadge: PhotonProduct.isDev,
+      appearance: button.effectiveAppearance,
+      points: points,
+      scale: scale
+    )
   }
 
   private func item(_ title: String, action: Selector) -> NSMenuItem {

@@ -2,7 +2,10 @@ import AppKit
 
 /// The same Photon artwork Finder shows for `Photon.app`.
 enum PhotonAppIcon {
-  private static let bundleID = "com.ryanstoffel.photon"
+  private static let bundleIDs: Set<String> = [
+    PhotonProduct.releaseBundleID,
+    PhotonProduct.devBundleID,
+  ]
 
   @MainActor
   private static var cached: NSImage?
@@ -41,7 +44,10 @@ enum PhotonAppIcon {
   }
 
   private static func isPhoton(_ path: String) -> Bool {
-    Bundle(path: path)?.bundleIdentifier == bundleID
+    guard let identifier = Bundle(path: path)?.bundleIdentifier else {
+      return false
+    }
+    return bundleIDs.contains(identifier)
   }
 
   private static func bundledIcon(at path: String) -> NSImage? {
