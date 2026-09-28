@@ -28,7 +28,8 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
 
   /// Invoked on the main actor when inline results for the current query are ready.
   /// The query is the trimmed search string; `hasFileHits` is true when at least
-  /// one filename match was found (the launcher may promote to Files mode).
+  /// one filename match was found. The launcher promotes to Files mode only when
+  /// that query does not also match an application.
   public var onInlineResultsChanged: (@MainActor (_ query: String, _ hasFileHits: Bool) -> Void)?
 
   private struct InlineCache {
@@ -40,6 +41,7 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
   private let engine: FileSearchEngine
   private var settings = FileSearchSettings()
   private var cache: InlineCache?
+  private var inlinePendingQuery: String?
   private var inlineGeneration = 0
 
   @MainActor
@@ -118,8 +120,11 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
   }
 
   private func scheduleInlineSearch(query: String, settings: FileSearchSettings) {
-    inlineGeneration += 1
-    let generation = inlineGeneration
+    let generation = synchronized { () -> Int in
+      inlineGeneration += 1
+      inlinePendingQuery = query
+      return inlineGeneration
+    }
     Task { @MainActor [weak self] in
       guard let self else {
         return
@@ -133,15 +138,29 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
       guard let response = await engine.search(request) else {
         return
       }
-      guard generation == inlineGeneration else {
+      guard generation == synchronized({ inlineGeneration }) else {
         return
       }
       let shown = Array(response.files.prefix(FileSearchSettings.inlineLimit))
       let cache = InlineCache(query: query, files: shown.map(\.file))
       synchronized {
         self.cache = cache
+        if self.inlinePendingQuery == query {
+          self.inlinePendingQuery = nil
+        }
       }
       onInlineResultsChanged?(query, !shown.isEmpty)
+    }
+  }
+
+  /// Latest inline search for the packaged-app harness.
+  /// `settled` is true once that query has a cache entry and nothing newer is in flight.
+  public func inlineSnapshot() -> (query: String, count: Int, settled: Bool) {
+    synchronized {
+      let query = cache?.query ?? ""
+      let count = cache?.files.count ?? 0
+      let settled = inlinePendingQuery == nil && cache != nil
+      return (query, count, settled)
     }
   }
 
@@ -176,6 +195,7 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
     engine.cancel()
     synchronized {
       cache = nil
+      inlinePendingQuery = nil
     }
   }
 

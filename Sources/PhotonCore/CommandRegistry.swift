@@ -64,6 +64,21 @@ public final class CommandRegistry: @unchecked Sendable {
     }
   }
 
+  /// True when `query` matches an installed application (not a settings pane).
+  public func containsApplication(matching query: String) async -> Bool {
+    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmed.isEmpty else {
+      return false
+    }
+    for provider in allProviders where provider.id == "apps" {
+      let commands = await provider.commands(matching: query)
+      if commands.contains(where: { LauncherRow(command: $0).applicationBundleIdentifier != nil }) {
+        return true
+      }
+    }
+    return false
+  }
+
   public func execute(_ command: Command) async throws {
     guard let provider = provider(id: command.providerID) else {
       throw CommandRegistryError.unknownProvider(command.providerID)

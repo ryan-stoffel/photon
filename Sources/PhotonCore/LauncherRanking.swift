@@ -59,6 +59,32 @@ public enum LauncherRanking {
     return Array(sorted.prefix(capped))
   }
 
+  /// When a typed query matches an application, that app stays ahead of the
+  /// file-search action and filename hits. Order inside each group is unchanged.
+  /// Callers skip this for the empty-query catalog so Suggestions stay frecency-ordered.
+  public static func applicationsBeforeFileHits(
+    _ ranked: [RankedCommand],
+    filesProviderID: String = "files"
+  ) -> [RankedCommand] {
+    let hasApplication = ranked.contains {
+      LauncherRow(command: $0.command).applicationBundleIdentifier != nil
+    }
+    guard hasApplication else {
+      return ranked
+    }
+    var leading: [RankedCommand] = []
+    var files: [RankedCommand] = []
+    leading.reserveCapacity(ranked.count)
+    for item in ranked {
+      if item.command.providerID == filesProviderID {
+        files.append(item)
+      } else {
+        leading.append(item)
+      }
+    }
+    return leading + files
+  }
+
   private static func usageRecord(_ id: String, usage: [String: Usage]) -> Usage? {
     if let record = usage[id] {
       return record

@@ -38,12 +38,14 @@ PASTE_TARGET_PID=""
 SCREENSHOT_DIR="${NATIVE_PARITY_SCREENSHOT_DIR:-$DATA_ROOT/screenshots}"
 SEED_FILE="$HOME/Documents/Photon Native Parity/Ember_Individual_Pitch.pdf"
 SEED_IMAGE="$HOME/Documents/Photon Native Parity/Photon_Recent_Image.png"
+FINDER_FILE="$HOME/Documents/Photon Native Parity/finder.js"
 RYAN_LIKE_FILE="$HOME/Documents/School/Capstone/Individual Pitch/Ember_Individual_Pitch.pdf"
 GRANT_DIR="$(dirname "$SEED_FILE")"
 GRANT_QUERY="ember"
 SEED_CREATED=0
 SEED_IMAGE_CREATED=0
 RYAN_LIKE_CREATED=0
+FINDER_CREATED=0
 PID=""
 
 stop_job() {
@@ -72,6 +74,9 @@ restore() {
   if [[ "$SEED_IMAGE_CREATED" == "1" ]]; then
     rm -f "$SEED_IMAGE"
   fi
+  if [[ "$FINDER_CREATED" == "1" ]]; then
+    rm -f "$FINDER_FILE"
+  fi
   if [[ "$RYAN_LIKE_CREATED" == "1" ]]; then
     rm -f "$RYAN_LIKE_FILE"
     rmdir "$HOME/Documents/School/Capstone/Individual Pitch" 2>/dev/null || true
@@ -95,6 +100,8 @@ mkdir -p "$(dirname "$SEED_FILE")" "$SCREENSHOT_DIR"
 SEED_CREATED=1
 SEED_IMAGE_CREATED=1
 swift "$ROOT/Scripts/create-preview-fixtures.swift" "$SEED_FILE" "$SEED_IMAGE"
+printf 'finder\n' > "$FINDER_FILE"
+FINDER_CREATED=1
 mkdir -p "$(dirname "$RYAN_LIKE_FILE")"
 cp "$SEED_FILE" "$RYAN_LIKE_FILE"
 RYAN_LIKE_CREATED=1
@@ -126,6 +133,7 @@ PHOTON_NATIVE_PARITY_FILE_ACCESS_RESULT="$(basename "$SEED_FILE")" \
 PHOTON_NATIVE_PARITY_GRANTED_FILES="$SEED_FILE" \
 PHOTON_NATIVE_PARITY_RECENT_FILES="$SEED_FILE:$SEED_IMAGE" \
 PHOTON_NATIVE_PARITY_RYAN_LIKE_FILE="$RYAN_LIKE_FILE" \
+PHOTON_NATIVE_PARITY_NAMED_FILES="$FINDER_FILE" \
 PHOTON_APPLICATIONS_EXTRA="/Applications:/System/Applications:$(dirname "$APP")" \
   "$EXECUTABLE" >"$APP_LOG" 2>&1 &
 PID=$!

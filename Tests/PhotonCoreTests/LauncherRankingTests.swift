@@ -53,6 +53,50 @@ final class LauncherRankingTests: XCTestCase {
     XCTAssertEqual(LauncherRanking.suggestedApps(from: ranked, usage: usage).map(\.id), [mail.id])
   }
 
+  func testApplicationStaysAboveSearchFilesAndFilenameHits() {
+    let search = RankedCommand(
+      command: command("files:search", title: "Search Files", provider: "files"),
+      textScore: 5,
+      frecencyScore: 0
+    )
+    let finder = RankedCommand(
+      command: command("app:com.apple.finder", title: "Finder", provider: "apps"),
+      textScore: 1,
+      frecencyScore: 0
+    )
+    let file = RankedCommand(
+      command: command("file:/tmp/finder.js", title: "finder.js", provider: "files"),
+      textScore: 0.9,
+      frecencyScore: 0
+    )
+
+    let ordered = LauncherRanking.applicationsBeforeFileHits([search, finder, file])
+
+    XCTAssertEqual(ordered.map(\.id), [finder.id, search.id, file.id])
+  }
+
+  func testFileHitsStayInScoreOrderWhenNoApplicationMatches() {
+    let search = RankedCommand(
+      command: command("files:search", title: "Search Files", provider: "files"),
+      textScore: 5,
+      frecencyScore: 0
+    )
+    let file = RankedCommand(
+      command: command("file:/tmp/ember.pdf", title: "Ember.pdf", provider: "files"),
+      textScore: 1,
+      frecencyScore: 0
+    )
+    let pane = RankedCommand(
+      command: command("pane:com.apple.General", title: "General", provider: "apps"),
+      textScore: 0.4,
+      frecencyScore: 0
+    )
+
+    let ordered = LauncherRanking.applicationsBeforeFileHits([search, file, pane])
+
+    XCTAssertEqual(ordered.map(\.id), [search.id, file.id, pane.id])
+  }
+
   func testSuggestionListStopsAtTheLimit() {
     let ranked = (0 ..< 10).map { index in
       RankedCommand(
