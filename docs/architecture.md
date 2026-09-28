@@ -68,7 +68,7 @@ To add a Phase 2 feature:
 
 4. Bind settings for that feature to `SettingsStore` and replace the placeholder tab in `SettingsRootView`. Leave other tabs alone.
 
-The registry is a list. Search asks every provider for `commands(matching:)`, scores titles with `FuzzyMatcher`, and boosts ids that `FrecencyStore` has seen. Enter calls `execute` on the provider that owns the selected command, then records the id in frecency.
+The registry is a list. Search asks every provider for `commands(matching:)`, scores titles with `FuzzyMatcher`, and boosts ids that `FrecencyStore` has seen. Enter calls `execute` on the provider that owns the selected command, then records the id in frecency. An empty query ranks Suggestions by that local use count for applications and standing commands (Clipboard History, Search Files, Notes, window layouts). File hits, individual notes, and Settings panes stay in the catalog underneath. Typed queries keep the text-plus-frecency order.
 
 Shared files that every feature touches today:
 
