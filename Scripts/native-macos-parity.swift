@@ -1339,6 +1339,7 @@ do {
   let frequentTitle = frequentSuggestionTitle(frequentID)
   try sendRuntimeCommand("seedUsage:\(frequentID)|40")
   try sendRuntimeCommand("seedUsage:\(targetID)|1")
+  try sendRuntimeCommand("seedUsage:clipboard:history|90")
   try sendRuntimeCommand("showLauncher")
   report = try wait("launcher reopens after foreground launch") {
     bool(launcher($0)["visible"])
@@ -1346,7 +1347,7 @@ do {
   try sendRuntimeCommand("suppressAutoHide")
   try sendRuntimeCommand("revealRecommendations")
   var recsAttempt = Date()
-  report = try wait("Suggestions lead with the most-used app", timeout: 20) {
+  report = try wait("Suggestions lead with the most-used command", timeout: 20) {
     let recs = string(launcher($0)["content"]) == "recommendations"
       && int(launcher($0)["resultCount"]) > 0
     if !recs, Date().timeIntervalSince(recsAttempt) > 1.5 {
@@ -1356,22 +1357,29 @@ do {
     let titles = strings(launcher($0)["suggestionTitles"])
     return recs
       && int(launcher($0)["suggestionCount"]) > 0
-      && titles.first?.localizedCaseInsensitiveContains(frequentTitle) == true
+      && titles.first?.localizedCaseInsensitiveContains("Clipboard History") == true
+      && titles.contains { $0.localizedCaseInsensitiveContains(frequentTitle) }
       && !bool(launcher($0)["runningAppsLeadList"])
       && strings(launcher($0)["runningAppRowTitles"]).contains {
         $0.localizedCaseInsensitiveContains(foregroundTargetTitle(targetID))
       }
   }
   try require(
-    strings(launcher(report)["suggestionTitles"]).first?.localizedCaseInsensitiveContains(frequentTitle) == true,
-    "Suggestions are ranked by use count"
+    strings(launcher(report)["suggestionTitles"]).first?.localizedCaseInsensitiveContains("Clipboard History") == true,
+    "Suggestions lead with the most-used command"
+  )
+  try require(
+    strings(launcher(report)["suggestionTitles"]).contains {
+      $0.localizedCaseInsensitiveContains(frequentTitle)
+    },
+    "A frequently opened app stays in Suggestions under higher-count commands"
   )
   try require(!bool(launcher(report)["runningAppsLeadList"]), "open apps are not pinned to the top")
   try captureLauncher(
     report,
     name: "launcher-suggestions",
     expectedText: "Suggestions",
-    additionalExpectedText: [frequentTitle, foregroundTargetTitle(targetID)]
+    additionalExpectedText: ["Clipboard History", frequentTitle, foregroundTargetTitle(targetID)]
   )
   try sendRuntimeCommand("dismissLauncher")
   _ = try wait("launcher closes before hiding the launched app") {

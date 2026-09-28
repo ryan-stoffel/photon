@@ -225,7 +225,7 @@ extension NativeParityReporter {
     }
     let count = parts.count > 1 ? Int(parts[1]) ?? 1 : 1
     let identifier = String(rawID)
-    let commandID = identifier.hasPrefix("app:") ? identifier : "app:\(identifier)"
+    let commandID = identifier.contains(":") ? identifier : "app:\(identifier)"
     runtime.launcher.model.frecency.setUseCount(id: commandID, count: count)
     Task { await runtime.launcher.model.refresh() }
   }
