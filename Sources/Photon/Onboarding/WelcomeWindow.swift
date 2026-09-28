@@ -78,7 +78,7 @@ final class WelcomeWindow: NSWindow {
     true
   }
 
-  override func cancelOperation(_ sender: Any?) {
+  override func cancelOperation(_: Any?) {
     onDismiss?()
   }
 
@@ -151,6 +151,7 @@ final class WelcomeController {
     }
     finished = true
     tearDown()
+    NSApp.setActivationPolicy(.accessory)
     let finish = onFinish
     onFinish = nil
     finish?()
