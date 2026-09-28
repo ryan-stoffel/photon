@@ -251,6 +251,7 @@ final class NativeParityReporter: NSObject {
       return ["exists": false]
     }
     let frame = panel.frame
+    let inline = runtime?.launcher.filesProvider?.inlineSnapshot() ?? FilesProvider.InlineSnapshot.empty
     let displayedTitles: [String] = if model.activeMode?.id == "files" {
       runtime?.fileSearch?.controller.results.map(\.file.displayName) ?? []
     } else if model.session == .clipboard {
@@ -317,6 +318,9 @@ final class NativeParityReporter: NSObject {
       "photonIcon": photonIconReport(model),
       "fileStatus": fileStatus(runtime?.fileSearch?.controller.status),
       "fileRequestingAccess": runtime?.fileSearch?.controller.isRequestingAccess == true,
+      "inlineFileQuery": inline.query,
+      "inlineFileCount": inline.count,
+      "inlineFileSettled": inline.settled,
     ]
   }
 

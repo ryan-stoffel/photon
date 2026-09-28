@@ -261,14 +261,32 @@ public final class FileSearchEngine {
   }
 
   private func nativeParityResponse(for request: Request, query: String) -> Response? {
-    let fixtures = nativeParityGrantedFixtures(settings: request.settings)
+    let granted = nativeParityGrantedFixtures(settings: request.settings)
       .compactMap(FileResultFactory.file(at:))
-    guard !fixtures.isEmpty else {
+    if !granted.isEmpty {
+      let ranked = granted.prefix(request.limit).map {
+        RankedFile(file: $0, relevance: 1)
+      }
+      return Response(query: query, files: ranked, spotlightAvailable: true)
+    }
+    let named = nativeParityNamedFiles(matching: query)
+    guard !named.isEmpty else {
       return nil
     }
-    let ranked = fixtures.prefix(request.limit).map {
+    let ranked = named.prefix(request.limit).map {
       RankedFile(file: $0, relevance: 1)
     }
     return Response(query: query, files: ranked, spotlightAvailable: true)
+  }
+
+  /// Filename fixtures that match this query. Used so the packaged harness can
+  /// prove an app-name query keeps the application above a real file hit.
+  private func nativeParityNamedFiles(matching query: String) -> [FileResult] {
+    let paths = ProcessInfo.processInfo.environment["PHOTON_NATIVE_PARITY_NAMED_FILES"]?
+      .split(separator: ":")
+      .map(String.init) ?? []
+    return paths.compactMap(FileResultFactory.file(at:)).filter { file in
+      FileRanker.relevance(of: file, query: query) > 0
+    }
   }
 }

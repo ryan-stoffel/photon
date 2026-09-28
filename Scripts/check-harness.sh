@@ -11,6 +11,7 @@ swift test --filter LauncherPositionTests
 swift test --filter SelectionNavigationTests
 swift test --filter LauncherRowTests
 swift test --filter LauncherRankingTests
+swift test --filter CommandRegistryTests
 
 echo "==> clipboard filtering, persistence and launcher entry"
 swift test --filter ClipboardSearchTests

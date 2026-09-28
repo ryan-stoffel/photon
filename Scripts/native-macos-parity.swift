@@ -153,6 +153,30 @@ func displayedTitles(_ report: [String: Any]) -> [String] {
   strings(launcher(report)["displayedRowTitles"])
 }
 
+/// Finder.app is the first command, Search Files and filename hits sit below it,
+/// and the query has not been promoted into a files-only list.
+func finderQueryKeepsTheApp(_ report: [String: Any]) -> Bool {
+  let state = launcher(report)
+  let ids = strings(state["displayedCommandIDs"])
+  guard string(state["query"]) == "finder",
+        string(state["mode"]).isEmpty,
+        bool(state["inlineFileSettled"]),
+        string(state["inlineFileQuery"]) == "finder",
+        int(state["inlineFileCount"]) > 0,
+        let first = ids.first,
+        first.caseInsensitiveCompare("app:com.apple.finder") == .orderedSame,
+        let searchIndex = ids.firstIndex(of: "files:search"),
+        searchIndex > 0
+  else {
+    return false
+  }
+  let fileIndexes = ids.indices.filter { ids[$0].hasPrefix("file:") }
+  guard let firstFile = fileIndexes.first else {
+    return false
+  }
+  return firstFile > 0 && fileIndexes.allSatisfy { $0 > 0 }
+}
+
 func captureLauncher(
   _ report: [String: Any],
   name: String,
@@ -1420,6 +1444,21 @@ do {
     report,
     name: "launcher-photon-icon",
     expectedText: "Photon"
+  )
+  try sendRuntimeCommand("suppressAutoHide")
+  try sendRuntimeCommand("setLauncherQuery:finder")
+  report = try wait("finder keeps Finder.app above file search", timeout: 20) {
+    finderQueryKeepsTheApp($0)
+  }
+  try require(
+    strings(launcher(report)["displayedRowTitles"]).first?.localizedCaseInsensitiveCompare("Finder") == .orderedSame,
+    "Finder.app is the first row for finder"
+  )
+  try captureLauncher(
+    report,
+    name: "finder-app-first",
+    expectedText: "Finder",
+    additionalExpectedText: ["Search Files", "finder.js"]
   )
   try sendRuntimeCommand("dismissLauncher")
   _ = try wait("launcher closes after the Photon icon proof") {

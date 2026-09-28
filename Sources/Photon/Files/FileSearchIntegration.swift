@@ -40,10 +40,25 @@ final class FileSearchIntegration {
       guard launcher.model.query.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed else {
         return
       }
-      if hasFileHits {
-        launcher.promoteFilesMode(query: trimmed)
-      } else {
+      guard hasFileHits else {
         launcher.refreshResults()
+        return
+      }
+      // An application match stays in the command list. Promoting here would
+      // hide Finder.app (and any other app-name query) behind a files-only list.
+      let registry = launcher.registry
+      Task { @MainActor [weak launcher] in
+        guard let launcher else {
+          return
+        }
+        guard launcher.model.query.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed else {
+          return
+        }
+        if await registry.containsApplication(matching: trimmed) {
+          launcher.refreshResults()
+        } else {
+          launcher.promoteFilesMode(query: trimmed)
+        }
       }
     }
 
