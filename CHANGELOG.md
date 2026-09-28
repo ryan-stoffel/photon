@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- The first-run sequence is a full-screen overlay on the main display: dimmed desktop, a beam, then the Photon mark. It waits for a click or Return. Settings > General can show it again. People who finished the 0.4.6 window see this once.
+- The first-run note is a small window: how to open Photon, and where Settings are. Escape or Continue dismisses it. Settings > General can show it again. People who already finished the full-screen introduction see this once.
 
 ## [0.4.6] - 2026-09-22
 

@@ -315,15 +315,20 @@ func frequentSuggestionTitle(_ identifier: String) -> String {
   return foregroundTargetTitle(identifier)
 }
 
-/// Resting frame only. The packaged app skips the beam while this harness is attached.
-func driveCinematicOnboarding() throws {
+/// Small welcome window. There is no beam to wait on.
+func driveWelcome() throws {
   try sendRuntimeCommand("showOnboarding")
-  let report = try wait("phase 1 overlay rests on Photon") {
-    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Photon"
+  let report = try wait("welcome window is open") {
+    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Welcome"
   }
-  try captureOnboarding(report, name: "phase1-rest", expectedText: "Photon")
+  try captureOnboarding(
+    report,
+    name: "welcome",
+    expectedText: "Welcome",
+    additionalExpectedText: ["Settings", "Continue"]
+  )
   try sendRuntimeCommand("dismissOnboarding")
-  _ = try wait("phase 1 overlay closes") {
+  _ = try wait("welcome window closes") {
     !bool(onboarding($0)["visible"])
   }
 }
@@ -1277,7 +1282,7 @@ do {
     expectedText: "Appearance",
     additionalExpectedText: ["General", "Open launcher"]
   )
-  try driveCinematicOnboarding()
+  try driveWelcome()
   try sendRuntimeCommand("selectSettingsPane:keybinds")
   report = try wait("Settings Keybinds pane lists app hotkeys") {
     bool(settingsWindow($0)["visible"])

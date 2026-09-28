@@ -1,8 +1,8 @@
 import AppKit
 
-/// Separate from the 0.4.6 revision so installs that already finished that window see this once.
-enum Phase1Launch {
-  static let completedKey = "hasCompletedPhase1Onboarding"
+/// Separate from `hasCompletedPhase1Onboarding`, so a finished cinematic overlay does not skip this note.
+enum WelcomeLaunch {
+  static let completedKey = "hasSeenMinimalWelcome"
 
   static func needsPresentation(_ defaults: UserDefaults = .standard) -> Bool {
     !defaults.bool(forKey: completedKey)
@@ -19,35 +19,35 @@ enum Phase1Launch {
 
 extension AppRuntime {
   func presentFirstLaunch() {
-    guard Phase1Launch.needsPresentation() else {
+    guard WelcomeLaunch.needsPresentation() else {
       SpotlightConflict.adviseIfNeeded(current: settings.hotkey)
       keybinds.adviseAccessibilityIfNeeded()
       return
     }
-    let controller = makePhase1()
+    let controller = makeWelcome()
     controller.onFinish = { [weak self] in
-      Phase1Launch.markComplete()
+      WelcomeLaunch.markComplete()
       self?.keybinds.acknowledgeAccessibilityGuidance()
       guard let self else {
         return
       }
       SpotlightConflict.adviseIfNeeded(current: settings.hotkey)
     }
-    controller.present(settled: false)
+    controller.present(hotkey: settings.hotkey.displayString)
   }
 
   func replayOnboarding() {
-    Phase1Launch.reset()
+    WelcomeLaunch.reset()
     closeSettings()
     presentFirstLaunch()
   }
 
-  func makePhase1() -> Phase1OverlayController {
-    if let phase1 {
-      return phase1
+  func makeWelcome() -> WelcomeController {
+    if let welcome {
+      return welcome
     }
-    let controller = Phase1OverlayController()
-    phase1 = controller
+    let controller = WelcomeController()
+    welcome = controller
     return controller
   }
 }
