@@ -88,4 +88,4 @@ Architecture: [docs/architecture.md](docs/architecture.md). Harness: [docs/harne
 
 [MIT](LICENSE)
 
-Onboarding text uses [Sora](https://fonts.google.com/specimen/Sora) by the Sora Project Authors, under the [SIL Open Font License](Resources/Fonts/OFL.txt).
+[Sora](https://fonts.google.com/specimen/Sora) by the Sora Project Authors is included under `Resources/Fonts` ([SIL Open Font License](Resources/Fonts/OFL.txt)). The interface uses the system font.

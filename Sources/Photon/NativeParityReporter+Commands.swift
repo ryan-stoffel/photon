@@ -105,11 +105,11 @@ extension NativeParityReporter {
   private func handleOnboardingParityCommand(_ command: String, runtime: AppRuntime) -> Bool {
     switch command {
     case "showOnboarding":
-      runtime.makePhase1().present(settled: true)
+      runtime.makeWelcome().present(hotkey: runtime.settings.hotkey.displayString)
     case "advanceOnboarding", "showOnboardingHotkey:default":
       break
     case "dismissOnboarding":
-      runtime.phase1?.advanceToPhase2()
+      runtime.welcome?.dismiss()
     default:
       return false
     }
@@ -286,7 +286,7 @@ extension NativeParityReporter {
   }
 
   func onboardingReport(_ runtime: AppRuntime) -> [String: Any] {
-    guard let phase1 = runtime.phase1, phase1.isVisible else {
+    guard let welcome = runtime.welcome, welcome.isVisible else {
       return [
         "visible": false,
         "windowNumber": 0,
@@ -294,12 +294,11 @@ extension NativeParityReporter {
         "title": "",
       ]
     }
-    let step = phase1.isResting ? Phase1Metrics.restingStep : ""
     return [
       "visible": true,
-      "windowNumber": phase1.windowNumber,
-      "step": step,
-      "title": step,
+      "windowNumber": welcome.windowNumber,
+      "step": WelcomeCopy.step,
+      "title": welcome.windowTitle,
     ]
   }
 

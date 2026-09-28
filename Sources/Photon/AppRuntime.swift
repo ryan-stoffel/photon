@@ -21,7 +21,7 @@ final class AppRuntime: ObservableObject {
   let fileAccess: FileAccessCoordinator
   let runningApps = RunningApplications()
   let settingsFocus = SettingsFocusModel()
-  var phase1: Phase1OverlayController?
+  var welcome: WelcomeController?
   private let hotkey = HotkeyManager.shared
   private let frecencyURL: URL
   var fileSearch: FileSearchIntegration?
@@ -293,7 +293,7 @@ final class AppRuntime: ObservableObject {
       if window.title.localizedCaseInsensitiveContains("Settings") {
         return true
       }
-      if window.identifier == Phase1Panel.identifier || window is Phase1Panel {
+      if window.identifier == WelcomeWindow.identifier || window is WelcomeWindow {
         return false
       }
       if window.title == "Photon" {
