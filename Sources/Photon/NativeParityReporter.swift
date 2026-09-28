@@ -251,7 +251,7 @@ final class NativeParityReporter: NSObject {
       return ["exists": false]
     }
     let frame = panel.frame
-    let inline = runtime?.launcher.filesProvider?.inlineSnapshot() ?? (query: "", count: 0, settled: false)
+    let inline = runtime?.launcher.filesProvider?.inlineSnapshot() ?? FilesProvider.InlineSnapshot.empty
     let displayedTitles: [String] = if model.activeMode?.id == "files" {
       runtime?.fileSearch?.controller.results.map(\.file.displayName) ?? []
     } else if model.session == .clipboard {

@@ -23,6 +23,15 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
   public static let searchCommandID = "files:search"
   public static let fileCommandPrefix = "file:"
 
+  /// Latest inline search, for the packaged-app harness.
+  public struct InlineSnapshot: Equatable, Sendable {
+    public var query: String
+    public var count: Int
+    public var settled: Bool
+
+    public static let empty = InlineSnapshot(query: "", count: 0, settled: false)
+  }
+
   public let id = "files"
   public let displayName = "Files"
 
@@ -153,14 +162,14 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
     }
   }
 
-  /// Latest inline search for the packaged-app harness.
-  /// `settled` is true once that query has a cache entry and nothing newer is in flight.
-  public func inlineSnapshot() -> (query: String, count: Int, settled: Bool) {
+  /// `settled` is true once the latest query has a cache entry and nothing newer is in flight.
+  public func inlineSnapshot() -> InlineSnapshot {
     synchronized {
-      let query = cache?.query ?? ""
-      let count = cache?.files.count ?? 0
-      let settled = inlinePendingQuery == nil && cache != nil
-      return (query, count, settled)
+      InlineSnapshot(
+        query: cache?.query ?? "",
+        count: cache?.files.count ?? 0,
+        settled: inlinePendingQuery == nil && cache != nil
+      )
     }
   }
 
