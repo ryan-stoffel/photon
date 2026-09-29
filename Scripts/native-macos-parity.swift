@@ -619,6 +619,51 @@ func windowPoint(_ report: [String: Any], xFromLeft: Double, yFromTop: Double) -
   )
 }
 
+func windowBounds(windowNumber: Int) -> CGRect? {
+  let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
+  for entry in windows {
+    guard int(entry[kCGWindowNumber as String]) == windowNumber,
+          let bounds = entry[kCGWindowBounds as String] as? [String: Any]
+    else {
+      continue
+    }
+    return CGRect(
+      x: double(bounds["X"]),
+      y: double(bounds["Y"]),
+      width: double(bounds["Width"]),
+      height: double(bounds["Height"])
+    )
+  }
+  return nil
+}
+
+func clickWindow(windowNumber: Int, xFromLeft: Double, yFromTop: Double) -> Bool {
+  guard let bounds = windowBounds(windowNumber: windowNumber) else {
+    return false
+  }
+  let point = CGPoint(x: bounds.minX + xFromLeft, y: bounds.minY + yFromTop)
+  guard let source = CGEventSource(stateID: .combinedSessionState),
+        let down = CGEvent(
+          mouseEventSource: source,
+          mouseType: .leftMouseDown,
+          mouseCursorPosition: point,
+          mouseButton: .left
+        ),
+        let up = CGEvent(
+          mouseEventSource: source,
+          mouseType: .leftMouseUp,
+          mouseCursorPosition: point,
+          mouseButton: .left
+        )
+  else {
+    return false
+  }
+  down.post(tap: .cghidEventTap)
+  up.post(tap: .cghidEventTap)
+  Thread.sleep(forTimeInterval: 0.2)
+  return true
+}
+
 func clickLauncher(_ report: [String: Any], xFromLeft: Double, yFromTop: Double) {
   let point = windowPoint(report, xFromLeft: xFromLeft, yFromTop: yFromTop)
   guard let source = CGEventSource(stateID: .combinedSessionState),
@@ -1320,6 +1365,28 @@ do {
     expectedText: "Appearance",
     additionalExpectedText: ["General", "Open launcher"]
   )
+  let settingsWindowNumber = int(settingsWindow(report)["windowNumber"])
+  // Sidebar header is 100pt, then the hairline and list inset. Clipboard is the third row.
+  try require(
+    clickWindow(windowNumber: settingsWindowNumber, xFromLeft: 94, yFromTop: 211),
+    "clicked the Clipboard sidebar row"
+  )
+  do {
+    report = try wait("clicking Clipboard moves the focus ring onto that row", timeout: 8) {
+      string(settings($0)["pane"]) == "clipboard"
+        && string(settings($0)["focus"]) == "sidebar:clipboard"
+    }
+  } catch {
+    let latest = readReport() ?? report
+    throw ParityFailure.failed(
+      "clicking Clipboard moves the focus ring onto that row pane=\(string(settings(latest)["pane"])) focus=\(string(settings(latest)["focus"]))"
+    )
+  }
+  try sendRuntimeCommand("moveSettingsFocus")
+  report = try wait("Tab still moves the focus ring after a sidebar click", timeout: 8) {
+    string(settings($0)["focus"]) == "sidebar:notes"
+      && string(settings($0)["pane"]) == "clipboard"
+  }
   try driveWelcome()
   try sendRuntimeCommand("selectSettingsPane:keybinds")
   report = try wait("Settings Keybinds pane lists app hotkeys") {
