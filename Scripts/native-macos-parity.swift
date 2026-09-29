@@ -1225,6 +1225,14 @@ do {
   try require(bool(panel["floating"]), "launcher is a floating panel")
   try require(!bool(panel["canBecomeMain"]), "launcher cannot become the main window")
 
+  // The welcome activates Photon and does not hand focus back. Close it before
+  // any launcher hide or paste-target restore. The first pass opens it again
+  // after those checks.
+  try sendRuntimeCommand("dismissOnboarding")
+  _ = try wait("welcome is closed before launcher checks") {
+    !bool(onboarding($0)["visible"])
+  }
+
   if isRelaunchVerification {
     report = try wait("security-scoped folder grant restores after packaged-app relaunch") {
       int(dictionary($0["fileAccess"])["grantCount"]) == 1
@@ -1387,7 +1395,6 @@ do {
     string(settings($0)["focus"]) == "sidebar:notes"
       && string(settings($0)["pane"]) == "clipboard"
   }
-  try driveWelcome()
   try sendRuntimeCommand("selectSettingsPane:keybinds")
   report = try wait("Settings Keybinds pane lists app hotkeys") {
     bool(settingsWindow($0)["visible"])
@@ -2143,6 +2150,8 @@ do {
     string(dictionary($0["appearance"])["name"]).contains("Aqua")
       && !string(dictionary($0["appearance"])["name"]).contains("Dark")
   }
+
+  try driveWelcome()
 
   print("Native macOS parity harness passed.")
 } catch {
