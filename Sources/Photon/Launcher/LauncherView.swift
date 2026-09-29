@@ -31,6 +31,7 @@ struct LauncherView: View {
           LauncherClipboardResultsSection(model: model)
         } else {
           resultsList
+            .frame(height: resultsListHeight)
         }
       case .fullHeight:
         Hairline(emphasized: true)
@@ -152,7 +153,15 @@ struct LauncherView: View {
         }
       }
     }
-    .frame(maxHeight: .infinity)
+  }
+
+  /// Visible list height. A flexible max height lets the scroll view fill a stale
+  /// expanded panel and leave a gap between the last row and the footer.
+  private var resultsListHeight: Double {
+    LauncherLayout.listHeight(
+      rowCount: model.rows.count,
+      showsCalculatorHero: model.calculatorHero != nil
+    )
   }
 
   /// Catalog rows under Suggestions. Typed queries keep the calculator hero out of this list.
