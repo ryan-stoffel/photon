@@ -33,7 +33,19 @@ extension AppRuntime {
       }
       SpotlightConflict.adviseIfNeeded(current: settings.hotkey)
     }
-    controller.present(hotkey: settings.hotkey.displayString)
+    controller.onGrant = { [weak self] in
+      guard let self else {
+        return
+      }
+      let generation = welcome?.presentationGeneration
+      await keybinds.requestLaunchPermissionsInOrder {
+        guard let welcome = self.welcome else {
+          return false
+        }
+        return welcome.isVisible && welcome.presentationGeneration == generation
+      }
+    }
+    controller.present(hotkey: settings.hotkey)
   }
 
   func replayOnboarding() {

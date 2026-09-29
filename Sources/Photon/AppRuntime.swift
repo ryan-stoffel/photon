@@ -116,6 +116,10 @@ final class AppRuntime: ObservableObject {
         keybinds.apply(settings.keybinds)
       }
       if NativeParityReporter.isRequested {
+        // The harness launches a fresh app. Mark the welcome seen so it cannot
+        // sit in front of launcher hide and focus restore. A real launch still
+        // presents it below.
+        WelcomeLaunch.markComplete()
         SpotlightConflict.adviseIfNeeded(current: settings.hotkey)
         keybinds.adviseAccessibilityIfNeeded()
       } else {

@@ -339,17 +339,31 @@ func frequentSuggestionTitle(_ identifier: String) -> String {
   return foregroundTargetTitle(identifier)
 }
 
-/// Small welcome window. There is no beam to wait on.
+/// Welcome window. Does not click Grant Access, so no system permission dialog is raised.
 func driveWelcome() throws {
   try sendRuntimeCommand("showOnboarding")
   let report = try wait("welcome window is open") {
     bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Welcome"
   }
+  let state = onboarding(report)
+  let width = double(state["width"])
+  let height = double(state["height"])
+  let screen = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+  try require(width >= 480 && width < screen.width * 0.9, "welcome width is a normal window")
+  try require(height >= 360 && height < screen.height * 0.9, "welcome height is a normal window")
+  try require(!bool(state["opaque"]), "welcome window uses transparent Photon chrome")
+  try require(double(state["cornerRadius"]) == 12, "welcome corners match the launcher")
+  let keycaps = strings(state["keycaps"])
+  try require(!keycaps.isEmpty, "welcome shows the configured launcher shortcut")
+  var lines = ["Grant Access"]
+  for label in keycaps where label.count > 1 {
+    lines.append(label)
+  }
   try captureOnboarding(
     report,
     name: "welcome",
-    expectedText: "Welcome",
-    additionalExpectedText: ["Settings", "Continue"]
+    expectedText: "Photon",
+    additionalExpectedText: lines
   )
   try sendRuntimeCommand("dismissOnboarding")
   _ = try wait("welcome window closes") {
@@ -1211,6 +1225,14 @@ do {
   try require(bool(panel["floating"]), "launcher is a floating panel")
   try require(!bool(panel["canBecomeMain"]), "launcher cannot become the main window")
 
+  // The welcome activates Photon and does not hand focus back. Close it before
+  // any launcher hide or paste-target restore. The first pass opens it again
+  // after those checks.
+  try sendRuntimeCommand("dismissOnboarding")
+  _ = try wait("welcome is closed before launcher checks") {
+    !bool(onboarding($0)["visible"])
+  }
+
   if isRelaunchVerification {
     report = try wait("security-scoped folder grant restores after packaged-app relaunch") {
       int(dictionary($0["fileAccess"])["grantCount"]) == 1
@@ -1373,7 +1395,6 @@ do {
     string(settings($0)["focus"]) == "sidebar:notes"
       && string(settings($0)["pane"]) == "clipboard"
   }
-  try driveWelcome()
   try sendRuntimeCommand("selectSettingsPane:keybinds")
   report = try wait("Settings Keybinds pane lists app hotkeys") {
     bool(settingsWindow($0)["visible"])
@@ -2129,6 +2150,8 @@ do {
     string(dictionary($0["appearance"])["name"]).contains("Aqua")
       && !string(dictionary($0["appearance"])["name"]).contains("Dark")
   }
+
+  try driveWelcome()
 
   print("Native macOS parity harness passed.")
 } catch {
