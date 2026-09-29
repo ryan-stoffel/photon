@@ -275,10 +275,10 @@ final class WelcomeController {
     window?.allowsDismiss = false
     grantTask = Task { [weak self] in
       await self?.onGrant?()
-      guard let self, self.presentationGeneration == id, !Task.isCancelled else {
+      guard let self, presentationGeneration == id, !Task.isCancelled else {
         return
       }
-      self.dismiss()
+      dismiss()
     }
   }
 

@@ -37,8 +37,8 @@ extension AppRuntime {
       guard let self else {
         return
       }
-      let generation = self.welcome?.presentationGeneration
-      await self.keybinds.requestLaunchPermissionsInOrder {
+      let generation = welcome?.presentationGeneration
+      await keybinds.requestLaunchPermissionsInOrder {
         guard let welcome = self.welcome else {
           return false
         }
