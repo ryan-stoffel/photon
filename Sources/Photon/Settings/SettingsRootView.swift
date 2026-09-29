@@ -116,10 +116,26 @@ struct SettingsRootView: View {
     .frame(maxHeight: .infinity, alignment: .top)
   }
 
+  /// Click selects the page and moves the blue ring. Tab still walks focus on its own.
+  /// The pane swap rebuilds the detail view, so the ring is applied again on the next turn.
+  private func focusClickedSidebar(_ pane: SettingsPaneID) {
+    let next = SettingsFocusTarget.sidebar(pane)
+    focus = next
+    settingsFocus.target = next
+    Task { @MainActor in
+      guard settings.selectedPane == pane else {
+        return
+      }
+      focus = next
+      settingsFocus.target = next
+    }
+  }
+
   private func sidebarItem(_ pane: SettingsPaneID) -> some View {
     let selected = settings.selectedPane == pane
     return Button {
       settings.selectedPane = pane
+      focusClickedSidebar(pane)
     } label: {
       HStack(spacing: 10) {
         Image(systemName: pane.symbolName)
@@ -139,6 +155,7 @@ struct SettingsRootView: View {
       .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
+    .accessibilityLabel(pane.title)
     .focused($focus, equals: .sidebar(pane))
     .focusEffectDisabled()
     .overlay(

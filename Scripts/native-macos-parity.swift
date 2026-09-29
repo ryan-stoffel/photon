@@ -1306,6 +1306,19 @@ do {
     expectedText: "Appearance",
     additionalExpectedText: ["General", "Open launcher"]
   )
+  try require(
+    pressPhotonButton(pid: pid, title: "Clipboard"),
+    "Clipboard sidebar row accepts a click"
+  )
+  report = try wait("clicking Clipboard moves the focus ring onto that row", timeout: 8) {
+    string(settings($0)["pane"]) == "clipboard"
+      && string(settings($0)["focus"]) == "sidebar:clipboard"
+  }
+  try sendRuntimeCommand("moveSettingsFocus")
+  report = try wait("Tab still moves the focus ring after a sidebar click", timeout: 8) {
+    string(settings($0)["focus"]) == "sidebar:notes"
+      && string(settings($0)["pane"]) == "clipboard"
+  }
   try driveWelcome()
   try sendRuntimeCommand("selectSettingsPane:keybinds")
   report = try wait("Settings Keybinds pane lists app hotkeys") {
