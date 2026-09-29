@@ -47,6 +47,10 @@ SEED_IMAGE_CREATED=0
 RYAN_LIKE_CREATED=0
 FINDER_CREATED=0
 PID=""
+BUNDLE_ID=""
+WELCOME_TOUCHED=0
+WELCOME_HAD_KEY=0
+WELCOME_PREVIOUS=0
 
 stop_job() {
   local pid="${1:-}"
@@ -67,6 +71,17 @@ restore() {
   PASTE_TARGET_PID=""
   pkill -x Photon 2>/dev/null || true
   defaults delete -g AppleInterfaceStyle 2>/dev/null || true
+  if [[ "$WELCOME_TOUCHED" == "1" && -n "$BUNDLE_ID" ]]; then
+    if [[ "$WELCOME_HAD_KEY" == "1" ]]; then
+      if [[ "$WELCOME_PREVIOUS" == "1" ]]; then
+        defaults write "$BUNDLE_ID" hasSeenMinimalWelcome -bool true
+      else
+        defaults write "$BUNDLE_ID" hasSeenMinimalWelcome -bool false
+      fi
+    else
+      defaults delete "$BUNDLE_ID" hasSeenMinimalWelcome 2>/dev/null || true
+    fi
+  fi
   killall cfprefsd 2>/dev/null || true
   if [[ "$SEED_CREATED" == "1" ]]; then
     rm -f "$SEED_FILE"
@@ -95,6 +110,23 @@ pkill -x Photon 2>/dev/null || true
 defaults delete -g AppleInterfaceStyle 2>/dev/null || true
 killall cfprefsd 2>/dev/null || true
 sleep 1
+
+# A fresh app would show the first-run welcome and steal focus from the
+# launcher's hide/restore checks. Mark it seen before launch, then put the
+# preference back in restore(). The harness still opens the window itself
+# after those checks.
+BUNDLE_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST")"
+PREVIOUS_WELCOME="$(defaults read "$BUNDLE_ID" hasSeenMinimalWelcome 2>/dev/null || true)"
+if [[ -n "$PREVIOUS_WELCOME" ]]; then
+  WELCOME_HAD_KEY=1
+  case "$PREVIOUS_WELCOME" in
+    1|true|TRUE|YES|yes) WELCOME_PREVIOUS=1 ;;
+    *) WELCOME_PREVIOUS=0 ;;
+  esac
+fi
+defaults write "$BUNDLE_ID" hasSeenMinimalWelcome -bool true
+WELCOME_TOUCHED=1
+killall cfprefsd 2>/dev/null || true
 
 mkdir -p "$(dirname "$SEED_FILE")" "$SCREENSHOT_DIR"
 SEED_CREATED=1

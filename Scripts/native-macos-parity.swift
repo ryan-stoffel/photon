@@ -339,17 +339,31 @@ func frequentSuggestionTitle(_ identifier: String) -> String {
   return foregroundTargetTitle(identifier)
 }
 
-/// Small welcome window. There is no beam to wait on.
+/// Welcome window. Does not click Grant Access, so no system permission dialog is raised.
 func driveWelcome() throws {
   try sendRuntimeCommand("showOnboarding")
   let report = try wait("welcome window is open") {
     bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Welcome"
   }
+  let state = onboarding(report)
+  let width = double(state["width"])
+  let height = double(state["height"])
+  let screen = NSScreen.main?.frame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+  try require(width >= 480 && width < screen.width * 0.9, "welcome width is a normal window")
+  try require(height >= 360 && height < screen.height * 0.9, "welcome height is a normal window")
+  try require(!bool(state["opaque"]), "welcome window uses transparent Photon chrome")
+  try require(double(state["cornerRadius"]) == 12, "welcome corners match the launcher")
+  let keycaps = strings(state["keycaps"])
+  try require(!keycaps.isEmpty, "welcome shows the configured launcher shortcut")
+  var lines = ["Grant Access"]
+  for label in keycaps where label.count > 1 {
+    lines.append(label)
+  }
   try captureOnboarding(
     report,
     name: "welcome",
-    expectedText: "Welcome",
-    additionalExpectedText: ["Settings", "Continue"]
+    expectedText: "Photon",
+    additionalExpectedText: lines
   )
   try sendRuntimeCommand("dismissOnboarding")
   _ = try wait("welcome window closes") {
@@ -603,6 +617,51 @@ func windowPoint(_ report: [String: Any], xFromLeft: Double, yFromTop: Double) -
     x: double(windowFrame["x"]) + xFromLeft,
     y: display.maxY - double(windowFrame["top"]) + yFromTop
   )
+}
+
+func windowBounds(windowNumber: Int) -> CGRect? {
+  let windows = CGWindowListCopyWindowInfo(.optionAll, kCGNullWindowID) as? [[String: Any]] ?? []
+  for entry in windows {
+    guard int(entry[kCGWindowNumber as String]) == windowNumber,
+          let bounds = entry[kCGWindowBounds as String] as? [String: Any]
+    else {
+      continue
+    }
+    return CGRect(
+      x: double(bounds["X"]),
+      y: double(bounds["Y"]),
+      width: double(bounds["Width"]),
+      height: double(bounds["Height"])
+    )
+  }
+  return nil
+}
+
+func clickWindow(windowNumber: Int, xFromLeft: Double, yFromTop: Double) -> Bool {
+  guard let bounds = windowBounds(windowNumber: windowNumber) else {
+    return false
+  }
+  let point = CGPoint(x: bounds.minX + xFromLeft, y: bounds.minY + yFromTop)
+  guard let source = CGEventSource(stateID: .combinedSessionState),
+        let down = CGEvent(
+          mouseEventSource: source,
+          mouseType: .leftMouseDown,
+          mouseCursorPosition: point,
+          mouseButton: .left
+        ),
+        let up = CGEvent(
+          mouseEventSource: source,
+          mouseType: .leftMouseUp,
+          mouseCursorPosition: point,
+          mouseButton: .left
+        )
+  else {
+    return false
+  }
+  down.post(tap: .cghidEventTap)
+  up.post(tap: .cghidEventTap)
+  Thread.sleep(forTimeInterval: 0.2)
+  return true
 }
 
 func clickLauncher(_ report: [String: Any], xFromLeft: Double, yFromTop: Double) {
@@ -1166,6 +1225,14 @@ do {
   try require(bool(panel["floating"]), "launcher is a floating panel")
   try require(!bool(panel["canBecomeMain"]), "launcher cannot become the main window")
 
+  // The welcome activates Photon and does not hand focus back. Close it before
+  // any launcher hide or paste-target restore. The first pass opens it again
+  // after those checks.
+  try sendRuntimeCommand("dismissOnboarding")
+  _ = try wait("welcome is closed before launcher checks") {
+    !bool(onboarding($0)["visible"])
+  }
+
   if isRelaunchVerification {
     report = try wait("security-scoped folder grant restores after packaged-app relaunch") {
       int(dictionary($0["fileAccess"])["grantCount"]) == 1
@@ -1306,7 +1373,28 @@ do {
     expectedText: "Appearance",
     additionalExpectedText: ["General", "Open launcher"]
   )
-  try driveWelcome()
+  let settingsWindowNumber = int(settingsWindow(report)["windowNumber"])
+  // Sidebar header is 100pt, then the hairline and list inset. Clipboard is the third row.
+  try require(
+    clickWindow(windowNumber: settingsWindowNumber, xFromLeft: 94, yFromTop: 211),
+    "clicked the Clipboard sidebar row"
+  )
+  do {
+    report = try wait("clicking Clipboard moves the focus ring onto that row", timeout: 8) {
+      string(settings($0)["pane"]) == "clipboard"
+        && string(settings($0)["focus"]) == "sidebar:clipboard"
+    }
+  } catch {
+    let latest = readReport() ?? report
+    throw ParityFailure.failed(
+      "clicking Clipboard moves the focus ring onto that row pane=\(string(settings(latest)["pane"])) focus=\(string(settings(latest)["focus"]))"
+    )
+  }
+  try sendRuntimeCommand("moveSettingsFocus")
+  report = try wait("Tab still moves the focus ring after a sidebar click", timeout: 8) {
+    string(settings($0)["focus"]) == "sidebar:notes"
+      && string(settings($0)["pane"]) == "clipboard"
+  }
   try sendRuntimeCommand("selectSettingsPane:keybinds")
   report = try wait("Settings Keybinds pane lists app hotkeys") {
     bool(settingsWindow($0)["visible"])
@@ -2062,6 +2150,8 @@ do {
     string(dictionary($0["appearance"])["name"]).contains("Aqua")
       && !string(dictionary($0["appearance"])["name"]).contains("Dark")
   }
+
+  try driveWelcome()
 
   print("Native macOS parity harness passed.")
 } catch {
