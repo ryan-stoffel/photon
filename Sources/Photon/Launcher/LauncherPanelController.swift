@@ -381,6 +381,10 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
       }
     ).environmentObject(settings).environmentObject(runningApps))
     host.safeAreaRegions = []
+    // Default `.minSize` treats the SwiftUI ideal size as a minimum. The root
+    // frame can grow with the window, so a full Suggestions page pins that
+    // minimum and a shorter result list cannot shrink the panel back down.
+    host.sizingOptions = []
     let background = PhotonPanelChrome.embed(
       host,
       frame: NSRect(origin: .zero, size: size),
@@ -388,6 +392,7 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
       material: .popover
     )
     panel.contentView = background
+    lockContentSize(of: panel, to: size)
     return panel
   }
 
@@ -408,7 +413,9 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     let layoutSize = LauncherPanelSize(width: width, content: content)
     let size = NSSize(width: layoutSize.width, height: layoutSize.height)
     var frame = panel.frame
-    guard force || frame.size != size else {
+    let sizeChanged = frame.size != size
+    guard force || sizeChanged else {
+      lockContentSize(of: panel, to: size)
       return
     }
     let keepsCenter = settings.launcherStoredPosition?.isHorizontallyCentered ?? true
@@ -417,8 +424,28 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     }
     frame.origin.y = frame.maxY - size.height
     frame.size = size
+    // Lower the minimum before shrinking. A previous expanded page can leave
+    // contentMinSize at the tall height, and AppKit then ignores setFrame.
+    panel.contentMinSize = NSSize(
+      width: min(panel.contentMinSize.width, size.width),
+      height: min(panel.contentMinSize.height, size.height)
+    )
+    panel.contentMaxSize = NSSize(
+      width: max(panel.frame.width, size.width),
+      height: max(panel.frame.height, size.height)
+    )
+    panel.setFrame(frame, display: true, animate: false)
+    lockContentSize(of: panel, to: size)
+    // Locking the max size can shrink from the bottom. Reapply so the search field stays put.
     panel.setFrame(frame, display: true, animate: false)
     panel.invalidateShadow()
+  }
+
+  /// Pins the panel to the layout size so a flexible SwiftUI root cannot
+  /// keep the window at the previous expanded height.
+  private func lockContentSize(of panel: NSPanel, to size: NSSize) {
+    panel.contentMinSize = size
+    panel.contentMaxSize = size
   }
 }
 

@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The first-run welcome is a normal window: the Photon icon, the product name, and the launcher shortcut that is actually configured. Grant Access asks for Accessibility and then Input Monitoring, one system dialog at a time.
 
+### Fixed
+
+- The launcher footer stays a single compact bar directly under the result rows while a search is in flight and after results arrive. A shorter list no longer leaves the panel at the expanded height.
+
 ## [0.4.7] - 2026-09-29
 
 Ryan minimal first-run welcome.
