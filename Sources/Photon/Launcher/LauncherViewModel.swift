@@ -64,7 +64,7 @@ final class LauncherViewModel: ObservableObject {
     didSet { updateContent() }
   }
 
-  /// Down on the empty compact bar reveals frecency recents, like Raycast.
+  /// Down on the empty compact bar reveals Suggestions, ordered by local use count.
   @Published private(set) var revealsRecommendations = false {
     didSet { updateContent() }
   }
@@ -260,7 +260,7 @@ final class LauncherViewModel: ObservableObject {
     selectedID = results[next].id
   }
 
-  /// Down on the empty bar lists recommended apps and other recents.
+  /// Down on the empty bar lists Suggestions: apps and commands ordered by use count.
   func revealRecommendations() {
     guard showsCommandList, query.isEmpty else {
       return

@@ -105,14 +105,11 @@ extension NativeParityReporter {
   private func handleOnboardingParityCommand(_ command: String, runtime: AppRuntime) -> Bool {
     switch command {
     case "showOnboarding":
-      let onboarding = runtime.makeOnboarding()
-      onboarding.present(hotkey: runtime.settings.hotkey)
-    case "advanceOnboarding":
-      runtime.onboarding?.advance()
+      runtime.makeWelcome().present(hotkey: runtime.settings.hotkey.displayString)
+    case "advanceOnboarding", "showOnboardingHotkey:default":
+      break
     case "dismissOnboarding":
-      runtime.onboarding?.finish()
-    case "showOnboardingHotkey:default":
-      runtime.onboarding?.hotkey = .defaultCombo
+      runtime.welcome?.dismiss()
     default:
       return false
     }
@@ -228,7 +225,7 @@ extension NativeParityReporter {
     }
     let count = parts.count > 1 ? Int(parts[1]) ?? 1 : 1
     let identifier = String(rawID)
-    let commandID = identifier.hasPrefix("app:") ? identifier : "app:\(identifier)"
+    let commandID = identifier.contains(":") ? identifier : "app:\(identifier)"
     runtime.launcher.model.frecency.setUseCount(id: commandID, count: count)
     Task { await runtime.launcher.model.refresh() }
   }
@@ -289,7 +286,7 @@ extension NativeParityReporter {
   }
 
   func onboardingReport(_ runtime: AppRuntime) -> [String: Any] {
-    guard let onboarding = runtime.onboarding else {
+    guard let welcome = runtime.welcome, welcome.isVisible else {
       return [
         "visible": false,
         "windowNumber": 0,
@@ -298,10 +295,10 @@ extension NativeParityReporter {
       ]
     }
     return [
-      "visible": onboarding.isVisible,
-      "windowNumber": onboarding.windowNumber,
-      "step": onboarding.step.title,
-      "title": onboarding.step.title,
+      "visible": true,
+      "windowNumber": welcome.windowNumber,
+      "step": WelcomeCopy.step,
+      "title": welcome.windowTitle,
     ]
   }
 

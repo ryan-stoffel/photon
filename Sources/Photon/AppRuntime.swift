@@ -21,7 +21,7 @@ final class AppRuntime: ObservableObject {
   let fileAccess: FileAccessCoordinator
   let runningApps = RunningApplications()
   let settingsFocus = SettingsFocusModel()
-  var onboarding: OnboardingController?
+  var welcome: WelcomeController?
   private let hotkey = HotkeyManager.shared
   private let frecencyURL: URL
   var fileSearch: FileSearchIntegration?
@@ -293,7 +293,7 @@ final class AppRuntime: ObservableObject {
       if window.title.localizedCaseInsensitiveContains("Settings") {
         return true
       }
-      if window.identifier == OnboardingChrome.identifier || window is OnboardingWindow {
+      if window.identifier == WelcomeWindow.identifier || window is WelcomeWindow {
         return false
       }
       if window.title == "Photon" {
@@ -388,17 +388,7 @@ final class AppRuntime: ObservableObject {
 
   private func applyHotkey() {
     hotkey.onPressed = { [weak self] in
-      guard let self else {
-        return
-      }
-      let celebrate = onboarding?.isWaitingForLauncher == true
-      toggleLauncher()
-      if celebrate {
-        onboarding?.noteLauncherOpened(
-          visible: launcher.panel?.isVisible == true,
-          frame: launcher.panel?.frame ?? .zero
-        )
-      }
+      self?.toggleLauncher()
     }
     do {
       try hotkey.register(combo: settings.hotkey)

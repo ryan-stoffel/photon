@@ -50,11 +50,27 @@ public final class ApplicationIndex: @unchecked Sendable {
     for root in paneRoots {
       collectPanes(at: root, into: &found)
     }
+    includeSystemFinder(into: &found)
 
     found.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     lock.lock()
     items = found
     lock.unlock()
+  }
+
+  /// Finder.app lives in CoreServices, outside `/Applications` and `/System/Applications`.
+  private func includeSystemFinder(into found: inout [IndexedApplication]) {
+    let alreadyIndexed = found.contains {
+      $0.id.caseInsensitiveCompare("app:com.apple.finder") == .orderedSame
+    }
+    guard !alreadyIndexed else {
+      return
+    }
+    let url = URL(fileURLWithPath: "/System/Library/CoreServices/Finder.app", isDirectory: true)
+    guard FileManager.default.fileExists(atPath: url.path), let finder = readApp(at: url) else {
+      return
+    }
+    found.append(finder)
   }
 
   private func collectApps(at root: URL, depth: Int, into found: inout [IndexedApplication]) {

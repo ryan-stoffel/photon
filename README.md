@@ -12,8 +12,8 @@ Photon is written in **Swift 6**, with AppKit for native macOS window/process be
 
 ## Features
 
-- **Launcher** — `Cmd+Space` opens a compact floating search field that expands into results as you type. Currently open applications sit at the top of the list (with a Dock-style dot under the icon). Down on the empty bar shows recommended apps and recents; turn on suggestions under **Settings > Appearance** to see them before typing. Configurable hotkey, panel width, and light/dark appearance. `⌘,` opens Settings.
-- **Applications** — fuzzy search over `/Applications`, `/System/Applications`, `~/Applications`, and System Settings panes, ranked by frecency. An empty launcher leads with Suggestions: the applications you open most, from local use counts. A small dot marks apps that are running. Photon hides first, then brings the launched app above everything.
+- **Launcher** — `Cmd+Space` opens a compact floating search field that expands into results as you type. A Dock-style dot sits under the icon of an application that is running. Down on the empty bar shows Suggestions; turn them on under **Settings > Appearance** to see them before typing. Configurable hotkey, panel width, and light/dark appearance. `⌘,` opens Settings.
+- **Applications** — fuzzy search over `/Applications`, `/System/Applications`, `~/Applications`, and System Settings panes, ranked by frecency. An empty launcher leads with Suggestions: the applications and commands you open most, from local use counts. Anything you have not opened stays further down the list. A small dot marks apps that are running. Photon hides first, then brings the launched app above everything.
 - **Clipboard history** — `Cmd+Shift+V`, or type `cb ` in the launcher. Text (with rich text), links, images, and files; searchable, pin, paste back or copy. Retention of 1/7/30 days or forever, an item limit, and excluded apps (password managers by default).
 - **Notes** — a floating window with a collapsible sidebar of notes, live markdown styling, one `.md` file per note in `~/Library/Application Support/Photon/Notes`, and autosave. `⌘P` jumps to the sidebar. Type `notes` or `n <title>` in the launcher to open a note; an optional hotkey toggles the window.
 - **File search** — type `/` or `f ` (or run *Search Files*) to search your home folder through Spotlight (`mdfind`). Enter opens, `Cmd+Enter` reveals in Finder, Space or `Cmd+Y` toggles Quick Look, `Cmd+C` copies the path, `Cmd+I` shows size and dates. Strong file matches also appear below applications in the main list.
@@ -60,8 +60,8 @@ Photon is a menu-bar agent (`LSUIElement`). It does not appear in the Dock.
 | none for the launcher itself | Phase 1 | `RegisterEventHotKey` does not require Input Monitoring. |
 | Keyboard shortcuts | after the introduction | macOS Spotlight also defaults to `Cmd+Space`. Photon detects the conflict and tells you how to disable Spotlight's shortcut under **System Settings > Keyboard > Keyboard Shortcuts > Spotlight**. |
 | Login Item | optional | "Launch at login" on the General settings tab uses `SMAppService`. |
-| Accessibility | first-run sequence | Pasting a clipboard item into the frontmost app (Photon sends `Cmd+V`; without it, Return copies the item and shows a hint). Required for the Hyper key (a keyboard event tap) and window management (moving windows through the Accessibility API). The introduction asks on its own screen. Status stays under **Settings > Keybinds**. Without it Caps Lock keeps its normal behaviour. |
-| Input Monitoring | first-run sequence | Asked so Photon can hear the launcher shortcut while another app is in front. The shortcut itself is still a Carbon hotkey. |
+| Accessibility | Keybinds tab, or a one-time alert if the Hyper key is on | Pasting a clipboard item into the frontmost app (Photon sends `Cmd+V`; without it, Return copies the item and shows a hint). Required for the Hyper key (a keyboard event tap) and window management (moving windows through the Accessibility API). The introduction does not ask. Status stays under **Settings > Keybinds**. Without it Caps Lock keeps its normal behaviour. |
+| Input Monitoring | Keybinds tab | Not asked during the introduction. The launcher shortcut itself is still a Carbon hotkey. |
 | Full Disk Access | optional | File search only sees what Spotlight indexes; folders in Spotlight Privacy stay hidden. Photon adds its own excluded-folders list under **Settings > Files**. |
 
 ### How the Hyper key works
@@ -76,6 +76,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the branching model, commit style, an
 git clone https://github.com/ryan-stoffel/photon.git
 cd photon
 Scripts/package_app.sh
+Scripts/package_app.sh --dev   # build/Photon-Dev.app, separate bundle id
 Scripts/check-harness.sh
 # macOS only; exercises the packaged Photon.app
 Scripts/check-native-parity.sh build/Photon.app
@@ -87,4 +88,4 @@ Architecture: [docs/architecture.md](docs/architecture.md). Harness: [docs/harne
 
 [MIT](LICENSE)
 
-Onboarding text uses [Sora](https://fonts.google.com/specimen/Sora) by the Sora Project Authors, under the [SIL Open Font License](Resources/Fonts/OFL.txt).
+[Sora](https://fonts.google.com/specimen/Sora) by the Sora Project Authors is included under `Resources/Fonts` ([SIL Open Font License](Resources/Fonts/OFL.txt)). The interface uses the system font.

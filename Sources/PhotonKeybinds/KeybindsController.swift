@@ -109,7 +109,7 @@ public final class KeybindsController: ObservableObject {
     applyHyperKey()
   }
 
-  /// The cinematic sequence owns the first-run prompts. Do not show the later alert too.
+  /// Marks the one-time Hyper-key alert as shown. The welcome window does not request Accessibility.
   public func acknowledgeAccessibilityGuidance() {
     UserDefaults.standard.set(true, forKey: Self.accessibilityGuidanceKey)
   }

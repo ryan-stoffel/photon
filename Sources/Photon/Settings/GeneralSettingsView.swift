@@ -41,8 +41,8 @@ struct GeneralSettingsView: View {
 
       PhotonSettingsCard(title: "Introduction") {
         PhotonSettingsRow(
-          title: "First-run sequence",
-          detail: "Plays the introduction again on this Mac."
+          title: "Welcome",
+          detail: "Shows the short first-run note again."
         ) {
           Button("Show again") {
             settings.replayOnboarding?()

@@ -153,6 +153,30 @@ func displayedTitles(_ report: [String: Any]) -> [String] {
   strings(launcher(report)["displayedRowTitles"])
 }
 
+/// Finder.app is the first command, Search Files and filename hits sit below it,
+/// and the query has not been promoted into a files-only list.
+func finderQueryKeepsTheApp(_ report: [String: Any]) -> Bool {
+  let state = launcher(report)
+  let ids = strings(state["displayedCommandIDs"])
+  guard string(state["query"]) == "finder",
+        string(state["mode"]).isEmpty,
+        bool(state["inlineFileSettled"]),
+        string(state["inlineFileQuery"]) == "finder",
+        int(state["inlineFileCount"]) > 0,
+        let first = ids.first,
+        first.caseInsensitiveCompare("app:com.apple.finder") == .orderedSame,
+        let searchIndex = ids.firstIndex(of: "files:search"),
+        searchIndex > 0
+  else {
+    return false
+  }
+  let fileIndexes = ids.indices.filter { ids[$0].hasPrefix("file:") }
+  guard let firstFile = fileIndexes.first else {
+    return false
+  }
+  return firstFile > 0 && fileIndexes.allSatisfy { $0 > 0 }
+}
+
 func captureLauncher(
   _ report: [String: Any],
   name: String,
@@ -315,59 +339,20 @@ func frequentSuggestionTitle(_ identifier: String) -> String {
   return foregroundTargetTitle(identifier)
 }
 
-/// Settled frames only. The packaged app skips the beam while this harness is attached.
-func driveCinematicOnboarding() throws {
+/// Small welcome window. There is no beam to wait on.
+func driveWelcome() throws {
   try sendRuntimeCommand("showOnboarding")
-  var report = try wait("cinematic onboarding opens on the reveal") {
-    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Photon"
-  }
-  try captureOnboarding(report, name: "onboarding-reveal", expectedText: "Photon")
-
-  try sendRuntimeCommand("advanceOnboarding")
-  report = try wait("onboarding reaches Accessibility") {
-    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Accessibility"
+  let report = try wait("welcome window is open") {
+    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Welcome"
   }
   try captureOnboarding(
     report,
-    name: "onboarding-permission",
-    expectedText: "Accessibility",
-    additionalExpectedText: ["Grant"]
-  )
-
-  try sendRuntimeCommand("advanceOnboarding")
-  _ = try wait("onboarding reaches Input Monitoring") {
-    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Input Monitoring"
-  }
-
-  let featureTitles = ["Search", "Suggestions", "Clipboard", "Notes", "Files", "Settings"]
-  for title in featureTitles {
-    try sendRuntimeCommand("advanceOnboarding")
-    report = try wait("onboarding reaches \(title)") {
-      bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == title
-    }
-    if title == "Suggestions" {
-      try captureOnboarding(
-        report,
-        name: "onboarding-feature",
-        expectedText: "Suggestions",
-        additionalExpectedText: ["running"]
-      )
-    }
-  }
-
-  try sendRuntimeCommand("advanceOnboarding")
-  report = try wait("onboarding reaches the launcher shortcut") {
-    bool(onboarding($0)["visible"]) && string(onboarding($0)["step"]) == "Press it to open Photon"
-  }
-  try sendRuntimeCommand("showOnboardingHotkey:default")
-  try captureOnboarding(
-    report,
-    name: "onboarding-try-it",
-    expectedText: "Press it to open Photon",
-    additionalExpectedText: ["Space"]
+    name: "welcome",
+    expectedText: "Welcome",
+    additionalExpectedText: ["Settings", "Continue"]
   )
   try sendRuntimeCommand("dismissOnboarding")
-  _ = try wait("cinematic onboarding closes") {
+  _ = try wait("welcome window closes") {
     !bool(onboarding($0)["visible"])
   }
 }
@@ -1321,7 +1306,7 @@ do {
     expectedText: "Appearance",
     additionalExpectedText: ["General", "Open launcher"]
   )
-  try driveCinematicOnboarding()
+  try driveWelcome()
   try sendRuntimeCommand("selectSettingsPane:keybinds")
   report = try wait("Settings Keybinds pane lists app hotkeys") {
     bool(settingsWindow($0)["visible"])
@@ -1354,6 +1339,7 @@ do {
   let frequentTitle = frequentSuggestionTitle(frequentID)
   try sendRuntimeCommand("seedUsage:\(frequentID)|40")
   try sendRuntimeCommand("seedUsage:\(targetID)|1")
+  try sendRuntimeCommand("seedUsage:clipboard:history|90")
   try sendRuntimeCommand("showLauncher")
   report = try wait("launcher reopens after foreground launch") {
     bool(launcher($0)["visible"])
@@ -1361,7 +1347,7 @@ do {
   try sendRuntimeCommand("suppressAutoHide")
   try sendRuntimeCommand("revealRecommendations")
   var recsAttempt = Date()
-  report = try wait("Suggestions lead with the most-used app", timeout: 20) {
+  report = try wait("Suggestions lead with the most-used command", timeout: 20) {
     let recs = string(launcher($0)["content"]) == "recommendations"
       && int(launcher($0)["resultCount"]) > 0
     if !recs, Date().timeIntervalSince(recsAttempt) > 1.5 {
@@ -1371,22 +1357,29 @@ do {
     let titles = strings(launcher($0)["suggestionTitles"])
     return recs
       && int(launcher($0)["suggestionCount"]) > 0
-      && titles.first?.localizedCaseInsensitiveContains(frequentTitle) == true
+      && titles.first?.localizedCaseInsensitiveContains("Clipboard History") == true
+      && titles.contains { $0.localizedCaseInsensitiveContains(frequentTitle) }
       && !bool(launcher($0)["runningAppsLeadList"])
       && strings(launcher($0)["runningAppRowTitles"]).contains {
         $0.localizedCaseInsensitiveContains(foregroundTargetTitle(targetID))
       }
   }
   try require(
-    strings(launcher(report)["suggestionTitles"]).first?.localizedCaseInsensitiveContains(frequentTitle) == true,
-    "Suggestions are ranked by use count"
+    strings(launcher(report)["suggestionTitles"]).first?.localizedCaseInsensitiveContains("Clipboard History") == true,
+    "Suggestions lead with the most-used command"
+  )
+  try require(
+    strings(launcher(report)["suggestionTitles"]).contains {
+      $0.localizedCaseInsensitiveContains(frequentTitle)
+    },
+    "A frequently opened app stays in Suggestions under higher-count commands"
   )
   try require(!bool(launcher(report)["runningAppsLeadList"]), "open apps are not pinned to the top")
   try captureLauncher(
     report,
     name: "launcher-suggestions",
     expectedText: "Suggestions",
-    additionalExpectedText: [frequentTitle, foregroundTargetTitle(targetID)]
+    additionalExpectedText: ["Clipboard History", frequentTitle, foregroundTargetTitle(targetID)]
   )
   try sendRuntimeCommand("dismissLauncher")
   _ = try wait("launcher closes before hiding the launched app") {
@@ -1459,6 +1452,21 @@ do {
     report,
     name: "launcher-photon-icon",
     expectedText: "Photon"
+  )
+  try sendRuntimeCommand("suppressAutoHide")
+  try sendRuntimeCommand("setLauncherQuery:finder")
+  report = try wait("finder keeps Finder.app above file search", timeout: 20) {
+    finderQueryKeepsTheApp($0)
+  }
+  try require(
+    strings(launcher(report)["displayedRowTitles"]).first?.localizedCaseInsensitiveCompare("Finder") == .orderedSame,
+    "Finder.app is the first row for finder"
+  )
+  try captureLauncher(
+    report,
+    name: "finder-app-first",
+    expectedText: "Finder",
+    additionalExpectedText: ["Search Files", "finder.js"]
   )
   try sendRuntimeCommand("dismissLauncher")
   _ = try wait("launcher closes after the Photon icon proof") {
