@@ -30,6 +30,23 @@ final class LauncherLayoutTests: XCTestCase {
     )
   }
 
+  func testShortResultListKeepsTheFooterAgainstTheRows() {
+    let five = LauncherLayout.height(for: .rows(count: 5, showsCalculatorHero: false))
+    let one = LauncherLayout.height(for: .rows(count: 1, showsCalculatorHero: false))
+    XCTAssertEqual(five - one, 4 * LauncherLayout.rowHeight)
+    XCTAssertEqual(
+      five,
+      LauncherLayout.searchFieldHeight + LauncherLayout.hairline
+        + LauncherLayout.listHeight(rowCount: 5)
+        + LauncherLayout.hairline + LauncherLayout.footerHeight
+    )
+    XCTAssertEqual(
+      LauncherLayout.expandedHeight - five,
+      Double(LauncherLayout.maxVisibleRows - 5) * LauncherLayout.rowHeight
+    )
+    XCTAssertLessThan(five, LauncherLayout.expandedHeight)
+  }
+
   func testListHeightGrowsPerRowUntilThePageIsFull() {
     let one = LauncherLayout.height(for: .rows(count: 1, showsCalculatorHero: false))
     let three = LauncherLayout.height(for: .rows(count: 3, showsCalculatorHero: false))
