@@ -6,9 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-09-29
+
+Ryan minimal first-run welcome.
+
 ### Changed
 
-- The first-run note is a small window: how to open Photon, and where Settings are. Escape or Continue dismisses it. Settings > General can show it again. People who already finished the full-screen introduction see this once.
+- The cinematic first-run sequence is gone. The first-run note is a small window: how to open Photon, and where Settings are. Escape or Continue dismisses it. Settings > General can show it again. People who already finished the full-screen introduction see this once.
+- Empty-launcher Suggestions rank applications and standing commands by local open count. File hits, individual notes, and Settings panes stay in the catalog below.
 
 ### Fixed
 
