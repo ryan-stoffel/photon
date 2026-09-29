@@ -109,7 +109,7 @@ public final class KeybindsController: ObservableObject {
     applyHyperKey()
   }
 
-  /// Marks the one-time Hyper-key alert as shown. The welcome window does not request Accessibility.
+  /// Marks the one-time Hyper-key alert as shown. The welcome window asks for access itself.
   public func acknowledgeAccessibilityGuidance() {
     UserDefaults.standard.set(true, forKey: Self.accessibilityGuidanceKey)
   }
@@ -119,11 +119,15 @@ public final class KeybindsController: ObservableObject {
     applyHyperKey()
   }
 
-  /// Asks for Accessibility and Input Monitoring together. Marks the later guidance alert as shown.
-  public func requestFirstLaunchPermissions() {
+  /// Accessibility, then Input Monitoring. Each dialog is answered before the next is shown.
+  public func requestLaunchPermissionsInOrder(
+    shouldContinue: @escaping @MainActor () -> Bool
+  ) async {
     UserDefaults.standard.set(true, forKey: Self.accessibilityGuidanceKey)
-    AccessibilityPermission.requestTrust()
-    AccessibilityPermission.requestInputMonitoring()
+    await LaunchPermissionPrompts.run(shouldContinue: shouldContinue)
+    guard shouldContinue() else {
+      return
+    }
     refreshPermissions()
     applyHyperKey()
     updatePermissionPolling()

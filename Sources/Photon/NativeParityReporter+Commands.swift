@@ -105,7 +105,7 @@ extension NativeParityReporter {
   private func handleOnboardingParityCommand(_ command: String, runtime: AppRuntime) -> Bool {
     switch command {
     case "showOnboarding":
-      runtime.makeWelcome().present(hotkey: runtime.settings.hotkey.displayString)
+      runtime.makeWelcome().present(hotkey: runtime.settings.hotkey)
     case "advanceOnboarding", "showOnboardingHotkey:default":
       break
     case "dismissOnboarding":
@@ -292,6 +292,12 @@ extension NativeParityReporter {
         "windowNumber": 0,
         "step": "",
         "title": "",
+        "hotkey": "",
+        "keycaps": [String](),
+        "width": 0,
+        "height": 0,
+        "opaque": true,
+        "cornerRadius": 0,
       ]
     }
     return [
@@ -299,6 +305,12 @@ extension NativeParityReporter {
       "windowNumber": welcome.windowNumber,
       "step": WelcomeCopy.step,
       "title": welcome.windowTitle,
+      "hotkey": welcome.hotkeyDisplay,
+      "keycaps": welcome.keycapLabels,
+      "width": welcome.frameSize.width,
+      "height": welcome.frameSize.height,
+      "opaque": welcome.isOpaqueWindow,
+      "cornerRadius": welcome.chromeCornerRadius,
     ]
   }
 

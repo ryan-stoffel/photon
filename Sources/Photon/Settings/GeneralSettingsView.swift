@@ -42,7 +42,7 @@ struct GeneralSettingsView: View {
       PhotonSettingsCard(title: "Introduction") {
         PhotonSettingsRow(
           title: "Welcome",
-          detail: "Shows the short first-run note again."
+          detail: "Shows the first-run window again."
         ) {
           Button("Show again") {
             settings.replayOnboarding?()
