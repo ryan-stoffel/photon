@@ -37,6 +37,9 @@ protocol LauncherMode: AnyObject {
   /// Icon for one of this mode's inline results in the default list.
   func icon(for command: Command) -> NSImage?
   func makeResultsView() -> AnyView
+  /// Actions for the current selection, primary (↵) first. The launcher lists them in the
+  /// ⌘K panel and runs their shortcuts.
+  func actions() -> [LauncherAction]
 
   var acceptsPreviewPanelControl: Bool { get }
   func beginPreviewPanelControl(_ panel: QLPreviewPanel)
@@ -47,6 +50,10 @@ extension LauncherMode {
   /// When true the launcher stays at compact height (search field + footer only).
   var prefersCompactLauncherLayout: Bool {
     false
+  }
+
+  func actions() -> [LauncherAction] {
+    []
   }
 }
 
