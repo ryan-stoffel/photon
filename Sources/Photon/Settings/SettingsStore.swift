@@ -62,6 +62,8 @@ final class SettingsStore: ObservableObject {
   /// Mirrors the real login-item state. A failed change shows the error and snaps back to it.
   @Published var launchAtLogin: Bool {
     didSet {
+      // The snap-back below re-enters didSet. Returning here keeps its error and stops the recursion.
+      guard launchAtLogin != LoginItemManager.isEnabled else { return }
       do {
         try LoginItemManager.setEnabled(launchAtLogin)
         launchAtLoginError = nil
