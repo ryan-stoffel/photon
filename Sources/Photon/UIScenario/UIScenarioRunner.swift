@@ -101,7 +101,8 @@ extension AppRuntime {
 
   @MainActor
   private func showClipboardForScreenshot() async {
-    launcher.showClipboardForScreenshot()
+    await showLauncherForScreenshot(query: "")
+    launcher.model.enterClipboard(query: "")
     try? await Task.sleep(nanoseconds: 800_000_000)
   }
 

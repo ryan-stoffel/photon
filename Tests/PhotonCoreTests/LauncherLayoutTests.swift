@@ -22,11 +22,22 @@ final class LauncherLayoutTests: XCTestCase {
     )
   }
 
-  func testListHeightShowsAtLeastOneRow() {
-    XCTAssertEqual(LauncherLayout.listHeight(rowCount: 0), LauncherLayout.listHeight(rowCount: 1))
+  func testZeroRowsKeepOneMessageLineWithoutAHeader() {
+    XCTAssertEqual(LauncherLayout.listHeight(rowCount: 0), LauncherLayout.rowHeight + 2 * LauncherLayout.listInset)
     XCTAssertEqual(
-      LauncherLayout.height(for: .rows(count: 0, showsCalculatorHero: false)),
-      LauncherLayout.height(for: .rows(count: 1, showsCalculatorHero: false))
+      LauncherLayout.listHeight(rowCount: 1) - LauncherLayout.listHeight(rowCount: 0),
+      LauncherLayout.sectionHeaderHeight
+    )
+  }
+
+  func testTypedRowsReserveTheirHeaderAndStayWithinOnePage() {
+    XCTAssertEqual(
+      LauncherLayout.listHeight(rowCount: 1),
+      LauncherLayout.sectionHeaderHeight + LauncherLayout.rowHeight + 2 * LauncherLayout.listInset
+    )
+    XCTAssertEqual(
+      LauncherLayout.height(for: .rows(count: LauncherLayout.maxVisibleRows + 1, showsCalculatorHero: true)),
+      LauncherLayout.expandedHeight
     )
   }
 
@@ -39,10 +50,6 @@ final class LauncherLayoutTests: XCTestCase {
       LauncherLayout.searchFieldHeight + LauncherLayout.hairline
         + LauncherLayout.listHeight(rowCount: 5)
         + LauncherLayout.hairline + LauncherLayout.footerHeight
-    )
-    XCTAssertEqual(
-      LauncherLayout.expandedHeight - five,
-      Double(LauncherLayout.maxVisibleRows - 5) * LauncherLayout.rowHeight
     )
     XCTAssertLessThan(five, LauncherLayout.expandedHeight)
   }
@@ -114,7 +121,10 @@ final class LauncherLayoutTests: XCTestCase {
     XCTAssertGreaterThan(heroOnly, rowOnly)
 
     let heroPlusOne = LauncherLayout.listHeight(rowCount: 2, showsCalculatorHero: true)
-    XCTAssertEqual(heroPlusOne - heroOnly, LauncherLayout.rowHeight + 2 * LauncherLayout.listInset)
+    XCTAssertEqual(
+      heroPlusOne - heroOnly,
+      LauncherLayout.sectionHeaderHeight + LauncherLayout.rowHeight + 2 * LauncherLayout.listInset
+    )
   }
 
   func testDetailMetadataReservesFooterSafeInset() {

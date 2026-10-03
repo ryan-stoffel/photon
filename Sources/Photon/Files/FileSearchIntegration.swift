@@ -46,11 +46,8 @@ final class FileSearchIntegration {
     // objectWillChange fires before the write lands; hop once through the run loop to read the new values.
     settings.objectWillChange
       .receive(on: RunLoop.main)
-      .sink { [weak self, weak settings] _ in
-        guard let self, let settings else {
-          return
-        }
-        refreshConfiguration()
+      .sink { [weak self] _ in
+        self?.refreshConfiguration()
       }
       .store(in: &cancellables)
     access.$grants

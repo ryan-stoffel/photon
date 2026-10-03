@@ -11,14 +11,21 @@ extension LauncherPanelController {
       guard let self else {
         return false
       }
-      // actions[0] is the primary (↵) action and has no shortcut; runSelection() handles it.
-      if let action = model.currentActions.dropFirst().first(where: { $0.shortcut?.matches(event) == true }) {
-        Task {
-          if await action.run() {
-            hide(restorePrevious: false)
-          }
-        }
+      // While an input method composes, Return, arrows and Esc belong to it.
+      if let editor = panel?.firstResponder as? NSTextView, editor.hasMarkedText() {
+        return false
+      }
+      if LauncherShortcut.actionPanel.matches(event) {
+        model.toggleActions()
         return true
+      }
+      if let action = shortcutAction(for: event) {
+        run(action)
+        return true
+      }
+      if model.showsActions {
+        // Typing and editing keys fall through to the action filter field.
+        return handleActionPanelKey(event)
       }
       switch model.session {
       case .clipboard:
@@ -29,16 +36,60 @@ extension LauncherPanelController {
     }
   }
 
+  /// The current action whose shortcut matches `event`. actions[0] is the primary (↵) action and has
+  /// no shortcut; runSelection() handles it. Every other shortcut includes ⌘ or ⌃, so plain typing
+  /// skips building the list.
+  private func shortcutAction(for event: NSEvent) -> LauncherAction? {
+    guard !event.modifierFlags.isDisjoint(with: [.command, .control]) else {
+      return nil
+    }
+    return model.currentActions.dropFirst().first { $0.shortcut?.matches(event) == true }
+  }
+
+  /// Runs an action from the ⌘K panel or its shortcut, then hides when it asks to.
+  func run(_ action: LauncherAction) {
+    model.showsActions = false
+    Task {
+      if await action.run() {
+        hide(restorePrevious: false)
+      }
+    }
+  }
+
+  /// ⌘K panel keys: arrows move, Return runs, Esc closes. Returns false for everything else.
+  private func handleActionPanelKey(_ event: NSEvent) -> Bool {
+    if let delta = listDelta(for: event) {
+      model.moveActionSelection(delta)
+      return true
+    }
+    switch event.keyCode {
+    case 53:
+      model.showsActions = false
+      return true
+    case 36, 76:
+      if let action = model.selectedAction {
+        run(action)
+      }
+      return true
+    default:
+      return false
+    }
+  }
+
   /// Returns true when the launcher consumed the key event.
   func handle(_ event: NSEvent) -> Bool {
     if let mode = model.activeMode, mode.handle(event) {
+      return true
+    }
+    if let delta = listDelta(for: event) {
+      model.moveSelection(delta)
       return true
     }
     switch event.keyCode {
     case 53:
       escape()
       return true
-    case 51:
+    case 51 where !event.isARepeat:
       return deleteOnEmptyQuery()
     case 126:
       model.moveSelection(-1)
@@ -54,16 +105,18 @@ extension LauncherPanelController {
     }
   }
 
-  /// Escape leaves the active mode first and hides the launcher second.
+  /// Escape clears typed text first, then leaves the active mode, then hides the launcher.
   func escape() {
-    if model.activeMode != nil {
+    if !model.query.isEmpty {
+      model.query = ""
+    } else if model.activeMode != nil {
       model.exitMode()
     } else {
       hide()
     }
   }
 
-  /// Backspace on an empty query leaves the active mode, like deleting a token.
+  /// A fresh Backspace on an empty query leaves the active mode, like deleting a token.
   func deleteOnEmptyQuery() -> Bool {
     guard model.activeMode != nil, model.query.isEmpty else {
       return false
@@ -81,7 +134,7 @@ extension LauncherPanelController {
   }
 
   /// Clipboard session: the clipboard view model owns navigation and actions.
-  /// Esc, or Delete on an empty query, returns to the command list.
+  /// Esc clears the filter, then returns to the command list. A fresh Delete on an empty query does too.
   func handleClipboardKey(_ event: NSEvent) -> NSEvent? {
     guard let clipboard = model.clipboard else {
       return handle(event) ? nil : event
@@ -95,9 +148,13 @@ extension LauncherPanelController {
     let command = event.modifierFlags.intersection(.deviceIndependentFlagsMask).contains(.command)
     switch event.keyCode {
     case 53:
-      model.exitClipboard()
+      if model.query.isEmpty {
+        model.exitClipboard()
+      } else {
+        model.query = ""
+      }
       return nil
-    case 51 where !command && model.query.isEmpty:
+    case 51 where !command && model.query.isEmpty && !event.isARepeat:
       model.exitClipboard()
       return nil
     default:
@@ -105,18 +162,18 @@ extension LauncherPanelController {
     }
   }
 
-  /// Down expands the compact clipboard list, then Up/Down (and typical list
-  /// keys) move through items. Returning true swallows the event so the search
-  /// field cannot steal arrow keys.
+  /// Up/Down (and typical list keys) move through clipboard items. Returning true
+  /// swallows the event so the search field cannot steal arrow keys.
   func handleClipboardListNavigation(_ event: NSEvent, clipboard: ClipboardHistoryViewModel) -> Bool {
-    if let delta = clipboardListDelta(for: event) {
+    if let delta = listDelta(for: event) {
       model.moveSelection(delta)
       return true
     }
     return handleClipboardListJump(event, clipboard: clipboard)
   }
 
-  func clipboardListDelta(for event: NSEvent) -> Int? {
+  /// List movement shared by every list: arrows, ⌃N/⌃P and Page Up/Down. Nil for other keys.
+  func listDelta(for event: NSEvent) -> Int? {
     let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
     guard !flags.contains(.command), !flags.contains(.option) else {
       return nil
@@ -146,15 +203,11 @@ extension LauncherPanelController {
       return false
     }
     switch event.keyCode {
-    case 115, 119:
-      if !model.clipboardShowsResults, !clipboard.results.isEmpty {
-        model.moveSelection(1)
-      }
-      if event.keyCode == 115 {
-        clipboard.selectFirst()
-      } else {
-        clipboard.selectLast()
-      }
+    case 115:
+      clipboard.selectFirst()
+      return true
+    case 119:
+      clipboard.selectLast()
       return true
     default:
       return false

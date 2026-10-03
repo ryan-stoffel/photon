@@ -13,7 +13,9 @@ struct LauncherView: View {
   @EnvironmentObject private var runningApps: RunningApplications
   @FocusState private var searchFocused: Bool
 
-  static let defaultPlaceholder = "Search apps, files, notes and more\u{2026}"
+  static let defaultPlaceholder = "Search for apps and commands\u{2026}"
+  /// Zero-height marker at the top of the list. Selecting the first row scrolls here so its header shows.
+  private static let listTopID = "launcher.list.top"
 
   var body: some View {
     VStack(spacing: 0) {
@@ -38,18 +40,24 @@ struct LauncherView: View {
         featureContent
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
-      if showsPanelFooter {
-        Hairline()
-        if model.session == .clipboard, let clipboard = model.clipboard {
-          ClipboardLauncherFooter(model: clipboard)
-        } else if let mode = model.activeMode, model.content == .searchOnly {
-          LauncherModeFooter(title: mode.title)
-        } else {
-          footer
-        }
-      }
+      Hairline()
+      LauncherFooter(model: model)
     }
     .frame(width: model.panelWidth, height: LauncherLayout.height(for: model.content), alignment: .top)
+    .overlay(alignment: .bottomTrailing) {
+      if model.showsActions {
+        LauncherActionPanel(model: model) { action in
+          model.showsActions = false
+          Task {
+            if await action.run() {
+              onRun()
+            }
+          }
+        }
+        .padding(.trailing, 8)
+        .padding(.bottom, LauncherLayout.footerHeight + LauncherLayout.hairline + 6)
+      }
+    }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     .overlay(
       RoundedRectangle(cornerRadius: LauncherLayout.cornerRadius, style: .continuous)
@@ -64,15 +72,14 @@ struct LauncherView: View {
     .onChange(of: model.focusGeneration) {
       searchFocused = true
     }
+    .onChange(of: model.showsActions) { _, shows in
+      if !shows {
+        searchFocused = true
+      }
+    }
   }
 
   // MARK: Search field
-
-  private var showsPanelFooter: Bool {
-    model.showsCommandList
-      || model.session == .clipboard
-      || (model.activeMode != nil && model.content == .searchOnly)
-  }
 
   private var searchField: some View {
     HStack(spacing: 12) {
@@ -92,7 +99,7 @@ struct LauncherView: View {
 
   private var placeholder: String {
     if model.session == .clipboard {
-      "Search clipboard history\u{2026}"
+      "Type to filter entries\u{2026}"
     } else if let mode = model.activeMode {
       mode.placeholder
     } else {
@@ -117,6 +124,9 @@ struct LauncherView: View {
     ScrollViewReader { proxy in
       ScrollView(.vertical) {
         LazyVStack(spacing: 0) {
+          Color.clear
+            .frame(height: 0)
+            .id(Self.listTopID)
           if model.rows.isEmpty {
             messageRow
           } else {
@@ -126,16 +136,23 @@ struct LauncherView: View {
                 selected: model.selectedID == hero.commandID,
                 onSelect: {
                   model.selectedID = hero.commandID
+                },
+                onActivate: {
+                  model.selectedID = hero.commandID
+                  Task { await run() }
                 }
               )
               .id(hero.commandID)
             }
             if !model.suggestionRows.isEmpty {
-              suggestionHeader
+              LauncherSectionHeader(title: "Suggestions")
             }
             ForEach(model.suggestionRows) { row in
               resultRow(row)
                 .id(row.id)
+            }
+            if !listRowsBelowSuggestions.isEmpty {
+              LauncherSectionHeader(title: listHeaderTitle)
             }
             ForEach(listRowsBelowSuggestions) { row in
               resultRow(row)
@@ -145,11 +162,20 @@ struct LauncherView: View {
         }
         .padding(.horizontal, 8)
         .padding(.top, model.calculatorHero != nil ? 0 : LauncherLayout.listInset)
-        .padding(.bottom, LauncherLayout.listInset)
+        .padding(
+          .bottom,
+          model.calculatorHero != nil && listRowsBelowSuggestions.isEmpty ? 0 : LauncherLayout.listInset
+        )
       }
       .onChange(of: model.selectedID) { _, newValue in
-        if let newValue {
-          proxy.scrollTo(newValue, anchor: .center)
+        guard let newValue else {
+          return
+        }
+        // Scroll only as far as needed. The first row also reveals the header above it.
+        if newValue == model.results.first?.id {
+          proxy.scrollTo(Self.listTopID, anchor: .top)
+        } else {
+          proxy.scrollTo(newValue)
         }
       }
     }
@@ -172,20 +198,20 @@ struct LauncherView: View {
     return model.rowsBelowCalculatorHero
   }
 
-  private var suggestionHeader: some View {
-    Text("Suggestions")
-      .font(.system(size: 11, weight: .semibold))
-      .foregroundStyle(.secondary)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(.horizontal, 12)
-      .padding(.top, 2)
-      .padding(.bottom, 2)
-      .accessibilityAddTraits(.isHeader)
+  /// "Commands" under Suggestions, "Results" for a typed query, or the fallback header.
+  private var listHeaderTitle: String {
+    if model.query.isEmpty {
+      return "Commands"
+    }
+    if model.showsFallbacks {
+      return "Use \u{201C}\(model.query.trimmingCharacters(in: .whitespacesAndNewlines))\u{201D} with\u{2026}"
+    }
+    return "Results"
   }
 
   private var messageRow: some View {
     HStack {
-      Text(model.isLoading ? "Indexing applications\u{2026}" : "No results")
+      Text(model.isLoading ? "" : "No results")
         .font(.system(size: 13))
         .foregroundStyle(.secondary)
       Spacer()
@@ -211,10 +237,17 @@ struct LauncherView: View {
             .lineLimit(1)
             .truncationMode(.middle)
         }
+        if !chips.isEmpty {
+          KeybindChipStack(chips: chips, emphasized: selected)
+        }
       }
       Spacer(minLength: 8)
-      if !chips.isEmpty {
-        KeybindChipStack(chips: chips, emphasized: selected)
+      if let accessory = row.accessory {
+        Text(accessory)
+          .font(.system(size: 12))
+          .foregroundStyle(.secondary)
+          .lineLimit(1)
+          .fixedSize()
       }
     }
     .padding(.horizontal, 10)
@@ -250,7 +283,7 @@ struct LauncherView: View {
     LauncherRowChrome.shortcutChips(
       commandID: row.id,
       keybinds: settings.keybinds,
-      clipboardHotkeyEnabled: settings.clipboardHotkeyEnabled,
+      clipboardHotkeyEnabled: settings.clipboardEnabled && settings.clipboardHotkeyEnabled,
       clipboardHotkey: settings.clipboardHotkey,
       notesHotkey: settings.notesHotkey
     )
@@ -292,35 +325,6 @@ struct LauncherView: View {
     }
   }
 
-  // MARK: Footer
-
-  private var footer: some View {
-    HStack(spacing: 12) {
-      if let lastError = model.lastError {
-        Image(systemName: "exclamationmark.triangle.fill")
-          .foregroundStyle(.orange)
-        Text(lastError)
-          .lineLimit(1)
-          .truncationMode(.tail)
-      } else {
-        Image(nsImage: PhotonAppIcon.current)
-          .resizable()
-          .interpolation(.high)
-          .frame(width: 16, height: 16)
-        Text("Photon")
-          .fontWeight(.medium)
-      }
-      Spacer(minLength: 12)
-      if let row = model.selectedRow {
-        FooterKeyHint(label: row.actionVerb, key: "\u{21B5}")
-      }
-    }
-    .font(.system(size: 12))
-    .foregroundStyle(.secondary)
-    .padding(.horizontal, 14)
-    .frame(height: LauncherLayout.footerHeight)
-  }
-
   private func run() async {
     switch model.session {
     case .clipboard:
@@ -356,25 +360,25 @@ private struct Hairline: View {
   }
 }
 
-/// Compact-mode label in the footer corner (Clipboard / Files). No search-field pill.
-private struct LauncherModeFooter: View {
+/// List section title ("Suggestions", "Results", "Calculator"), bottom-aligned in `sectionHeaderHeight`.
+struct LauncherSectionHeader: View {
   let title: String
 
   var body: some View {
-    HStack(spacing: 12) {
-      Text(title)
-        .fontWeight(.medium)
-      Spacer(minLength: 0)
-    }
-    .font(.system(size: 12))
-    .foregroundStyle(.secondary)
-    .padding(.horizontal, 14)
-    .frame(height: LauncherLayout.footerHeight)
+    Text(title)
+      .font(.system(size: 11, weight: .semibold))
+      .foregroundStyle(.secondary)
+      .lineLimit(1)
+      .padding(.horizontal, 12)
+      .padding(.bottom, 2)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .frame(height: LauncherLayout.sectionHeaderHeight, alignment: .bottom)
+      .accessibilityAddTraits(.isHeader)
   }
 }
 
-/// Trailing Raycast-style keycaps for an assigned shortcut.
-private struct KeybindChipStack: View {
+/// Raycast-style keycaps for a shortcut.
+struct KeybindChipStack: View {
   let chips: [String]
   var emphasized = false
 
@@ -393,23 +397,5 @@ private struct KeybindChipStack: View {
       }
     }
     .accessibilityLabel(chips.joined(separator: " "))
-  }
-}
-
-/// "Open ↵": the label first, then the key in a small cap.
-private struct FooterKeyHint: View {
-  let label: String
-  let key: String
-
-  var body: some View {
-    HStack(spacing: 6) {
-      Text(label)
-      Text(key)
-        .font(.system(size: 11, weight: .semibold))
-        .frame(minWidth: 14)
-        .padding(.horizontal, 4)
-        .padding(.vertical, 2)
-        .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.primary.opacity(0.08)))
-    }
   }
 }

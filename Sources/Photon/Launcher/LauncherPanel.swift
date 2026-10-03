@@ -10,6 +10,8 @@ final class LauncherPanel: NSPanel {
   var keyDownHandler: ((NSEvent) -> Bool)?
   /// Starts a window drag after movement exceeds `LauncherLayout.panelDragSlop`.
   var mouseDownHandler: ((NSEvent) -> Bool)?
+  /// ⌘W. A key equivalent so a main-menu Close item cannot take it first.
+  var closeHandler: (() -> Void)?
 
   private var potentialDragStart: NSPoint?
   private var searchBarDragStart: NSPoint?
@@ -38,8 +40,17 @@ final class LauncherPanel: NSPanel {
     )
   }
 
+  override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    let flags = event.modifierFlags.intersection(LauncherShortcut.relevantModifiers)
+    if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "w", let closeHandler {
+      closeHandler()
+      return true
+    }
+    return super.performKeyEquivalent(with: event)
+  }
+
   override func sendEvent(_ event: NSEvent) {
-    if event.type == .keyDown, keyDownHandler?(event) == true {
+    if event.type == .keyDown, keyDownHandler?(event) == true || performStandardEditingShortcut(event) {
       return
     }
 
@@ -64,7 +75,8 @@ final class LauncherPanel: NSPanel {
   private func handleSearchBarMonitor(_ event: NSEvent) -> NSEvent? {
     switch event.type {
     case .leftMouseDown:
-      searchBarDragStart = isInSearchBarBand ? NSEvent.mouseLocation : nil
+      // The monitor is app-wide, so only drags that start on this panel count.
+      searchBarDragStart = (event.window === self && isInSearchBarBand) ? NSEvent.mouseLocation : nil
     case .leftMouseDragged:
       if let start = searchBarDragStart {
         let mouse = NSEvent.mouseLocation
@@ -80,6 +92,30 @@ final class LauncherPanel: NSPanel {
       break
     }
     return event
+  }
+
+  /// A menu-bar agent may have no Edit menu, so ⌘A/C/V/X/Z and ⇧⌘Z reach the field editor from here.
+  /// Runs after `keyDownHandler`, so mode shortcuts still win.
+  private func performStandardEditingShortcut(_ event: NSEvent) -> Bool {
+    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    guard flags.contains(.command), !flags.contains(.option), !flags.contains(.control),
+          let key = event.charactersIgnoringModifiers?.lowercased()
+    else {
+      return false
+    }
+    let shifted = flags.contains(.shift)
+    let action: String? = switch key {
+    case "a": shifted ? nil : "selectAll:"
+    case "c": shifted ? nil : "copy:"
+    case "v": shifted ? nil : "paste:"
+    case "x": shifted ? nil : "cut:"
+    case "z": shifted ? "redo:" : "undo:"
+    default: nil
+    }
+    guard let action else {
+      return false
+    }
+    return NSApp.sendAction(Selector(action), to: nil, from: self)
   }
 
   private var isInSearchBarBand: Bool {

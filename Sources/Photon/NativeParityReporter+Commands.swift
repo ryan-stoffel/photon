@@ -267,7 +267,7 @@ extension NativeParityReporter {
     return LauncherRowChrome.shortcutChips(
       commandID: row.id,
       keybinds: runtime.settings.keybinds,
-      clipboardHotkeyEnabled: runtime.settings.clipboardHotkeyEnabled,
+      clipboardHotkeyEnabled: runtime.settings.clipboardEnabled && runtime.settings.clipboardHotkeyEnabled,
       clipboardHotkey: runtime.settings.clipboardHotkey,
       notesHotkey: runtime.settings.notesHotkey
     )
@@ -430,8 +430,8 @@ extension NativeParityReporter {
     }
     return [
       "exists": true,
-      "x": position.originX,
-      "y": position.originY,
+      "left": position.left,
+      "top": position.top,
       "centered": position.isHorizontallyCentered,
     ]
   }

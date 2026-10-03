@@ -35,7 +35,7 @@ public enum LauncherContent: Equatable, Sendable {
   case searchOnly
   /// Empty-query recommendations revealed by pressing Down.
   case recommendations
-  /// The command list. `0` rows still shows one line (indexing or no results).
+  /// The command list. `0` rows still shows one line (no results).
   /// When `showsCalculatorHero` is true, the first result is rendered as a calculator card instead of a row.
   case rows(count: Int, showsCalculatorHero: Bool)
   /// A feature view with its own layout (clipboard history, file search).
@@ -84,22 +84,25 @@ public enum LauncherLayout {
   public static let detailHeight = expandedHeight
   /// Left-hand results column inside an expanded Files or clipboard panel.
   public static let detailListWidth: Double = 268
+  /// Section title above a run of rows: "Suggestions", "Commands", "Results", "Calculator".
+  public static let sectionHeaderHeight: Double = 18
   /// Raycast-style calculator hero card (section label + split card).
   public static let calculatorSectionSpacing: Double = 8
   public static let calculatorCardHeight: Double = 108
-  public static let calculatorSectionHeaderHeight: Double = 18
 
-  /// Height of the list area for `count` rows, clamped to `maxVisibleRows` and never below one row.
+  /// Height of the list area for `count` rows. Rows sit under a "Results" (or fallback) header.
+  /// Zero rows still shows one message line, without a header. Never taller than one expanded page.
   public static func listHeight(rowCount count: Int, showsCalculatorHero: Bool = false) -> Double {
     let heroHeight = showsCalculatorHero
-      ? calculatorSectionHeaderHeight + calculatorSectionSpacing + calculatorCardHeight + listInset
+      ? sectionHeaderHeight + calculatorSectionSpacing + calculatorCardHeight + listInset
       : 0
     let dataRows = showsCalculatorHero ? max(count - 1, 0) : count
     if showsCalculatorHero, dataRows == 0 {
       return heroHeight
     }
+    let header = dataRows > 0 ? sectionHeaderHeight : 0
     let visible = min(max(dataRows, 1), maxVisibleRows)
-    return heroHeight + Double(visible) * rowHeight + 2 * listInset
+    return min(heroHeight + header + Double(visible) * rowHeight + 2 * listInset, expandedListHeight)
   }
 
   /// Search field and footer with a hairline between them.
