@@ -5,24 +5,9 @@ import Foundation
 /// soon as a newer query lands.
 final class MdfindQueryRunner: @unchecked Sendable {
   struct Request: Sendable {
-    let queryString: String?
-    let fileName: String?
+    let queryString: String
     let onlyIn: [String]
     let scanLimit: Int
-
-    init(queryString: String, onlyIn: [String], scanLimit: Int) {
-      self.queryString = queryString
-      fileName = nil
-      self.onlyIn = onlyIn
-      self.scanLimit = scanLimit
-    }
-
-    init(fileName: String, onlyIn: [String], scanLimit: Int) {
-      queryString = nil
-      self.fileName = fileName
-      self.onlyIn = onlyIn
-      self.scanLimit = scanLimit
-    }
   }
 
   struct Outcome: Sendable {
@@ -44,32 +29,27 @@ final class MdfindQueryRunner: @unchecked Sendable {
 
     let process = Process()
     process.executableURL = URL(fileURLWithPath: MdfindInvocation.executable)
-    process.arguments = MdfindInvocation.arguments(
-      queryString: request.queryString,
-      fileName: request.fileName,
-      onlyIn: request.onlyIn
-    )
-    process.standardOutput = Pipe()
-    process.standardError = Pipe()
+    process.arguments = MdfindInvocation.arguments(queryString: request.queryString, onlyIn: request.onlyIn)
+    let output = Pipe()
+    process.standardOutput = output
+    process.standardError = FileHandle.nullDevice
     process.qualityOfService = .userInitiated
 
     lock.lock()
     self.process = process
     lock.unlock()
 
-    process.terminationHandler = { [weak self] finished in
-      let data: Data = if let pipe = finished.standardOutput as? Pipe {
-        (try? pipe.fileHandleForReading.readToEnd()) ?? Data()
-      } else {
-        Data()
-      }
-      self?.processFinished(finished, data: data, scanLimit: request.scanLimit)
-    }
-
     do {
       try process.run()
     } catch {
       finish(Outcome(spotlightAvailable: false))
+      return
+    }
+    // Drain stdout while mdfind runs: a full pipe buffer would block it until the timeout.
+    DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+      let data = (try? output.fileHandleForReading.readToEnd()) ?? Data()
+      process.waitUntilExit()
+      self?.processFinished(process, data: data, scanLimit: request.scanLimit)
     }
   }
 

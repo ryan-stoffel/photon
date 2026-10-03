@@ -80,7 +80,6 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
     let (current, cached) = synchronized { (settings, cache) }
 
     guard current.inlineResults, trimmed.count >= FileSearchSettings.inlineMinimumQueryLength else {
-      cancelInlineSearch()
       return commands
     }
     if let cached, cached.query == trimmed {
@@ -95,13 +94,11 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
     if command.id == Self.searchCommandID {
       return
     }
-    let path = Self.path(forCommandID: command.id)
-    let (file, action) = synchronized {
-      (cache?.files.first { $0.path == path }, settings.defaultAction)
-    }
-    guard let file else {
+    // Read the row's file from disk: the inline cache may have been cleared since it was shown.
+    guard let path = Self.path(forCommandID: command.id), let file = FileResultFactory.file(at: path) else {
       throw FilesProviderError.unknownCommand(command.id)
     }
+    let action = synchronized { settings.defaultAction }
     try await MainActor.run {
       try FileActions.perform(action, on: file)
     }
@@ -174,17 +171,11 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
   /// Cancels in-flight inline Spotlight work so Files mode recents/search are not raced.
   @MainActor
   public func prepareForFullSession() {
-    inlineGeneration += 1
     engine.cancel()
     synchronized {
+      inlineGeneration += 1
       cache = nil
       inlinePendingQuery = nil
-    }
-  }
-
-  private func cancelInlineSearch() {
-    Task { @MainActor [weak self] in
-      self?.prepareForFullSession()
     }
   }
 

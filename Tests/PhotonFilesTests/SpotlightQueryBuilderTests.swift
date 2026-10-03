@@ -2,6 +2,8 @@ import XCTest
 @testable import PhotonFiles
 
 final class SpotlightQueryBuilderTests: XCTestCase {
+  private let exclusion = " && kMDItemSupportFileType != \"MDSystemFile\""
+
   func testEmptyQueryProducesNoQueryString() {
     XCTAssertNil(SpotlightQueryBuilder.queryString(for: "", searchContents: false))
     XCTAssertNil(SpotlightQueryBuilder.queryString(for: "   \n", searchContents: true))
@@ -24,13 +26,13 @@ final class SpotlightQueryBuilderTests: XCTestCase {
     XCTAssertEqual(
       query,
       "(kMDItemDisplayName == \"*report*\"cd || kMDItemFSName == \"*report*\"cd"
-        + " || kMDItemDisplayName == \"report*\"cdw || kMDItemFSName == \"report*\"cdw)"
+        + " || kMDItemDisplayName == \"report*\"cdw || kMDItemFSName == \"report*\"cdw)" + exclusion
     )
   }
 
   func testShortTermOnlyMatchesWordPrefixes() {
     let query = SpotlightQueryBuilder.queryString(for: "ab", searchContents: false)
-    XCTAssertEqual(query, "(kMDItemDisplayName == \"ab*\"cdw || kMDItemFSName == \"ab*\"cdw)")
+    XCTAssertEqual(query, "(kMDItemDisplayName == \"ab*\"cdw || kMDItemFSName == \"ab*\"cdw)" + exclusion)
   }
 
   func testUnderscoreQueryBecomesAndOfNameClauses() {
@@ -40,7 +42,7 @@ final class SpotlightQueryBuilderTests: XCTestCase {
       "(kMDItemDisplayName == \"*ember*\"cd || kMDItemFSName == \"*ember*\"cd"
         + " || kMDItemDisplayName == \"ember*\"cdw || kMDItemFSName == \"ember*\"cdw)"
         + " && (kMDItemDisplayName == \"*individual*\"cd || kMDItemFSName == \"*individual*\"cd"
-        + " || kMDItemDisplayName == \"individual*\"cdw || kMDItemFSName == \"individual*\"cdw)"
+        + " || kMDItemDisplayName == \"individual*\"cdw || kMDItemFSName == \"individual*\"cdw)" + exclusion
     )
   }
 
@@ -51,7 +53,7 @@ final class SpotlightQueryBuilderTests: XCTestCase {
       "(kMDItemDisplayName == \"*annual*\"cd || kMDItemFSName == \"*annual*\"cd"
         + " || kMDItemDisplayName == \"annual*\"cdw || kMDItemFSName == \"annual*\"cdw)"
         + " && (kMDItemDisplayName == \"*report*\"cd || kMDItemFSName == \"*report*\"cd"
-        + " || kMDItemDisplayName == \"report*\"cdw || kMDItemFSName == \"report*\"cdw)"
+        + " || kMDItemDisplayName == \"report*\"cdw || kMDItemFSName == \"report*\"cdw)" + exclusion
     )
   }
 
@@ -61,7 +63,14 @@ final class SpotlightQueryBuilderTests: XCTestCase {
       query,
       "(kMDItemDisplayName == \"*invoice*\"cd || kMDItemFSName == \"*invoice*\"cd"
         + " || kMDItemDisplayName == \"invoice*\"cdw || kMDItemFSName == \"invoice*\"cdw"
-        + " || kMDItemTextContent == \"invoice*\"cdw)"
+        + " || kMDItemTextContent == \"invoice*\"cdw)" + exclusion
+    )
+  }
+
+  func testFileNameQueryMatchesSubstringAndSkipsSystemFiles() {
+    XCTAssertEqual(
+      SpotlightQueryBuilder.fileNameQueryString(for: "ember"),
+      "kMDItemFSName == \"*ember*\"c" + exclusion
     )
   }
 
@@ -75,7 +84,7 @@ final class SpotlightQueryBuilderTests: XCTestCase {
       "(kMDItemDisplayName == \"*say*\"cd || kMDItemFSName == \"*say*\"cd"
         + " || kMDItemDisplayName == \"say*\"cdw || kMDItemFSName == \"say*\"cdw)"
         + " && (kMDItemDisplayName == \"*hello*\"cd || kMDItemFSName == \"*hello*\"cd"
-        + " || kMDItemDisplayName == \"hello*\"cdw || kMDItemFSName == \"hello*\"cdw)"
+        + " || kMDItemDisplayName == \"hello*\"cdw || kMDItemFSName == \"hello*\"cdw)" + exclusion
     )
   }
 }
