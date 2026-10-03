@@ -165,7 +165,6 @@ public final class NotesController: NSObject {
 
   public func presentSwitcher() {
     let window = presentWindow()
-    window.notesDidChange()
     window.show(focus: true)
     window.presentSwitcher()
   }
@@ -289,7 +288,6 @@ public final class NotesController: NSObject {
       untouchedNoteIDs.remove(id)
     }
     window?.updateTitle(NoteTitle.extract(from: content))
-    window?.notesDidChange()
     debouncer.schedule { [weak self] in
       self?.save(id: id, content: content)
     }

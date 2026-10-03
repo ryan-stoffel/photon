@@ -15,6 +15,10 @@ public enum MarkdownSpanKind: Equatable, Sendable {
   case syntax
   case strikethrough
   case underline
+  /// Text after a `>` marker.
+  case quote
+  /// The label of a `[label](url)` link. The brackets and URL are `.syntax`.
+  case link
   /// The note's first non-blank line, shown as its title. Layered over the line's other spans.
   case title
 }
@@ -33,7 +37,7 @@ public struct MarkdownSpan: Equatable, Sendable {
 /// Computes styling spans for a subset of markdown. The text itself is never changed.
 ///
 /// Supported: ATX headings, bold / italic / bold-italic, inline code, fenced code, bullet
-/// and numbered lists, and task checkboxes. Everything is line-local except fences.
+/// and numbered lists, task checkboxes, quotes, and links. Everything is line-local except fences.
 public enum MarkdownStyler {
   public static func spans(in text: String) -> [MarkdownSpan] {
     spans(in: text, range: NSRange(location: 0, length: (text as NSString).length))
@@ -96,12 +100,14 @@ public enum MarkdownStyler {
   }
 
   private static let fence = Pattern("^ {0,3}(?:```|~~~)")
+  private static let quote = Pattern("^ {0,3}>[ \\t]?")
   private static let heading = Pattern("^(#{1,6})(?:[ \\t]+|$)")
   private static let listItem = Pattern("^[ \\t]*(?:[-*+]|\\d{1,9}[.)])[ \\t]+")
   private static let checkbox = Pattern("^\\[( |x|X)\\](?:[ \\t]+|$)")
   private static let inlineCode = Pattern("(`+)(.+?)\\1")
   private static let strikethrough = Pattern("~~(.+?)~~")
   private static let underline = Pattern("<u>(.+?)</u>")
+  private static let link = Pattern("\\[([^\\]]+)\\]\\([^)\\s]+\\)")
   private static let emphasis = Pattern(
     "(\\*\\*\\*|___)(?=\\S)(.+?)(?<=\\S)\\1"
       + "|(\\*\\*|__)(?=\\S)(.+?)(?<=\\S)\\3"
@@ -124,6 +130,15 @@ public enum MarkdownStyler {
       if line.length > 0 {
         result.append(MarkdownSpan(range: line, kind: .codeBlock))
       }
+      return
+    }
+    if let marker = quote.firstMatch(in: source, range: line) {
+      result.append(MarkdownSpan(range: marker.range, kind: .syntax))
+      let content = remainder(of: line, after: marker.range)
+      if content.length > 0 {
+        result.append(MarkdownSpan(range: content, kind: .quote))
+      }
+      styleInline(content, in: source, into: &result)
       return
     }
     if let match = heading.firstMatch(in: source, range: line) {
@@ -171,34 +186,29 @@ public enum MarkdownStyler {
       result.append(MarkdownSpan(range: match.range(at: 2), kind: .inlineCode))
       result.append(MarkdownSpan(range: closing, kind: .syntax))
     }
-    appendDelimited(
-      strikethrough.matches(in: source, range: range),
-      kind: .strikethrough,
-      markers: (2, 2),
-      skipping: codeRanges,
-      into: &result
-    )
-    appendDelimited(
-      underline.matches(in: source, range: range),
-      kind: .underline,
-      markers: (3, 4),
-      skipping: codeRanges,
-      into: &result
-    )
+    let delimited: [(Pattern, MarkdownSpanKind)] = [
+      (strikethrough, .strikethrough),
+      (underline, .underline),
+      (link, .link),
+    ]
+    for (pattern, kind) in delimited {
+      appendDelimited(pattern.matches(in: source, range: range), kind: kind, skipping: codeRanges, into: &result)
+    }
   }
 
+  /// Capture group 1 gets `kind`. The rest of each match (markers, a link's URL) is `.syntax`.
   private static func appendDelimited(
     _ matches: [NSTextCheckingResult],
     kind: MarkdownSpanKind,
-    markers: (left: Int, right: Int),
     skipping codeRanges: [NSRange],
     into result: inout [MarkdownSpan]
   ) {
     for match in matches where !codeRanges.contains(where: { overlaps($0, match.range) }) {
-      let leading = NSRange(location: match.range.location, length: markers.left)
-      let trailing = NSRange(location: match.range.upperBound - markers.right, length: markers.right)
+      let content = match.range(at: 1)
+      let leading = NSRange(location: match.range.location, length: content.location - match.range.location)
+      let trailing = NSRange(location: content.upperBound, length: match.range.upperBound - content.upperBound)
       result.append(MarkdownSpan(range: leading, kind: .syntax))
-      result.append(MarkdownSpan(range: match.range(at: 1), kind: kind))
+      result.append(MarkdownSpan(range: content, kind: kind))
       result.append(MarkdownSpan(range: trailing, kind: .syntax))
     }
   }
@@ -244,16 +254,23 @@ public enum MarkdownCheckbox {
 
   /// Returns the edit that flips the checkbox when `index` is on or directly next to its brackets.
   public static func toggle(in text: String, at index: Int) -> Toggle? {
+    guard let toggle = toggleOnLine(in: text, at: index),
+          index >= toggle.range.location, index <= toggle.range.upperBound
+    else {
+      return nil
+    }
+    return toggle
+  }
+
+  /// Returns the edit that flips the checkbox on the line containing `index`, wherever `index` sits.
+  public static func toggleOnLine(in text: String, at index: Int) -> Toggle? {
     let source = Source(text)
     guard index >= 0, index <= source.length else {
       return nil
     }
     let (line, _) = source.line(at: index)
     for span in MarkdownStyler.spans(in: text, range: line) {
-      guard case let .checkbox(checked) = span.kind else {
-        continue
-      }
-      if index >= span.range.location, index <= span.range.upperBound {
+      if case let .checkbox(checked) = span.kind {
         return Toggle(range: span.range, replacement: checked ? "[ ]" : "[x]")
       }
     }

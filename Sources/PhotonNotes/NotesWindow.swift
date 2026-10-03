@@ -29,6 +29,9 @@ final class NotesWindow: NSObject {
   var overlayKind: OverlayKind = .none
   private let effectView = NSVisualEffectView()
   let overlayContainer = NSView()
+  /// Active while the format bar shows: the overlay then covers only the bar's strip, so the editor above it
+  /// stays clickable. Otherwise the overlay's top edge pins to the window top.
+  lazy var formatBarStrip = overlayContainer.heightAnchor.constraint(equalToConstant: 58)
   var overlayHosting: NSHostingView<NotesOverlayView>?
   private let footerLabel = NSTextField(labelWithString: NotesLayout.characterCountLabel(0, capitalized: false))
   private let formatButton = NSButton()
@@ -143,7 +146,10 @@ final class NotesWindow: NSObject {
     return response == .alertFirstButtonReturn
   }
 
+  /// Opens with an empty query and the current note selected. The list is rebuilt here, not on every keystroke.
   func presentSwitcher() {
+    switcherModel.query = ""
+    notesDidChange()
     showOverlay(.switcher)
   }
 
@@ -165,6 +171,8 @@ final class NotesWindow: NSObject {
   func applyFormat(_ style: MarkdownFormatStyle) {
     let edit = MarkdownFormat.apply(style, to: textView.string, selection: textView.selectedRange())
     replaceEditor(with: edit)
+    // Format bar clicks can take focus. Typing should keep going into the note.
+    panel.makeFirstResponder(textView)
   }
 
   func moveListItem(by delta: Int) {
@@ -230,6 +238,8 @@ final class NotesWindow: NSObject {
     root.addSubview(formatButton)
     root.addSubview(overlayContainer)
     panel.contentView = root
+    let overlayTop = overlayContainer.topAnchor.constraint(equalTo: root.topAnchor)
+    overlayTop.priority = .defaultHigh
 
     NSLayoutConstraint.activate([
       effectView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
@@ -247,7 +257,7 @@ final class NotesWindow: NSObject {
       formatButton.centerYAnchor.constraint(equalTo: footerLabel.centerYAnchor),
       overlayContainer.leadingAnchor.constraint(equalTo: root.leadingAnchor),
       overlayContainer.trailingAnchor.constraint(equalTo: root.trailingAnchor),
-      overlayContainer.topAnchor.constraint(equalTo: root.topAnchor),
+      overlayTop,
       overlayContainer.bottomAnchor.constraint(equalTo: root.bottomAnchor),
     ])
   }
@@ -296,7 +306,7 @@ final class NotesWindow: NSObject {
     }
     switcherModel.onPin = { [weak self] id in
       self?.controller.togglePin(id)
-      self?.notesDidChange()
+      self?.switcherModel.selectedID = id
     }
     switcherModel.onDelete = { [weak self] id in
       self?.controller.deleteNote(id: id)
@@ -324,12 +334,16 @@ final class NotesWindow: NSObject {
     footerLabel.stringValue = NotesLayout.characterCountLabel(textView.string.count, capitalized: false)
   }
 
+  /// Replaces the text as one undoable edit. The storage delegate restyles it and `textDidChange` saves it.
   func replaceEditor(with edit: MarkdownEdit) {
-    textView.string = edit.text
+    let full = NSRange(location: 0, length: (textView.string as NSString).length)
+    textView.breakUndoCoalescing()
+    guard textView.shouldChangeText(in: full, replacementString: edit.text) else {
+      return
+    }
+    textView.textStorage?.replaceCharacters(in: full, with: edit.text)
+    textView.didChangeText()
     textView.setSelectedRange(edit.selection)
-    restyleWholeDocument()
-    controller.editorDidChange(edit.text)
-    updateCharacterCount()
   }
 }
 

@@ -26,8 +26,9 @@ struct NotesOverlayView: View {
         }
       }
       if kind == .format {
-        VStack {
-          Spacer()
+        // The overlay is only `formatBarStrip` tall here, so nothing above the bar may claim height.
+        VStack(spacing: 0) {
+          Spacer(minLength: 0)
           NoteFormatBar(onStyle: onStyle, onClose: onDismiss)
         }
       }
@@ -67,6 +68,8 @@ extension NotesWindow {
     ])
     overlayHosting = host
     overlayContainer.isHidden = false
-    panel.makeFirstResponder(host)
+    // The format bar is a toolbar, not a modal: the editor keeps focus while it shows.
+    formatBarStrip.isActive = overlayKind == .format
+    panel.makeFirstResponder(overlayKind == .format ? textView : host)
   }
 }

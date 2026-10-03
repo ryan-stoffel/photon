@@ -90,13 +90,16 @@ struct NoteActionsView: View {
 
   private func row(_ action: NoteAction) -> some View {
     let selected = action.id == model.selectedID
+    // Destructive actions are red, as in Raycast.
+    let destructive = action.id == .deleteNote
     return HStack(spacing: 10) {
       Image(systemName: action.symbolName)
         .font(.system(size: 13, weight: .semibold))
         .frame(width: 18)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(destructive ? AnyShapeStyle(.red) : AnyShapeStyle(.secondary))
       Text(action.title)
         .font(.system(size: 13, weight: .medium))
+        .foregroundStyle(destructive ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
       Spacer(minLength: 8)
       Text(action.shortcut)
         .font(.system(size: 11, weight: .semibold).monospaced())

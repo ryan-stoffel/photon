@@ -3,7 +3,7 @@ import Foundation
 /// Interprets launcher input for the notes provider.
 ///
 /// `note`, `notes`, `n <text>`, `note <text>`, and `notes <text>` list notes (optionally filtered).
-/// Anything else only matches the fixed "Notes" and "New Note" commands through the registry.
+/// Anything else only matches the fixed "Notes", "Create Note" and "Search Notes" commands through the registry.
 public enum NoteQuery: Equatable, Sendable {
   case unrelated
   case list(filter: String)
