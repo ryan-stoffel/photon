@@ -60,15 +60,20 @@ public actor ClipboardStore {
 
   // MARK: Reading
 
-  /// Loads the index once. Safe to call repeatedly.
+  /// Loads the index once. Safe to call repeatedly. An index that fails to decode is moved
+  /// to `index.unreadable-<unix time>.json` so the next save cannot overwrite it.
   @discardableResult
   public func load() -> Snapshot {
     if !isLoaded {
       isLoaded = true
       if let data = try? Data(contentsOf: indexURL) {
-        indexBytes = Int64(data.count)
-        if let items = try? Self.makeDecoder().decode([ClipboardItem].self, from: data) {
-          history = ClipboardHistory(items: items)
+        do {
+          history = try ClipboardHistory(items: Self.makeDecoder().decode([ClipboardItem].self, from: data))
+          indexBytes = Int64(data.count)
+        } catch {
+          let backup = directory.appendingPathComponent("index.unreadable-\(Int(Date().timeIntervalSince1970)).json")
+          NSLog("Photon: clipboard index is unreadable, moved to \(backup.lastPathComponent): \(error)")
+          try? FileManager.default.moveItem(at: indexURL, to: backup)
         }
       }
     }
@@ -125,7 +130,7 @@ public actor ClipboardStore {
   // MARK: Writing
 
   /// Stores a capture, collapsing duplicates, then applies retention and the
-  /// item limit. Returns `nil` when the capture holds nothing storable.
+  /// item limit. Returns `nil` when the capture holds nothing storable or its blobs could not be written.
   public func insert(_ capture: ClipboardCapture, settings: ClipboardSettings) -> InsertResult? {
     load()
     guard let hash = capture.contentHash else {
@@ -136,10 +141,9 @@ public actor ClipboardStore {
       saveIndex()
       return InsertResult(outcome: outcome, snapshot: snapshot())
     }
-    guard let item = capture.makeItem() else {
+    guard let item = capture.makeItem(), writeBlobs(for: item, capture: capture) else {
       return nil
     }
-    writeBlobs(for: item, capture: capture)
     let outcome = history.insert(item)
     let removed = history.prune(retention: settings.retention, maxItems: settings.maxItems, now: capture.date)
     removeBlobs(for: removed)
@@ -218,21 +222,31 @@ public actor ClipboardStore {
     return decoder
   }
 
-  private func writeBlobs(for item: ClipboardItem, capture: ClipboardCapture) {
-    let fm = FileManager.default
+  /// Returns false, with any partial blobs removed, when a payload could not be written.
+  private func writeBlobs(for item: ClipboardItem, capture: ClipboardCapture) -> Bool {
+    var blobs: [(ext: String, data: Data)] = []
+    if item.isTextTruncated, let text = capture.text {
+      blobs.append(("txt", Data(text.utf8)))
+    }
+    if let richText = capture.richText {
+      blobs.append(("rtf", richText))
+    }
+    if let png = capture.imagePNG {
+      blobs.append(("png", png))
+    }
+    guard !blobs.isEmpty else {
+      return true
+    }
     do {
-      try fm.createDirectory(at: blobsURL, withIntermediateDirectories: true)
-      if item.isTextTruncated, let text = capture.text {
-        try Data(text.utf8).write(to: blobURL(id: item.id, extension: "txt"), options: .atomic)
+      try FileManager.default.createDirectory(at: blobsURL, withIntermediateDirectories: true)
+      for blob in blobs {
+        try blob.data.write(to: blobURL(id: item.id, extension: blob.ext), options: .atomic)
       }
-      if let richText = capture.richText {
-        try richText.write(to: blobURL(id: item.id, extension: "rtf"), options: .atomic)
-      }
-      if let png = capture.imagePNG {
-        try png.write(to: blobURL(id: item.id, extension: "png"), options: .atomic)
-      }
+      return true
     } catch {
       NSLog("Photon: could not write clipboard blob: \(error)")
+      removeBlobs(for: [item])
+      return false
     }
   }
 
