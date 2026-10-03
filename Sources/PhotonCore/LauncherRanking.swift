@@ -27,12 +27,18 @@ public enum LauncherRanking {
     guard capped > 0 else {
       return []
     }
+    // Ids match case-insensitively, so a record for `app:com.apple.Finder` counts for `app:com.apple.finder`.
+    let folded = Dictionary(
+      usage.map { ($0.key.lowercased(), $0.value) },
+      uniquingKeysWith: { $0.count >= $1.count ? $0 : $1 }
+    )
+    let usageRecord = { (id: String) in usage[id] ?? folded[id.lowercased()] }
     var seen = Set<String>()
     let candidates = ranked.filter { command in
       guard includesInSuggestions(command.command) else {
         return false
       }
-      guard let record = usageRecord(command.id, usage: usage) else {
+      guard let record = usageRecord(command.id) else {
         return false
       }
       let opens = record.count
@@ -42,8 +48,8 @@ public enum LauncherRanking {
       return seen.insert(command.id).inserted
     }
     let sorted = candidates.sorted { lhs, rhs in
-      let left = usageRecord(lhs.id, usage: usage)
-      let right = usageRecord(rhs.id, usage: usage)
+      let left = usageRecord(lhs.id)
+      let right = usageRecord(rhs.id)
       let leftCount = left?.count ?? 0
       let rightCount = right?.count ?? 0
       if leftCount != rightCount {
@@ -97,12 +103,5 @@ public enum LauncherRanking {
     default:
       return false
     }
-  }
-
-  private static func usageRecord(_ id: String, usage: [String: Usage]) -> Usage? {
-    if let record = usage[id] {
-      return record
-    }
-    return usage.first { $0.key.caseInsensitiveCompare(id) == .orderedSame }?.value
   }
 }

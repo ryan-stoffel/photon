@@ -70,6 +70,23 @@ final class LauncherRankingTests: XCTestCase {
     )
   }
 
+  func testUsageIdsMatchCommandIdsCaseInsensitively() {
+    let finder = command("app:com.apple.finder", title: "Finder", provider: "apps")
+    let safari = command("app:com.apple.Safari", title: "Safari", provider: "apps")
+    let ranked = [finder, safari].map {
+      RankedCommand(command: $0, textScore: 1, frecencyScore: 0)
+    }
+    let usage = [
+      "app:com.apple.Finder": LauncherRanking.Usage(count: 3, lastUsed: now),
+      safari.id: LauncherRanking.Usage(count: 1, lastUsed: now),
+    ]
+
+    XCTAssertEqual(
+      LauncherRanking.suggestions(from: ranked, usage: usage).map(\.id),
+      [finder.id, safari.id]
+    )
+  }
+
   func testApplicationStaysAboveSearchFilesAndFilenameHits() {
     let search = RankedCommand(
       command: command("files:search", title: "Search Files", provider: "files"),
