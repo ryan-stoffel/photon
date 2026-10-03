@@ -21,7 +21,6 @@ final class SettingsStore: ObservableObject {
   private enum Keys {
     static let hotkeyKeyCode = "hotkeyKeyCode"
     static let hotkeyModifiers = "hotkeyModifiers"
-    static let launchAtLogin = "launchAtLogin"
     static let launcherShowsSuggestions = "launcherShowsSuggestions"
     static let launcherPanelWidth = "launcherPanelWidth"
     static let launcherStoredPosition = "launcherStoredPosition"
@@ -60,13 +59,15 @@ final class SettingsStore: ObservableObject {
     }
   }
 
+  /// Mirrors the real login-item state. A failed change shows the error and snaps back to it.
   @Published var launchAtLogin: Bool {
     didSet {
-      defaults.set(launchAtLogin, forKey: Keys.launchAtLogin)
       do {
         try LoginItemManager.setEnabled(launchAtLogin)
+        launchAtLoginError = nil
       } catch {
         launchAtLoginError = error.localizedDescription
+        launchAtLogin = LoginItemManager.isEnabled
       }
     }
   }
@@ -256,7 +257,7 @@ final class SettingsStore: ObservableObject {
       modifiersKey: Keys.hotkeyModifiers,
       fallback: .defaultCombo
     )
-    launchAtLogin = defaults.bool(forKey: Keys.launchAtLogin)
+    launchAtLogin = LoginItemManager.isEnabled
     launcherShowsSuggestions = defaults.bool(forKey: Keys.launcherShowsSuggestions)
     launcherPanelWidth = LauncherPanelWidth(rawValue: defaults.string(forKey: Keys.launcherPanelWidth) ?? "")
       ?? .default
@@ -299,13 +300,7 @@ final class SettingsStore: ObservableObject {
       notesHotkey = nil
     }
 
-    let storedFilesScope = defaults.string(forKey: Keys.filesSearchScope) ?? "home"
-    if storedFilesScope == "this-mac" {
-      defaults.set("home", forKey: Keys.filesSearchScope)
-      filesSearchScope = "home"
-    } else {
-      filesSearchScope = storedFilesScope
-    }
+    filesSearchScope = defaults.string(forKey: Keys.filesSearchScope) ?? "home"
     filesSearchContents = defaults.bool(forKey: Keys.filesSearchContents)
     filesMaxResults = defaults.object(forKey: Keys.filesMaxResults) as? Int ?? 50
     filesDefaultAction = defaults.string(forKey: Keys.filesDefaultAction) ?? "open"
