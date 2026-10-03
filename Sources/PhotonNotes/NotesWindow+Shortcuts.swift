@@ -212,7 +212,7 @@ extension NotesWindow {
     }
   }
 
-  /// The ⌘K actions that only need the controller.
+  /// The ⌘K actions that only need the controller. The window's own kinds are listed so a new kind fails to compile.
   private func runControllerAction(_ id: NoteAction.Kind) {
     switch id {
     case .newNote:
@@ -231,7 +231,7 @@ extension NotesWindow {
       controller.resetFontSize()
     case .deleteNote:
       controller.deleteCurrentNote()
-    default:
+    case .browseNotes, .findInNote, .exportNote, .moveListItemUp, .moveListItemDown, .format:
       break
     }
   }

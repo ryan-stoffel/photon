@@ -24,6 +24,20 @@ public struct MarkdownEdit: Equatable, Sendable {
     self.text = text
     self.selection = selection
   }
+
+  /// The UTF-16 range of `old` and its replacement that turn `old` into `text`, after trimming the common prefix
+  /// and suffix. Bounds fall between Unicode scalars, so surrogate pairs are never split.
+  public func change(from old: String) -> (range: NSRange, replacement: String) {
+    let oldScalars = old.unicodeScalars
+    let newScalars = text.unicodeScalars
+    let prefix = zip(oldScalars, newScalars).prefix { $0 == $1 }.count
+    let oldRest = oldScalars.dropFirst(prefix)
+    let newRest = newScalars.dropFirst(prefix)
+    let suffix = zip(oldRest.reversed(), newRest.reversed()).prefix { $0 == $1 }.count
+    let oldRange = oldRest.startIndex ..< oldScalars.index(oldScalars.endIndex, offsetBy: -suffix)
+    let newRange = newRest.startIndex ..< newScalars.index(newScalars.endIndex, offsetBy: -suffix)
+    return (NSRange(oldRange, in: old), String(newScalars[newRange]))
+  }
 }
 
 public enum MarkdownFormat {

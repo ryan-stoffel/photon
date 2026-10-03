@@ -42,6 +42,11 @@ extension NotesWindow {
   func rebuildOverlay() {
     overlayHosting?.removeFromSuperview()
     overlayHosting = nil
+    // The format bar strip overlaps the editor's bottom 32 pt, so the caret line must scroll above it.
+    // Switching to manual insets keeps the automatic titlebar inset already applied at the top.
+    let reservesFormatBar = overlayKind == .format
+    scrollView.automaticallyAdjustsContentInsets = !reservesFormatBar
+    scrollView.contentInsets.bottom = reservesFormatBar ? 32 : 0
     guard overlayKind != .none else {
       overlayContainer.isHidden = true
       return

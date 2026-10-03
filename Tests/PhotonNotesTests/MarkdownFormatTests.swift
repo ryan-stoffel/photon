@@ -82,4 +82,15 @@ final class MarkdownFormatTests: XCTestCase {
     let edit = MarkdownFormat.apply(.link, to: "Photon", selection: NSRange(location: 0, length: 6))
     XCTAssertEqual(edit.text, "[Photon](url)")
   }
+
+  func testChangeCoversOnlyTheEditedSpan() {
+    let old = "line one\nhello world\nline three"
+    let bold = MarkdownFormat.apply(.bold, to: old, selection: NSRange(location: 9, length: 5)).change(from: old)
+    XCTAssertEqual(bold.range, NSRange(location: 9, length: 5))
+    XCTAssertEqual(bold.replacement, "**hello**")
+    // 😀 and 😃 share their UTF-16 lead surrogate, so the change must take the whole scalar.
+    let emoji = MarkdownEdit(text: "- 😃 b", selection: NSRange()).change(from: "- 😀 b")
+    XCTAssertEqual(emoji.range, NSRange(location: 2, length: 2))
+    XCTAssertEqual(emoji.replacement, "😃")
+  }
 }

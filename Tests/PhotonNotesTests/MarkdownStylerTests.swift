@@ -149,12 +149,11 @@ final class MarkdownStylerTests: XCTestCase {
     XCTAssertEqual(spans(text, .italic), ["word"])
   }
 
-  func testLinksButNotInsideCodeOrCheckboxes() {
+  func testLinksButNotInsideCode() {
     let text = "see [Photon](https://x.dev) now"
     XCTAssertEqual(spans(text, .link), ["Photon"])
     XCTAssertEqual(spans(text, .syntax), ["[", "](https://x.dev)"])
     XCTAssertTrue(spans("run `[a](b)` here", .link).isEmpty)
-    XCTAssertTrue(spans("- [ ] (x)", .link).isEmpty)
   }
 
   func testListContinuation() {

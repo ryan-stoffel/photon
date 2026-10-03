@@ -334,14 +334,15 @@ final class NotesWindow: NSObject {
     footerLabel.stringValue = NotesLayout.characterCountLabel(textView.string.count, capitalized: false)
   }
 
-  /// Replaces the text as one undoable edit. The storage delegate restyles it and `textDidChange` saves it.
+  /// Applies the edit as one undoable change to only the differing span, so undo leaves the caret near it.
+  /// The storage delegate restyles it and `textDidChange` saves it.
   func replaceEditor(with edit: MarkdownEdit) {
-    let full = NSRange(location: 0, length: (textView.string as NSString).length)
+    let change = edit.change(from: textView.string)
     textView.breakUndoCoalescing()
-    guard textView.shouldChangeText(in: full, replacementString: edit.text) else {
+    guard textView.shouldChangeText(in: change.range, replacementString: change.replacement) else {
       return
     }
-    textView.textStorage?.replaceCharacters(in: full, with: edit.text)
+    textView.textStorage?.replaceCharacters(in: change.range, with: change.replacement)
     textView.didChangeText()
     textView.setSelectedRange(edit.selection)
   }
