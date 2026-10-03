@@ -78,9 +78,8 @@ final class PhotonSettingsWindow: NSWindow {
   }
 
   /// Tab is handled by Settings focus so the sidebar ring cannot stay on the first row.
-  /// A focused hotkey recorder gets the raw Tab instead.
   override func sendEvent(_ event: NSEvent) {
-    if event.type == .keyDown, event.keyCode == 48, !(firstResponder is HotkeyRecorderView) {
+    if event.type == .keyDown, event.keyCode == 48 {
       let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
       let blocked = modifiers.intersection([.command, .option, .control])
       if blocked.isEmpty {
