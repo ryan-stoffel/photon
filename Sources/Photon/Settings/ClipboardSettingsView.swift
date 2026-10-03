@@ -92,9 +92,7 @@ struct ClipboardSettingsView: View {
         .settingsFocused(.control("clipboard.pasteBehavior"))
         .frame(maxWidth: 180)
       }
-      if settings.clipboardPasteBehavior == .paste {
-        accessibilityStatus
-      }
+      accessibilityStatus
     }
   }
 
@@ -106,7 +104,7 @@ struct ClipboardSettingsView: View {
       Text(
         trusted
           ? "Accessibility access granted. Photon can paste into the frontmost app."
-          : "Pasting needs Accessibility access. Until it is granted, Return only copies."
+          : "Pasting needs Accessibility access. Until it is granted, pasting only copies."
       )
       .font(.system(size: 12))
       Spacer()

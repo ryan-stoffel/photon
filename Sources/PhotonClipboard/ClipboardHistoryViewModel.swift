@@ -84,20 +84,17 @@ public final class ClipboardHistoryViewModel: ObservableObject {
     return results.firstIndex { $0.id == selectedID }
   }
 
-  /// One-line empty state when history is off or a filter has no matches.
+  /// One-line empty state when history is off, history is empty, or a filter has no matches.
   public var showsCompactEmptyRow: Bool {
-    if !manager.isEnabled {
-      return true
-    }
-    if manager.items.isEmpty {
-      return false
-    }
-    return !query.isEmpty
+    !manager.isEnabled || manager.items.isEmpty || !query.isEmpty
   }
 
   public var compactEmptyMessage: String {
     if !manager.isEnabled {
-      return "Clipboard history is off"
+      return "Clipboard history is off. Turn it on in Settings \u{203A} Clipboard."
+    }
+    if manager.items.isEmpty {
+      return "Copy something in any app to see it here"
     }
     return "No matches"
   }

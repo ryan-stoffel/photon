@@ -4,7 +4,7 @@ import PhotonClipboard
 import PhotonCore
 import SwiftUI
 
-/// The one-row clipboard state: history is off, or a filter matches nothing. Results always
+/// The one-row clipboard state: history is off or empty, or a filter matches nothing. Results always
 /// render in `LauncherClipboardDetailSplitView`.
 struct LauncherClipboardResultsSection: View {
   @ObservedObject var model: LauncherViewModel
@@ -37,6 +37,8 @@ struct LauncherClipboardDetailSplitView: View {
 }
 
 private struct ClipboardDetailSplitBody: View {
+  private static let listTopID = "clipboard.list.top"
+
   @ObservedObject var clipboard: ClipboardHistoryViewModel
 
   var body: some View {
@@ -71,6 +73,10 @@ private struct ClipboardDetailSplitBody: View {
     ScrollViewReader { proxy in
       ScrollView(.vertical) {
         LazyVStack(alignment: .leading, spacing: 0) {
+          // The top inset, with an id so the first row can scroll the header above it into view.
+          Color.clear
+            .frame(height: LauncherLayout.listInset)
+            .id(Self.listTopID)
           let pinned = clipboard.query.isEmpty ? clipboard.results.filter(\.isPinned) : []
           if pinned.isEmpty {
             rows(clipboard.results)
@@ -85,10 +91,16 @@ private struct ClipboardDetailSplitBody: View {
           }
         }
         .padding(.horizontal, 8)
-        .padding(.vertical, LauncherLayout.listInset)
+        .padding(.bottom, LauncherLayout.listInset)
       }
       .onChange(of: clipboard.selectedID) { _, selectedID in
-        if let selectedID {
+        guard let selectedID else {
+          return
+        }
+        // Scroll only as far as needed. The first row also reveals the inset and header above it.
+        if selectedID == clipboard.results.first?.id {
+          proxy.scrollTo(Self.listTopID, anchor: .top)
+        } else {
           proxy.scrollTo(selectedID)
         }
       }

@@ -4,9 +4,10 @@ import PhotonClipboard
 extension LauncherViewModel {
   /// Actions for the selected clipboard entry, primary (↵) first, for the ⌘K panel and shortcut
   /// dispatch. Every `run` returns false: paste and copy dismiss the panel themselves, and the
-  /// rest keep the clipboard open.
+  /// rest keep the clipboard open. Empty while a clear-all confirmation is pending, so only
+  /// Return and Esc answer it.
   func clipboardActions() -> [LauncherAction] {
-    guard let clipboard, let item = clipboard.selectedItem else {
+    guard let clipboard, !clipboard.isConfirmingClear, let item = clipboard.selectedItem else {
       return []
     }
     let primary = clipboard.manager.settings.pasteBehavior

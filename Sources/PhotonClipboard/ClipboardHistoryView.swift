@@ -21,7 +21,7 @@ public struct ClipboardLauncherFooter: View {
           .foregroundStyle(.primary)
           .lineLimit(1)
         Spacer()
-        KeyHint(key: "↩", label: "Confirm")
+        KeyHint(key: "↵", label: "Confirm")
         KeyHint(key: "esc", label: "Cancel")
       } else if let notice = model.notice {
         Image(systemName: "exclamationmark.triangle.fill")
