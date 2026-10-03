@@ -5,7 +5,24 @@ import SwiftUI
 struct NotesSettingsView: View {
   @EnvironmentObject private var settings: SettingsStore
 
-  private let directory = NoteStore.defaultDirectory()
+  /// The folder `AppRuntime` hands to Notes, so Photon-Dev and isolated runs show their own.
+  private var directory: URL {
+    AppRuntime.dataDirectory().appendingPathComponent("Notes", isDirectory: true)
+  }
+
+  /// Carbon refuses a combo Photon already registered, so the later registration fails silently.
+  private var hotkeyClash: String? {
+    guard let combo = settings.notesHotkey else {
+      return nil
+    }
+    if combo == settings.hotkey {
+      return "Also used by the launcher shortcut."
+    }
+    if combo == settings.clipboardHotkey {
+      return "Also used by the Clipboard History shortcut."
+    }
+    return nil
+  }
 
   var body: some View {
     PhotonSettingsPage(title: "Notes") {
@@ -55,8 +72,16 @@ struct NotesSettingsView: View {
                 settings.notesHotkey = nil
               }
               .buttonStyle(.borderless)
+              .settingsFocused(.control("notes.removeHotkey"))
             }
           }
+        }
+        if let hotkeyClash {
+          Text(hotkeyClash)
+            .font(.system(size: 12))
+            .foregroundStyle(.red)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 6)
         }
       }
 
@@ -74,6 +99,7 @@ struct NotesSettingsView: View {
             showInFinder()
           }
           .buttonStyle(.borderless)
+          .settingsFocused(.control("notes.showInFinder"))
         }
         .padding(.horizontal, 10)
         .padding(.bottom, 6)
