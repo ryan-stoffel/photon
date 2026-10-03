@@ -7,16 +7,17 @@ final class CalculatorDisplayModelTests: XCTestCase {
     let model = CalculatorDisplayModel(result: result, commandID: "calculator:test")
     XCTAssertEqual(model.expression, "2 + 2")
     XCTAssertEqual(model.value, "4")
-    XCTAssertEqual(model.expressionCaption, "Add")
+    XCTAssertEqual(model.expressionCaption, "Question")
     XCTAssertEqual(model.valueCaption, "Four")
   }
 
   func testConversionMapsExpressionAndValue() throws {
     let result = try XCTUnwrap(CalculatorEngine.evaluate("10 km to mi"))
     let model = CalculatorDisplayModel(result: result, commandID: "calculator:convert")
-    XCTAssertEqual(model.expressionCaption, "Convert")
+    XCTAssertEqual(model.expressionCaption, "Question")
     XCTAssertFalse(model.expression.isEmpty)
-    XCTAssertFalse(model.value.isEmpty)
+    XCTAssertTrue(model.value.hasSuffix(" mi"))
+    XCTAssertEqual(model.valueCaption, "Miles")
   }
 
   func testSectionTitle() {
