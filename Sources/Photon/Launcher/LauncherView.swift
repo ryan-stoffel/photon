@@ -9,6 +9,8 @@ import SwiftUI
 struct LauncherView: View {
   @ObservedObject var model: LauncherViewModel
   var onRun: () -> Void
+  /// Runs a ⌘K panel action through the controller, the same path as its keyboard shortcut.
+  var onAction: (LauncherAction) -> Void
   @EnvironmentObject private var settings: SettingsStore
   @EnvironmentObject private var runningApps: RunningApplications
   @FocusState private var searchFocused: Bool
@@ -40,22 +42,21 @@ struct LauncherView: View {
         featureContent
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
-      Hairline()
-      LauncherFooter(model: model)
+      // Clipboard history and full-height modes (Files) draw their own footer.
+      if model.session == .clipboard, let clipboard = model.clipboard {
+        Hairline()
+        ClipboardLauncherFooter(model: clipboard)
+      } else if model.activeMode == nil || model.content == .searchOnly {
+        Hairline()
+        LauncherFooter(model: model)
+      }
     }
     .frame(width: model.panelWidth, height: LauncherLayout.height(for: model.content), alignment: .top)
     .overlay(alignment: .bottomTrailing) {
       if model.showsActions {
-        LauncherActionPanel(model: model) { action in
-          model.showsActions = false
-          Task {
-            if await action.run() {
-              onRun()
-            }
-          }
-        }
-        .padding(.trailing, 8)
-        .padding(.bottom, LauncherLayout.footerHeight + LauncherLayout.hairline + 6)
+        LauncherActionPanel(model: model, onRun: onAction)
+          .padding(.trailing, 8)
+          .padding(.bottom, LauncherLayout.footerHeight + LauncherLayout.hairline + 6)
       }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

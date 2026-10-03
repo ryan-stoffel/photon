@@ -21,7 +21,7 @@ extension LauncherViewModel {
   /// Panel header: the item the actions apply to.
   var actionPanelTitle: String {
     if let activeMode {
-      return activeMode.title
+      return activeMode.selectionTitle ?? activeMode.title
     }
     if session == .clipboard {
       return clipboard?.selectedItem?.title ?? "Clipboard History"

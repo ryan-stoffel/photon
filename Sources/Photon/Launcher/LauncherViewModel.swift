@@ -462,7 +462,8 @@ final class LauncherViewModel: ObservableObject {
     }
   }
 
-  /// Clipboard history always opens expanded. A filter with no matches keeps the height.
+  /// Clipboard history always opens expanded. A filter with no matches keeps the height. History that
+  /// is off shows one message line, sized like the zero-result list (no section header).
   private func clipboardContent() -> LauncherContent {
     guard let clipboard else {
       return .searchOnly
@@ -471,7 +472,7 @@ final class LauncherViewModel: ObservableObject {
       return .fullHeight
     }
     if clipboard.showsCompactEmptyRow {
-      return .rows(count: 1, showsCalculatorHero: false)
+      return .rows(count: 0, showsCalculatorHero: false)
     }
     return .searchOnly
   }

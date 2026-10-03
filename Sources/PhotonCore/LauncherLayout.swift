@@ -35,7 +35,7 @@ public enum LauncherContent: Equatable, Sendable {
   case searchOnly
   /// Empty-query recommendations revealed by pressing Down.
   case recommendations
-  /// The command list. `0` rows still shows one line (no results).
+  /// The command list. `0` rows still shows one message line ("No results", or clipboard history off).
   /// When `showsCalculatorHero` is true, the first result is rendered as a calculator card instead of a row.
   case rows(count: Int, showsCalculatorHero: Bool)
   /// A feature view with its own layout (clipboard history, file search).
@@ -102,7 +102,9 @@ public enum LauncherLayout {
     }
     let header = dataRows > 0 ? sectionHeaderHeight : 0
     let visible = min(max(dataRows, 1), maxVisibleRows)
-    return min(heroHeight + header + Double(visible) * rowHeight + 2 * listInset, expandedListHeight)
+    // The hero's bottom inset already separates it from the rows, so only the bottom inset remains.
+    let insets = showsCalculatorHero ? listInset : 2 * listInset
+    return min(heroHeight + header + Double(visible) * rowHeight + insets, expandedListHeight)
   }
 
   /// Search field and footer with a hairline between them.

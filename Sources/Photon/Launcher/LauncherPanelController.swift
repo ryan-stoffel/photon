@@ -381,6 +381,9 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
       model: model,
       onRun: { [weak self] in
         self?.hide(restorePrevious: false)
+      },
+      onAction: { [weak self] action in
+        self?.run(action)
       }
     ).environmentObject(settings).environmentObject(runningApps))
     host.safeAreaRegions = []

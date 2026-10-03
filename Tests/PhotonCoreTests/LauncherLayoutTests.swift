@@ -123,7 +123,7 @@ final class LauncherLayoutTests: XCTestCase {
     let heroPlusOne = LauncherLayout.listHeight(rowCount: 2, showsCalculatorHero: true)
     XCTAssertEqual(
       heroPlusOne - heroOnly,
-      LauncherLayout.sectionHeaderHeight + LauncherLayout.rowHeight + 2 * LauncherLayout.listInset
+      LauncherLayout.sectionHeaderHeight + LauncherLayout.rowHeight + LauncherLayout.listInset
     )
   }
 

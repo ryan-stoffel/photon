@@ -116,8 +116,8 @@ public enum LauncherPosition {
   }
 
   /// Panel midpoints inside this span snap to center. It matches the guide span (the centered
-  /// panel width) on wide screens. When the screen is narrower than twice the panel, it shrinks to
-  /// half the free travel, so the panel can still sit off-center on a laptop.
+  /// panel width) only on screens at least three panel widths wide. Otherwise it reaches a quarter
+  /// of the free width to each side of center, so the panel can still sit off-center on a laptop.
   public static func snapCorridor(
     visible: ScreenVisibleFrame,
     panelWidth: Double

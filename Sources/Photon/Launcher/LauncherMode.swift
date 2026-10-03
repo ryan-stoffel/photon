@@ -24,10 +24,8 @@ protocol LauncherMode: AnyObject {
   var holdsFocus: Bool { get }
   /// When true the launcher stays at compact height (search field + footer only).
   var prefersCompactLauncherLayout: Bool { get }
-  /// Status text the footer shows after the mode title, such as a missing folder grant.
-  var notice: String? { get }
-  /// True while results load. The footer shows a spinner.
-  var isSearching: Bool { get }
+  /// Title of the selected result. The ⌘K panel shows it as its header.
+  var selectionTitle: String? { get }
 
   func attach(host: any LauncherModeHost)
   func activate(query: String)
@@ -53,14 +51,6 @@ protocol LauncherMode: AnyObject {
 extension LauncherMode {
   /// When true the launcher stays at compact height (search field + footer only).
   var prefersCompactLauncherLayout: Bool {
-    false
-  }
-
-  var notice: String? {
-    nil
-  }
-
-  var isSearching: Bool {
     false
   }
 

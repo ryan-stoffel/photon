@@ -78,6 +78,13 @@ final class FileSearchIntegration {
   }
 }
 
+extension FileSearchMode {
+  /// The ⌘K panel header: the selected file's Finder name, as its row shows it.
+  var selectionTitle: String? {
+    controller.selected?.displayName
+  }
+}
+
 extension SettingsStore {
   var fileSearchSettings: FileSearchSettings {
     FileSearchSettings(
