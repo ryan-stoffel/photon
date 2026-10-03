@@ -20,7 +20,8 @@ struct LauncherClipboardResultsSection: View {
     .frame(height: LauncherLayout.rowHeight)
     .padding(.horizontal, 8)
     .padding(.vertical, LauncherLayout.listInset)
-    .frame(height: LauncherLayout.listHeight(rowCount: 1), alignment: .top)
+    // Same slot the window reserves for `.rows(count: 0)`: one message line, no section header.
+    .frame(height: LauncherLayout.listHeight(rowCount: 0), alignment: .top)
   }
 }
 

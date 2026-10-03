@@ -43,10 +43,12 @@ public struct ClipboardLauncherFooter: View {
         Text("Clipboard History")
           .fontWeight(.medium)
         Spacer(minLength: 12)
-        KeyHint(key: "↵", label: model.manager.settings.pasteBehavior.label)
-        Divider()
-          .frame(height: 14)
-        KeyHint(key: "⌘K", label: "Actions")
+        if model.selectedItem != nil {
+          KeyHint(key: "↵", label: model.manager.settings.pasteBehavior.label)
+          Divider()
+            .frame(height: 14)
+          KeyHint(key: "⌘K", label: "Actions")
+        }
       }
     }
     .font(.system(size: 12))

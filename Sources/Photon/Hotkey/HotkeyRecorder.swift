@@ -55,7 +55,7 @@ final class HotkeyRecorderView: NSView {
   var titleProvider: ((HotkeyCombo) -> String)?
   var allowsClear = false
 
-  private var recording = false {
+  private(set) var recording = false {
     didSet {
       if recording != oldValue {
         onRecordingChanged?(recording)

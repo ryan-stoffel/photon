@@ -33,9 +33,10 @@ struct LauncherShortcut: Equatable {
 
   static let relevantModifiers: NSEvent.ModifierFlags = [.control, .option, .shift, .command]
 
-  /// Caps Lock, Fn, and numeric-pad flags never affect the match.
+  /// Caps Lock, Fn, and numeric-pad flags never affect the match. Keypad Enter (76) counts as Return (36).
   func matches(_ event: NSEvent) -> Bool {
-    event.keyCode == keyCode
+    let eventKey = event.keyCode == 76 ? 36 : event.keyCode
+    return eventKey == keyCode
       && event.modifierFlags.intersection(Self.relevantModifiers) == modifiers.intersection(Self.relevantModifiers)
   }
 

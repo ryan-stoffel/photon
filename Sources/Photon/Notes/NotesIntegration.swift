@@ -57,11 +57,12 @@ final class NotesIntegration {
     guard combo != registeredCombo else {
       return
     }
-    hotkey.unregister(id: Self.hotkeyID)
-    registeredCombo = nil
     guard let combo else {
+      hotkey.unregister(id: Self.hotkeyID)
+      registeredCombo = nil
       return
     }
+    // register(combo:id:) swaps in place and keeps the old binding when the new combo fails.
     do {
       try hotkey.register(combo: combo, id: Self.hotkeyID) { [weak self] in
         self?.controller.toggle()
