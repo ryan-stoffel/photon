@@ -170,7 +170,7 @@ final class ClipboardStoreTests: XCTestCase {
     XCTAssertEqual(reloaded.items.map(\.text), ["first", "second"])
   }
 
-  func testUnreadableIndexIsMovedAsideInsteadOfOverwritten() async throws {
+  func testUnreadableIndexIsMovedAsideUntilRemoveAll() async throws {
     let directory = makeDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }
     try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -184,6 +184,9 @@ final class ClipboardStoreTests: XCTestCase {
     let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
     let backup = try XCTUnwrap(names.first { $0.hasPrefix("index.unreadable-") && $0.hasSuffix(".json") })
     XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(backup)), unreadable)
+
+    _ = await store.removeAll()
+    XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: directory.path).contains(backup))
   }
 
   func testCaptureIsDroppedWhenItsBlobCannotBeWritten() async throws {

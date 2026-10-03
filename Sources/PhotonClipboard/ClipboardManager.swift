@@ -165,11 +165,11 @@ public final class ClipboardManager: ObservableObject {
 
   // MARK: Paste back
 
-  /// Applies `behavior`, or the configured paste behaviour when nil. The target app is
+  /// Writes the item to the pasteboard and, for `.paste`, posts Cmd+V. The target app is
   /// restored before Cmd+V is posted, and the current AX trust state is checked at action time.
-  public func paste(_ item: ClipboardItem, behavior: ClipboardPasteBehavior? = nil) async -> PasteOutcome {
+  public func paste(_ item: ClipboardItem, behavior: ClipboardPasteBehavior) async -> PasteOutcome {
     await writeToPasteboard(item)
-    guard (behavior ?? settings.pasteBehavior) == .paste else {
+    guard behavior == .paste else {
       return .copied
     }
     refreshAccessibility()

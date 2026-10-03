@@ -118,14 +118,18 @@ public final class ClipboardHistoryViewModel: ObservableObject {
   // MARK: Keyboard
 
   /// Returns `true` when the event was consumed. Return confirms a pending clear-all or runs
-  /// the primary action. Esc is only consumed while a clear-all confirmation is pending; the
-  /// host decides what Esc means otherwise. Up/Down stay with the launcher so the compact bar
-  /// can expand before the selection moves. The other entry shortcuts are launcher actions.
+  /// the primary action. Cmd+Return arrives here only from keypad Enter (keyCode 76), because the
+  /// launcher's Cmd+Return action matches keyCode 36. Esc is only consumed while a clear-all
+  /// confirmation is pending; the host decides what Esc means otherwise. Up/Down stay with the
+  /// launcher so the compact bar can expand before the selection moves. The other entry
+  /// shortcuts are launcher actions.
   public func handleKeyDown(_ event: NSEvent) -> Bool {
     switch event.keyCode {
     case 36, 76:
       if isConfirmingClear {
         confirmClearAll()
+      } else if event.modifierFlags.contains(.command) {
+        Task { await performSecondaryAction() }
       } else {
         Task { await performPrimaryAction() }
       }

@@ -185,11 +185,16 @@ public actor ClipboardStore {
     return snapshot()
   }
 
+  /// Removes every item, its blobs, and any `index.unreadable-*.json` backups, which hold old history too.
   public func removeAll() -> Snapshot {
     load()
     let removed = history.removeAll()
     removeBlobs(for: removed)
-    try? FileManager.default.removeItem(at: blobsURL)
+    let fm = FileManager.default
+    try? fm.removeItem(at: blobsURL)
+    for name in (try? fm.contentsOfDirectory(atPath: directory.path)) ?? [] where name.hasPrefix("index.unreadable-") {
+      try? fm.removeItem(at: directory.appendingPathComponent(name))
+    }
     saveIndex()
     return snapshot()
   }

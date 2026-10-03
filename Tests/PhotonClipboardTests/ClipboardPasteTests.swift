@@ -16,7 +16,7 @@ final class ClipboardPasteTests: XCTestCase {
       prepared = true
     }
 
-    let outcome = await manager.paste(.text("sentinel"))
+    let outcome = await manager.paste(.text("sentinel"), behavior: .paste)
 
     XCTAssertEqual(outcome, .pasted)
     XCTAssertTrue(prepared)
@@ -34,7 +34,7 @@ final class ClipboardPasteTests: XCTestCase {
       prepared = true
     }
 
-    let outcome = await manager.paste(.text("sentinel"))
+    let outcome = await manager.paste(.text("sentinel"), behavior: .paste)
 
     XCTAssertEqual(outcome, .accessibilityRequired)
     XCTAssertFalse(prepared)
@@ -52,7 +52,7 @@ final class ClipboardPasteTests: XCTestCase {
       failureReopened = true
     }
 
-    let outcome = await manager.paste(.text("sentinel"))
+    let outcome = await manager.paste(.text("sentinel"), behavior: .paste)
 
     XCTAssertEqual(outcome, .eventInjectionFailed)
     XCTAssertTrue(failureReopened)
