@@ -14,7 +14,7 @@ public enum SystemSettingsPaneMetadata: Sendable {
     return localizedName
   }
 
-  /// ponytail: English only, and desktop Macs label this pane "Energy". Read the extension's
+  /// English only, and desktop Macs label this pane "Energy". Read the extension's
   /// `representations` if that matters.
   private static let extensionTitleOverrides = ["com.apple.Battery-Settings.extension": "Battery"]
 
@@ -89,7 +89,7 @@ public enum SystemSettingsPaneMetadata: Sendable {
     "softwareupdate": ["update", "updates", "software update"],
     "sharing": ["sharing", "airdrop"],
     "accessibility": ["accessibility", "a11y"],
-    "users": ["users", "groups", "login"],
+    "users": ["users", "groups"],
     "timemachine": ["backup", "time machine"],
     "notifications": ["notifications", "alerts"],
     "internetaccounts": ["accounts", "mail", "icloud"],
