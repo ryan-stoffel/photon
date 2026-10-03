@@ -1,7 +1,26 @@
 import Foundation
 
-/// Human-readable titles and searchable aliases for legacy `.prefPane` bundles.
+/// Human-readable titles and searchable aliases for System Settings panes: built-in Settings extensions
+/// (`.appex`) and third-party `.prefPane` bundles.
 public enum SystemSettingsPaneMetadata: Sendable {
+  /// Title for a built-in Settings extension, or nil to skip it. A few extensions ship only an internal name.
+  public static func extensionTitle(bundleIdentifier: String, localizedName: String?) -> String? {
+    if let title = extensionTitleOverrides[bundleIdentifier] {
+      return title
+    }
+    guard !skippedExtensions.contains(bundleIdentifier), let localizedName, !localizedName.isEmpty else {
+      return nil
+    }
+    return localizedName
+  }
+
+  /// ponytail: English only, and desktop Macs label this pane "Energy". Read the extension's
+  /// `representations` if that matters.
+  private static let extensionTitleOverrides = ["com.apple.Battery-Settings.extension": "Battery"]
+
+  /// Extensions without a user-facing name. HeadphoneSettings only has a pane while headphones are connected.
+  private static let skippedExtensions: Set = ["com.apple.HeadphoneSettings"]
+
   /// Resolves the title shown in the launcher, preferring localized bundle metadata.
   public static func displayName(
     info: [String: Any],
@@ -13,22 +32,22 @@ public enum SystemSettingsPaneMetadata: Sendable {
         return name
       }
     }
-    if let known = knownTitles[fallbackStem] {
-      return known
-    }
     return humanizeStem(fallbackStem)
   }
 
-  /// Extra terms for fuzzy search (aliases and stable identifiers). Does not affect the row title.
+  /// Extra terms for fuzzy search: the title, the bundle stem and aliases. Does not affect the row title.
+  /// The bundle id only selects aliases, so "cal" does not match every com.apple pane.
   public static func searchKeywords(
     displayName: String,
     bundleIdentifier: String,
     fallbackStem: String
   ) -> [String] {
     var terms = Set<String>()
-    terms.insert(bundleIdentifier)
     terms.insert(fallbackStem)
     terms.insert(displayName)
+    // One combined term, so "settings" reaches every pane through the fuzzy keyword tier
+    // and the System Settings app still ranks first on its title.
+    terms.insert("System Settings Preferences")
 
     let idLower = bundleIdentifier.lowercased()
     let stemLower = fallbackStem.lowercased()
@@ -53,55 +72,14 @@ public enum SystemSettingsPaneMetadata: Sendable {
     return nil
   }
 
-  /// Titles when bundles ship without usable plist keys (common for system panes).
-  private static let knownTitles: [String: String] = [
-    "AppleIDPref": "Apple ID",
-    "AppearancePref": "Appearance",
-    "BatteryPref": "Battery",
-    "BluetoothPref": "Bluetooth",
-    "CDsAndDVDsPref": "CDs & DVDs",
-    "ClassroomSettingsPref": "Classroom",
-    "DateAndTimePref": "Date & Time",
-    "DesktopScreenEffectsPref": "Wallpaper",
-    "DesktopScreenSaverPref": "Wallpaper",
-    "DisplaysPref": "Displays",
-    "DockPref": "Desktop & Dock",
-    "EnergySaverPref": "Battery",
-    "FamilyControlsPref": "Family",
-    "GameControllerPref": "Game Controller",
-    "InternetAccountsPref": "Internet Accounts",
-    "KeyboardPref": "Keyboard",
-    "LocalizationPref": "Language & Region",
-    "MousePref": "Mouse",
-    "NetworkPref": "Network",
-    "NotificationsPref": "Notifications",
-    "ParentalControlsPref": "Screen Time",
-    "PasswordsPref": "Passwords",
-    "PrintScanPref": "Printers & Scanners",
-    "ProfilesPref": "Profiles",
-    "SecurityPref": "Privacy & Security",
-    "SharingPref": "Sharing",
-    "SoftwareUpdatePref": "Software Update",
-    "SoundPref": "Sound",
-    "SpotlightPref": "Spotlight",
-    "StartupDiskPref": "Startup Disk",
-    "TimeMachinePref": "Time Machine",
-    "TrackpadPref": "Trackpad",
-    "UniversalAccessPref": "Accessibility",
-    "UsersPref": "Users & Groups",
-    "WalletPref": "Wallet & Apple Pay",
-    "XsanPref": "Xsan",
-  ]
-
-  /// Maps bundle-id fragments or `.prefPane` stems to extra search terms.
+  /// Maps bundle-id fragments or bundle stems to extra search terms.
   private static let aliasTable: [String: [String]] = [
-    "desktopscreen": ["wallpaper", "background", "screen saver", "screensaver"],
-    "wallpaper": ["wallpaper", "background"],
-    "security": ["privacy", "privacy & security", "security"],
-    "energysaver": ["battery", "power", "energy"],
-    "batterypref": ["battery", "power"],
+    "wallpaper": ["wallpaper", "background", "screen saver", "screensaver"],
+    "privacysecurity": ["privacy", "privacy & security", "security"],
+    "battery": ["battery", "power", "energy"],
     "bluetooth": ["bluetooth"],
-    "network": ["network", "wifi", "wi-fi", "ethernet"],
+    "network-settings": ["network", "ethernet"],
+    "wifi": ["wifi", "wi-fi", "wireless"],
     "sound": ["sound", "volume", "audio"],
     "displays": ["display", "monitor", "screen"],
     "keyboard": ["keyboard"],
@@ -110,19 +88,16 @@ public enum SystemSettingsPaneMetadata: Sendable {
     "spotlight": ["spotlight", "search"],
     "softwareupdate": ["update", "updates", "software update"],
     "sharing": ["sharing", "airdrop"],
-    "universalaccess": ["accessibility", "a11y"],
+    "accessibility": ["accessibility", "a11y"],
     "users": ["users", "groups", "login"],
     "timemachine": ["backup", "time machine"],
     "notifications": ["notifications", "alerts"],
     "internetaccounts": ["accounts", "mail", "icloud"],
     "appleid": ["apple id", "icloud account"],
-    "passwords": ["passwords", "passkeys"],
     "wallet": ["wallet", "apple pay"],
     "appearance": ["appearance", "theme", "dark mode", "light mode"],
-    "dock": ["dock", "desktop"],
     "localization": ["language", "region"],
-    "parentalcontrols": ["screen time", "parental"],
-    "familycontrols": ["family"],
+    "screentime": ["screen time", "parental"],
     "gamecontroller": ["controller", "gamepad"],
     "print": ["printer", "printers", "scanner"],
     "startupdisk": ["startup", "boot"],
