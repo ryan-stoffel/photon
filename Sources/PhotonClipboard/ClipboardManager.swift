@@ -165,16 +165,11 @@ public final class ClipboardManager: ObservableObject {
 
   // MARK: Paste back
 
-  /// Writes the item to the pasteboard without sending a keystroke.
-  public func copy(_ item: ClipboardItem) async {
+  /// Applies `behavior`, or the configured paste behaviour when nil. The target app is
+  /// restored before Cmd+V is posted, and the current AX trust state is checked at action time.
+  public func paste(_ item: ClipboardItem, behavior: ClipboardPasteBehavior? = nil) async -> PasteOutcome {
     await writeToPasteboard(item)
-  }
-
-  /// Applies the configured paste behaviour. The target app is restored before
-  /// Cmd+V is posted, and the current AX trust state is checked at action time.
-  public func paste(_ item: ClipboardItem) async -> PasteOutcome {
-    await writeToPasteboard(item)
-    guard settings.pasteBehavior == .paste else {
+    guard (behavior ?? settings.pasteBehavior) == .paste else {
       return .copied
     }
     refreshAccessibility()

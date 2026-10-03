@@ -58,11 +58,9 @@ public enum ClipboardPaster: Sendable {
       if let richText = payload.richText {
         pasteboard.setData(richText, forType: .rtf)
       }
+      // PNG only: a TIFF copy means decoding the image on the main thread before the panel hides.
       if let png = payload.imagePNG {
         pasteboard.setData(png, forType: .png)
-        if let tiff = NSBitmapImageRep(data: png)?.tiffRepresentation {
-          pasteboard.setData(tiff, forType: .tiff)
-        }
       }
     }
     return pasteboard.changeCount

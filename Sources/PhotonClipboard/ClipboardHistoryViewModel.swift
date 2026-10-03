@@ -2,9 +2,10 @@
 import AppKit
 import Combine
 import Foundation
+import PhotonCore
 
 /// State for the clipboard view inside the launcher panel: query, ranked
-/// results, selection, and the keyboard actions. The launcher forwards its
+/// results, selection, and the entry actions. The launcher forwards its
 /// search text into `query` and key events into `handleKeyDown`.
 @MainActor
 public final class ClipboardHistoryViewModel: ObservableObject {
@@ -18,6 +19,8 @@ public final class ClipboardHistoryViewModel: ObservableObject {
       if query != oldValue {
         notice = nil
         refilter()
+        // A new query always starts on the top row, even if the old selection still matches.
+        selectedID = results.first?.id
       }
     }
   }
@@ -99,24 +102,11 @@ public final class ClipboardHistoryViewModel: ObservableObject {
     return "No matches"
   }
 
-  /// Short hint for the footer when the list is collapsed.
-  public var footerEmptyHint: String? {
-    if !manager.isEnabled {
-      return "Turn on in Settings \u{203A} Clipboard"
-    }
-    if manager.items.isEmpty {
-      return "Copy something in any app"
-    }
-    return nil
-  }
-
   public func moveSelection(_ delta: Int) {
     guard !results.isEmpty else {
       return
     }
-    let count = results.count
-    let index = selectedIndex ?? 0
-    let next = ((index + delta) % count + count) % count
+    let next = SelectionNavigation.moving(from: selectedIndex ?? 0, by: delta, count: results.count)
     selectedID = results[next].id
   }
 
@@ -130,54 +120,50 @@ public final class ClipboardHistoryViewModel: ObservableObject {
 
   // MARK: Keyboard
 
-  /// Returns `true` when the event was consumed. Esc is only consumed while a
-  /// clear-all confirmation is pending; the host decides what Esc means otherwise.
-  /// Up/Down stay with the launcher so the compact bar can expand before the
-  /// selection moves.
+  /// Returns `true` when the event was consumed. Return confirms a pending clear-all or runs
+  /// the primary action. Esc is only consumed while a clear-all confirmation is pending; the
+  /// host decides what Esc means otherwise. Up/Down stay with the launcher so the compact bar
+  /// can expand before the selection moves. The other entry shortcuts are launcher actions.
   public func handleKeyDown(_ event: NSEvent) -> Bool {
-    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-    let command = flags.contains(.command)
-    let shift = flags.contains(.shift)
-
     switch event.keyCode {
     case 36, 76:
-      handleReturn(command: command)
+      if isConfirmingClear {
+        confirmClearAll()
+      } else {
+        Task { await performPrimaryAction() }
+      }
       return true
     case 53 where isConfirmingClear:
       isConfirmingClear = false
-      return true
-    case 51 where command:
-      if shift {
-        requestClearAll()
-      } else {
-        deleteSelected()
-      }
-      return true
-    case 35 where command:
-      togglePinSelected()
       return true
     default:
       return false
     }
   }
 
-  private func handleReturn(command: Bool) {
-    if isConfirmingClear {
-      confirmClearAll()
-    } else if command {
-      Task { await copySelected() }
-    } else {
-      Task { await performPrimaryAction() }
-    }
-  }
-
   // MARK: Actions
 
+  /// Return: the Settings > Clipboard primary action on the selection.
   public func performPrimaryAction() async {
+    await perform(manager.settings.pasteBehavior)
+  }
+
+  /// Cmd+Return: whichever of paste and copy is not the primary action.
+  public func performSecondaryAction() async {
+    await perform(manager.settings.pasteBehavior.other)
+  }
+
+  /// Selects `item` and runs `behavior` on it. Used by double-click and the row context menu.
+  public func perform(_ behavior: ClipboardPasteBehavior, on item: ClipboardItem) {
+    selectedID = item.id
+    Task { await perform(behavior) }
+  }
+
+  private func perform(_ behavior: ClipboardPasteBehavior) async {
     guard let item = selectedItem else {
       return
     }
-    switch await manager.paste(item) {
+    switch await manager.paste(item, behavior: behavior) {
     case .pasted:
       onDismiss?()
     case .copied:
@@ -193,57 +179,25 @@ public final class ClipboardHistoryViewModel: ObservableObject {
       )
     case .eventInjectionFailed:
       notice = Notice(
-        message: "Copied, but Photon could not send Paste. Try again or use Copy Only.",
+        message: "Copied, but Photon could not send Paste. Try again or use Copy to Clipboard.",
         offersAccessibility: false
       )
     }
-  }
-
-  public func paste(_ item: ClipboardItem) {
-    selectedID = item.id
-    Task { await performPrimaryAction() }
-  }
-
-  public func copySelected() async {
-    guard let item = selectedItem else {
-      return
-    }
-    await manager.copy(item)
-    onDismiss?()
-  }
-
-  public func copy(_ item: ClipboardItem) {
-    selectedID = item.id
-    Task { await copySelected() }
-  }
-
-  public func togglePinSelected() {
-    guard let item = selectedItem else {
-      return
-    }
-    togglePin(item)
   }
 
   public func togglePin(_ item: ClipboardItem) {
     manager.togglePin(id: item.id)
   }
 
-  public func deleteSelected() {
-    guard let item = selectedItem else {
+  /// Deletes `item`. The selection moves to the row that takes its place only when `item` was selected.
+  public func delete(_ item: ClipboardItem) {
+    manager.delete(id: item.id)
+    guard let index = results.firstIndex(where: { $0.id == item.id }) else {
       return
     }
-    delete(item)
-  }
-
-  public func delete(_ item: ClipboardItem) {
-    let index = selectedIndex ?? 0
-    manager.delete(id: item.id)
-    let remaining = results.filter { $0.id != item.id }
-    results = remaining
-    if !remaining.isEmpty {
-      selectedID = remaining[min(index, remaining.count - 1)].id
-    } else {
-      selectedID = nil
+    results.remove(at: index)
+    if selectedID == item.id {
+      selectedID = results.isEmpty ? nil : results[min(index, results.count - 1)].id
     }
   }
 
