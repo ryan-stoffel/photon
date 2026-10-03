@@ -2,17 +2,19 @@ import AppKit
 import PhotonCore
 import SwiftUI
 
-/// Results area of the launcher while it is in file mode. The launcher draws the footer
-/// and its action bar below this view.
+/// Results area and footer of the launcher while it is in file mode.
 public struct FileSearchView: View {
   @ObservedObject private var controller: FileSearchController
+
+  /// Scroll target for the section header, so selecting the first row shows it.
+  private static let headerID = "files.list.header"
 
   public init(controller: FileSearchController) {
     self.controller = controller
   }
 
   public var body: some View {
-    Group {
+    VStack(spacing: 0) {
       if showsHorizontalSplit {
         HStack(spacing: 0) {
           content
@@ -34,34 +36,41 @@ public struct FileSearchView: View {
         content
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
-    }
-    .overlay(alignment: .bottomLeading) {
-      statusBadge
+      Divider()
+      footer
     }
   }
 
-  /// Notices such as "Path copied" and the spinner for a search that refreshes visible results.
-  @ViewBuilder
-  private var statusBadge: some View {
-    let refreshing = controller.isSearching && controller.status != .searching
-    if refreshing || controller.notice != nil {
-      HStack(spacing: 6) {
-        if refreshing {
-          ProgressView()
-            .controlSize(.small)
-        }
-        if let notice = controller.notice {
-          Text(notice)
-            .lineLimit(1)
-        }
+  /// Left: folder icon, "Files", a notice such as "Path copied", and the spinner while a search
+  /// refreshes visible results. Right: the Enter action and the ⌘K hint while a file is selected.
+  private var footer: some View {
+    HStack(spacing: 10) {
+      Image(systemName: "folder")
+        .font(.system(size: 12, weight: .medium))
+      Text("Files")
+        .fontWeight(.medium)
+      if let notice = controller.notice {
+        Text("\u{00B7}")
+        Text(notice)
+          .lineLimit(1)
       }
-      .font(.system(size: 12))
-      .foregroundStyle(.secondary)
-      .padding(.horizontal, 10)
-      .padding(.vertical, 5)
-      .background(.regularMaterial, in: Capsule())
-      .padding(10)
+      if controller.isSearching, controller.status != .searching {
+        ProgressView()
+          .controlSize(.small)
+      }
+      Spacer(minLength: 12)
+      if controller.selected != nil {
+        FooterKeyHint(label: controller.settings.defaultAction.title, keys: ["\u{21B5}"])
+        Rectangle()
+          .fill(Color.primary.opacity(0.15))
+          .frame(width: 1, height: 14)
+        FooterKeyHint(label: "Actions", keys: ["\u{2318}", "K"])
+      }
     }
+    .font(.system(size: 12))
+    .foregroundStyle(.secondary)
+    .padding(.horizontal, 14)
+    .frame(height: LauncherLayout.footerHeight)
   }
 
   private var showsHorizontalSplit: Bool {
@@ -162,6 +171,7 @@ public struct FileSearchView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
+            .id(Self.headerID)
           ForEach(controller.results) { item in
             FileResultRow(file: item.file, selected: item.id == controller.selectedID)
               .id(item.id)
@@ -180,7 +190,12 @@ public struct FileSearchView: View {
         .padding(.vertical, LauncherLayout.listInset)
       }
       .onChange(of: controller.selectedID) { _, newValue in
-        if let newValue {
+        guard let newValue else {
+          return
+        }
+        if newValue == controller.results.first?.id {
+          proxy.scrollTo(Self.headerID, anchor: .top)
+        } else {
           proxy.scrollTo(newValue)
         }
       }
@@ -202,6 +217,27 @@ public struct FileSearchView: View {
     }
     .padding(24)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
+  }
+}
+
+/// "Open ↵": the label first, then each key in a small cap.
+private struct FooterKeyHint: View {
+  let label: String
+  let keys: [String]
+
+  var body: some View {
+    HStack(spacing: 4) {
+      Text(label)
+        .padding(.trailing, 2)
+      ForEach(keys, id: \.self) { key in
+        Text(key)
+          .font(.system(size: 11, weight: .semibold))
+          .frame(minWidth: 14)
+          .padding(.horizontal, 4)
+          .padding(.vertical, 2)
+          .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.primary.opacity(0.08)))
+      }
+    }
   }
 }
 
