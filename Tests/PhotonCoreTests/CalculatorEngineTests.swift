@@ -50,6 +50,7 @@ final class CalculatorEngineTests: XCTestCase {
     XCTAssertEqual(CalculatorEngine.evaluate("8 ÷ 2", locale: enUS)?.value, "4")
     XCTAssertEqual(CalculatorEngine.evaluate("5 \u{2212} 2", locale: enUS)?.value, "3")
     XCTAssertEqual(CalculatorEngine.evaluate("1.000,5 + 1", locale: Locale(identifier: "de_DE"))?.value, "1001.5")
+    XCTAssertEqual(CalculatorEngine.evaluate("0.1 + 0.2", locale: Locale(identifier: "de_DE"))?.value, "0.3")
   }
 
   func testDisplayValueGroupsForTheLocaleAndCopyStaysRaw() throws {
