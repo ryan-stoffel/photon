@@ -15,6 +15,11 @@ struct KeybindsSettingsView: View {
     }
     .onAppear {
       keybinds.refreshPermissions()
+      keybinds.verifyRemap()
+    }
+    // Returning from System Settings after granting access updates the rows even when Hyper is off.
+    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+      keybinds.refreshPermissions()
     }
   }
 
@@ -33,6 +38,13 @@ struct KeybindsSettingsView: View {
         granted: keybinds.inputMonitoringGranted,
         action: { AccessibilityPermission.openInputMonitoringSettings() }
       )
+      if let lastError = keybinds.lastError {
+        Text("Last shortcut failed: \(lastError)")
+          .font(.system(size: 12))
+          .foregroundStyle(.red)
+          .padding(.horizontal, 10)
+          .padding(.bottom, 6)
+      }
     }
   }
 
@@ -41,7 +53,7 @@ struct KeybindsSettingsView: View {
       title: "Hyper key",
       footer: "Holding the key acts as Control + Option + Shift + Command, shown as ✦. "
         + "The remap only exists while Photon runs and is removed when Photon quits or the Hyper key is turned off. "
-        + "Caps Lock as Hyper never turns Caps Lock on."
+        + "Caps Lock as Hyper only turns Caps Lock on when On tap is Toggle Caps Lock."
     ) {
       PhotonSettingsRow(title: "Enable Hyper key") {
         Toggle("", isOn: $settings.keybinds.hyperKey.enabled)
@@ -63,6 +75,7 @@ struct KeybindsSettingsView: View {
         .labelsHidden()
         .frame(maxWidth: 200)
         .disabled(!settings.keybinds.hyperKey.enabled)
+        .settingsFocused(.control("keybinds.source"))
       }
       PhotonSettingsRow(title: "On tap") {
         Picker("On tap", selection: $settings.keybinds.hyperKey.tapBehavior) {
@@ -73,28 +86,22 @@ struct KeybindsSettingsView: View {
         .labelsHidden()
         .frame(maxWidth: 200)
         .disabled(!settings.keybinds.hyperKey.enabled)
+        .settingsFocused(.control("keybinds.tap"))
       }
       statusRow
     }
   }
 
   private var statusRow: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      HStack(alignment: .firstTextBaseline, spacing: 8) {
-        Circle()
-          .fill(statusColor)
-          .frame(width: 8, height: 8)
-        Text(statusText)
-          .font(.system(size: 12))
-          .foregroundStyle(.secondary)
-        Spacer()
-        statusAction
-      }
-      if let lastError = keybinds.lastError {
-        Text(lastError)
-          .font(.system(size: 12))
-          .foregroundStyle(.red)
-      }
+    HStack(alignment: .firstTextBaseline, spacing: 8) {
+      Circle()
+        .fill(statusColor)
+        .frame(width: 8, height: 8)
+      Text(statusText)
+        .font(.system(size: 12))
+        .foregroundStyle(.secondary)
+      Spacer()
+      statusAction
     }
     .padding(.horizontal, 10)
     .padding(.bottom, 6)
@@ -108,12 +115,13 @@ struct KeybindsSettingsView: View {
         keybinds.requestAccessibility()
       }
       .buttonStyle(.borderless)
-    case .failed:
+    // Also offered while Active: the status can be stale if the mapping was removed outside Photon.
+    case .failed, .active:
       Button("Reset Key Mapping") {
         keybinds.resetKeyMapping()
       }
       .buttonStyle(.borderless)
-    case .disabled, .active:
+    case .disabled:
       EmptyView()
     }
   }

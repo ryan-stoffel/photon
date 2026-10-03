@@ -1,5 +1,6 @@
 import AppKit
 import Carbon
+import PhotonKeybinds
 
 public struct HotkeyCombo: Equatable, Sendable {
   public var keyCode: UInt32
@@ -121,8 +122,12 @@ public struct HotkeyCombo: Equatable, Sendable {
     case kVK_F11: return "F11"
     case kVK_F12: return "F12"
     default:
+      // The layout returns control characters for keys like F13, Home and Page Up, so name those from the table.
       let raw = keyCodeString()
-      return raw.isEmpty ? "Key \(keyCode)" : raw
+      if let first = raw.unicodeScalars.first, first.properties.generalCategory != .control {
+        return raw
+      }
+      return KeyNames.name(for: UInt16(truncatingIfNeeded: keyCode))
     }
   }
 

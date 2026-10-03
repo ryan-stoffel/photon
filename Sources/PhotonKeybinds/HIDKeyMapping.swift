@@ -45,6 +45,11 @@ public enum HIDKeyMapping {
     existing.filter { $0.source != pair.source } + [pair]
   }
 
+  /// A mapping of `source` to anything but F18, which means another tool already remaps that key.
+  public static func foreignMapping(of source: UInt64, in existing: [HIDKeyMappingPair]) -> HIDKeyMappingPair? {
+    existing.first { $0.source == source && $0.destination != HyperKeySource.destinationUsage }
+  }
+
   /// Drops every mapping that sends one of `sources` to `destination`.
   public static func removing(
     sources: Set<UInt64>,

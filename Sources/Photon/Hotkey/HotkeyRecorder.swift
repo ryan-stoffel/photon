@@ -1,4 +1,5 @@
 import AppKit
+import PhotonKeybinds
 import SwiftUI
 
 struct HotkeyRecorder: NSViewRepresentable {
@@ -113,29 +114,64 @@ final class HotkeyRecorderView: NSView {
     refresh()
   }
 
+  /// Stops recording without changing the shortcut. Also runs when the window resigns key or goes away,
+  /// because keybinds stay suspended while any recorder is recording.
+  @objc
+  private func cancelRecording() {
+    guard recording else {
+      return
+    }
+    recording = false
+    refresh()
+  }
+
+  override func viewDidMoveToWindow() {
+    super.viewDidMoveToWindow()
+    NotificationCenter.default.removeObserver(self, name: NSWindow.didResignKeyNotification, object: nil)
+    guard let window else {
+      cancelRecording()
+      return
+    }
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(cancelRecording),
+      name: NSWindow.didResignKeyNotification,
+      object: window
+    )
+  }
+
+  /// While recording, key equivalents such as ⌘W or ⌘Q are recorded instead of reaching the menu.
+  override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    guard recording else {
+      return super.performKeyEquivalent(with: event)
+    }
+    keyDown(with: event)
+    return true
+  }
+
   override func keyDown(with event: NSEvent) {
     guard recording else {
       super.keyDown(with: event)
       return
     }
-    if event.keyCode == UInt16(kVKEscape) {
-      recording = false
-      refresh()
+    let flags = UInt32(event.modifierFlags.intersection(.deviceIndependentFlagsMask).rawValue)
+    let carbon = HotkeyCombo.carbonModifiers(fromApple: flags)
+    // Only bare Esc and Delete edit the recorder. With modifiers they are recorded like any other key.
+    if carbon == 0, event.keyCode == UInt16(kVKEscape) {
+      cancelRecording()
       return
     }
-    if allowsClear, event.keyCode == UInt16(kVKDelete) || event.keyCode == UInt16(kVKForwardDelete) {
+    if allowsClear, carbon == 0, event.keyCode == UInt16(kVKDelete) || event.keyCode == UInt16(kVKForwardDelete) {
       combo = nil
       onClear?()
       recording = false
       refresh()
       return
     }
-    let flags = UInt32(event.modifierFlags.intersection(.deviceIndependentFlagsMask).rawValue)
-    let carbon = HotkeyCombo.carbonModifiers(fromApple: flags)
-    guard carbon != 0 else {
+    let next = HotkeyCombo(keyCode: UInt32(event.keyCode), carbonModifiers: carbon)
+    guard KeyShortcut(next).isBindable else {
       return
     }
-    let next = HotkeyCombo(keyCode: UInt32(event.keyCode), carbonModifiers: carbon)
     combo = next
     onChange?(next)
     recording = false
@@ -150,10 +186,7 @@ final class HotkeyRecorderView: NSView {
   }
 
   override func resignFirstResponder() -> Bool {
-    if recording {
-      recording = false
-      refresh()
-    }
+    cancelRecording()
     return super.resignFirstResponder()
   }
 }

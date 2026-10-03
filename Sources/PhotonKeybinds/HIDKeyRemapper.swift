@@ -2,12 +2,15 @@ import Foundation
 
 public enum HIDRemapError: LocalizedError {
   case hidutilMissing
+  case sourceAlreadyMapped
   case failed(status: Int32, output: String)
 
   public var errorDescription: String? {
     switch self {
     case .hidutilMissing:
       return "hidutil is missing from /usr/bin. Photon cannot remap the Hyper key on this system."
+    case .sourceAlreadyMapped:
+      return "This key is already remapped by another tool (hidutil). Pick another Hyper key or remove that mapping."
     case let .failed(status, output):
       let detail = output.trimmingCharacters(in: .whitespacesAndNewlines)
       return "hidutil exited with status \(status)." + (detail.isEmpty ? "" : " \(detail)")
@@ -17,7 +20,8 @@ public enum HIDRemapError: LocalizedError {
 
 /// Remaps a physical key to F18 for the current login session using `hidutil`, the same mechanism
 /// Hyperkey-style apps use. Mappings are not persistent: logging out clears them, and Photon removes
-/// its own entries on quit or when the Hyper key is disabled. Other tools' entries are preserved.
+/// its own entries on quit or when the Hyper key is disabled. Other tools' entries are preserved, and
+/// Photon refuses a key another tool already remaps.
 public enum HIDKeyRemapper {
   static let hidutilPath = "/usr/bin/hidutil"
 
@@ -32,8 +36,12 @@ public enum HIDKeyRemapper {
   }
 
   /// Maps `source` to F18, replacing any Photon mapping for a different source.
+  /// Throws `sourceAlreadyMapped` when another tool maps `source` to a different key.
   public static func install(source: UInt64) throws {
     let existing = try currentMapping()
+    if HIDKeyMapping.foreignMapping(of: source, in: existing) != nil {
+      throw HIDRemapError.sourceAlreadyMapped
+    }
     let cleaned = HIDKeyMapping.removing(
       sources: ownedSources,
       destination: HyperKeySource.destinationUsage,

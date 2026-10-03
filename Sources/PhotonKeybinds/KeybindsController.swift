@@ -55,9 +55,6 @@ public final class KeybindsController: ObservableObject {
         self?.fire(hyperKeyCode: keyCode)
       }
     }
-    engine.onSuppressCapsLock = {
-      CapsLockState.forceOff()
-    }
     refreshPermissions()
   }
 
@@ -78,7 +75,10 @@ public final class KeybindsController: ObservableObject {
     permissionTimer = nil
     unregisterCarbon()
     engine.stop()
-    removeRemap()
+    // Only undo our own mapping, so a second instance quitting cannot wipe the running one's.
+    if installedSource != nil {
+      removeRemap()
+    }
     hyperStatus = .disabled
   }
 
@@ -86,9 +86,16 @@ public final class KeybindsController: ObservableObject {
     try windows.perform(action)
   }
 
+  /// Assigns only on change, so the 2 s poll does not re-render every observing view.
   public func refreshPermissions() {
-    accessibilityGranted = AccessibilityPermission.isTrusted
-    inputMonitoringGranted = AccessibilityPermission.hasInputMonitoring
+    let trusted = AccessibilityPermission.isTrusted
+    if accessibilityGranted != trusted {
+      accessibilityGranted = trusted
+    }
+    let monitoring = AccessibilityPermission.hasInputMonitoring
+    if inputMonitoringGranted != monitoring {
+      inputMonitoringGranted = monitoring
+    }
   }
 
   /// Shows the macOS prompt (which also lists Photon under Accessibility) and opens System Settings.
@@ -98,6 +105,22 @@ public final class KeybindsController: ObservableObject {
     refreshPermissions()
     applyHyperKey()
     updatePermissionPolling()
+  }
+
+  /// Re-installs the Hyper remap when something outside Photon removed it, for example another
+  /// Photon instance quitting or a manual `hidutil` call. The check runs off the main thread.
+  public func verifyRemap() {
+    guard case .active = hyperStatus, let source = installedSource, let usage = source.hidUsage else {
+      return
+    }
+    Task {
+      let installed = await Task.detached { HIDKeyRemapper.isInstalled(source: usage) }.value
+      guard !installed, installedSource == source else {
+        return
+      }
+      installedSource = nil
+      applyHyperKey()
+    }
   }
 
   /// Emergency exit: puts the physical key back even if state got out of sync, then re-applies settings.
@@ -177,6 +200,7 @@ public final class KeybindsController: ObservableObject {
         try windows.perform(action)
         lastError = nil
       } catch {
+        NSSound.beep()
         lastError = error.localizedDescription
       }
     case let .app(bundleIdentifier):
@@ -185,6 +209,7 @@ public final class KeybindsController: ObservableObject {
           try await AppActivator.toggle(bundleIdentifier: bundleIdentifier)
           self?.lastError = nil
         } catch {
+          NSSound.beep()
           self?.lastError = error.localizedDescription
         }
       }
@@ -302,7 +327,8 @@ public final class KeybindsController: ObservableObject {
     } else {
       removeRemap()
     }
-    if settings.source == .capsLock {
+    // With "Toggle Caps Lock" the engine owns the lock state, so a settings change must not clear it.
+    if settings.source == .capsLock, settings.tapBehavior != .capsLock {
       CapsLockState.forceOff()
     }
     hyperStatus = .active(settings.source)
