@@ -7,7 +7,7 @@ public enum FilesProviderError: LocalizedError, Sendable {
   public var errorDescription: String? {
     switch self {
     case let .unknownCommand(id):
-      "That file is no longer in the results (\(id))."
+      "That file no longer exists (\(id))."
     }
   }
 }

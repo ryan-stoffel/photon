@@ -90,7 +90,8 @@ public final class FileSearchEngine {
     var invocations: [MdfindQueryRunner.Request] = [
       MdfindQueryRunner.Request(queryString: queryString, onlyIn: folders, scanLimit: scanLimit)
     ]
-    for term in terms {
+    // Shorter terms would flood the scan, and the metadata query's word-prefix clause covers them.
+    for term in terms where term.count >= SpotlightQueryBuilder.substringMinimumLength {
       invocations.append(
         MdfindQueryRunner.Request(
           queryString: SpotlightQueryBuilder.fileNameQueryString(for: term),
