@@ -12,6 +12,9 @@ struct AppHotkeysSection: View {
   @EnvironmentObject private var runningApps: RunningApplications
   @State private var installed: [AppHotkeyNamedApp] = []
   @State private var runningNamed: [AppHotkeyNamedApp] = []
+  /// False until the first scan finishes. The list area keeps its full height meanwhile, so the cards below
+  /// do not jump when the pane opens.
+  @State private var catalogLoaded = false
   @State private var addError: String?
   @State private var filter = ""
 
@@ -50,7 +53,9 @@ struct AppHotkeysSection: View {
 
       PhotonSettingsHairline()
 
-      if rows.isEmpty {
+      if !catalogLoaded {
+        Color.clear.frame(height: Self.maxListHeight)
+      } else if rows.isEmpty {
         PhotonSettingsCaption(text: emptyText)
       } else {
         ScrollView {
@@ -164,6 +169,7 @@ struct AppHotkeysSection: View {
       }
       return AppHotkeyNamedApp(bundleIdentifier: identifier, name: app.name)
     }
+    catalogLoaded = true
     reloadRunning()
   }
 

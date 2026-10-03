@@ -25,7 +25,7 @@ public final class KeybindsController: ObservableObject {
   @Published public private(set) var accessibilityGranted = false
   @Published public private(set) var inputMonitoringGranted = false
   @Published public private(set) var lastError: String?
-  /// Plain shortcuts macOS refused to register, usually because another app owns them.
+  /// Plain shortcuts Carbon refused to register because another Photon shortcut already holds them.
   @Published public private(set) var registrationFailures: [KeyShortcut: String] = [:]
 
   /// Set by shortcut recorders. While recording, bound shortcuts pass through so they can be re-recorded.
@@ -126,9 +126,9 @@ public final class KeybindsController: ObservableObject {
   /// Emergency exit: puts the physical key back even if state got out of sync, then re-applies settings.
   public func resetKeyMapping() {
     engine.stop()
+    // `applyHyperKey` then removes or reinstalls the mapping from scratch and reports a hidutil failure.
     installedSource = nil
     didCleanStaleMapping = false
-    removeRemap()
     applyHyperKey()
   }
 
@@ -262,7 +262,7 @@ public final class KeybindsController: ObservableObject {
       carbonTokens.append(token)
     } catch {
       if !shortcut.isHyper {
-        registrationFailures[shortcut] = "\(shortcut.displayString) is already taken by another app."
+        registrationFailures[shortcut] = "\(shortcut.displayString) is already used by another Photon shortcut."
       }
     }
   }
@@ -290,14 +290,12 @@ public final class KeybindsController: ObservableObject {
     let settings = configuration.hyperKey
     guard settings.enabled else {
       engine.stop()
-      removeRemap()
-      hyperStatus = .disabled
+      hyperStatus = removeRemap().map { .failed($0) } ?? .disabled
       return
     }
     guard accessibilityGranted else {
       engine.stop()
-      removeRemap()
-      hyperStatus = .needsAccessibility
+      hyperStatus = removeRemap().map { .failed($0) } ?? .needsAccessibility
       return
     }
 
@@ -319,7 +317,9 @@ public final class KeybindsController: ObservableObject {
           installedSource = settings.source
           didCleanStaleMapping = true
         } catch {
+          // Put the previous source back to a normal key: with the engine stopped its F18 would do nothing.
           engine.stop()
+          removeRemap()
           hyperStatus = .failed(error.localizedDescription)
           return
         }
@@ -335,16 +335,19 @@ public final class KeybindsController: ObservableObject {
   }
 
   /// Removes Photon's HID mapping. Also runs once at startup to clean up after a crash.
-  private func removeRemap() {
+  /// Returns the hidutil error message when the removal fails.
+  @discardableResult
+  private func removeRemap() -> String? {
     guard installedSource != nil || !didCleanStaleMapping else {
-      return
+      return nil
     }
     didCleanStaleMapping = true
     do {
       try HIDKeyRemapper.removeAll()
       installedSource = nil
+      return nil
     } catch {
-      lastError = error.localizedDescription
+      return error.localizedDescription
     }
   }
 

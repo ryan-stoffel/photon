@@ -172,8 +172,8 @@ public final class WindowManager {
   }
 
   /// Sets size, then position, then size again: some apps clamp the size until the window has moved.
-  /// Then reads the frame back. An app with a minimum size can end up past the display edge, so the window
-  /// is moved back inside `bounds`. Frames are bottom-left. Returns the frame the window actually took.
+  /// Then reads the frame back. An app that takes the position but refuses the size can end up past the display
+  /// edge, so the window is moved back inside `bounds`. Frames are bottom-left. Returns the frame it took.
   private func setFrame(
     _ frame: CGRect,
     bounds: CGRect?,
@@ -202,7 +202,11 @@ public final class WindowManager {
       return frame
     }
     let actual = WindowLayout.flipped(readBack, primaryHeight: primaryHeight)
-    guard let bounds, !bounds.contains(actual) else {
+    // A read-back away from the requested top-left is likely stale (apps that apply AX writes asynchronously
+    // still report the old frame). Fitting that frame would queue a wrong position behind the real writes.
+    guard let bounds, !bounds.contains(actual),
+          abs(readBack.minX - axFrame.minX) <= 2, abs(readBack.minY - axFrame.minY) <= 2
+    else {
       return actual
     }
     // Only the position moves: the app already refused the smaller size.
