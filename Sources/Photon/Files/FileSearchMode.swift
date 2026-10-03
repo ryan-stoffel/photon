@@ -69,6 +69,47 @@ final class FileSearchMode: LauncherMode {
     controller.performPrimaryAction()
   }
 
+  /// The Settings > Files Enter action, the other one (⌘↵), Quick Look (⌘Y) and Copy Path (⌥⌘C).
+  /// Empty while no file is selected.
+  func actions() -> [LauncherAction] {
+    guard controller.selected != nil else {
+      return []
+    }
+    let controller = controller
+    let primary = controller.settings.defaultAction
+    return [
+      LauncherAction(id: primary.actionID, title: primary.title, symbol: primary.symbol) {
+        controller.performPrimaryAction()
+      },
+      LauncherAction(
+        id: primary.other.actionID,
+        title: primary.other.title,
+        symbol: primary.other.symbol,
+        shortcut: .commandReturn
+      ) {
+        controller.performSecondaryAction()
+      },
+      LauncherAction(
+        id: "file.quickLook",
+        title: "Quick Look",
+        symbol: "eye",
+        shortcut: LauncherShortcut(keyCode: 16, modifiers: .command, key: "Y")
+      ) {
+        controller.toggleQuickLook()
+        return false
+      },
+      LauncherAction(
+        id: "file.copyPath",
+        title: "Copy Path",
+        symbol: "doc.on.clipboard",
+        shortcut: LauncherShortcut(keyCode: 8, modifiers: [.option, .command], key: "C")
+      ) {
+        controller.copyPath()
+        return false
+      },
+    ]
+  }
+
   func handle(_ event: NSEvent) -> Bool {
     controller.handle(event)
   }
@@ -94,5 +135,15 @@ final class FileSearchMode: LauncherMode {
 
   func endPreviewPanelControl(_ panel: QLPreviewPanel) {
     controller.quickLook.endControl(of: panel)
+  }
+}
+
+private extension FileDefaultAction {
+  var actionID: String {
+    self == .open ? "file.open" : "file.showInFinder"
+  }
+
+  var symbol: String {
+    self == .open ? "arrow.up.forward.app" : "folder"
   }
 }

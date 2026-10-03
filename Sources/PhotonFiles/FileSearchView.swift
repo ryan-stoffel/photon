@@ -2,7 +2,8 @@ import AppKit
 import PhotonCore
 import SwiftUI
 
-/// Results area of the launcher while it is in file mode.
+/// Results area of the launcher while it is in file mode. The launcher draws the footer
+/// and its action bar below this view.
 public struct FileSearchView: View {
   @ObservedObject private var controller: FileSearchController
 
@@ -11,7 +12,7 @@ public struct FileSearchView: View {
   }
 
   public var body: some View {
-    VStack(spacing: 0) {
+    Group {
       if showsHorizontalSplit {
         HStack(spacing: 0) {
           content
@@ -33,8 +34,33 @@ public struct FileSearchView: View {
         content
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
-      Divider()
-      footer
+    }
+    .overlay(alignment: .bottomLeading) {
+      statusBadge
+    }
+  }
+
+  /// Notices such as "Path copied" and the spinner for a search that refreshes visible results.
+  @ViewBuilder
+  private var statusBadge: some View {
+    let refreshing = controller.isSearching && controller.status != .searching
+    if refreshing || controller.notice != nil {
+      HStack(spacing: 6) {
+        if refreshing {
+          ProgressView()
+            .controlSize(.small)
+        }
+        if let notice = controller.notice {
+          Text(notice)
+            .lineLimit(1)
+        }
+      }
+      .font(.system(size: 12))
+      .foregroundStyle(.secondary)
+      .padding(.horizontal, 10)
+      .padding(.vertical, 5)
+      .background(.regularMaterial, in: Capsule())
+      .padding(10)
     }
   }
 
@@ -155,39 +181,11 @@ public struct FileSearchView: View {
       }
       .onChange(of: controller.selectedID) { _, newValue in
         if let newValue {
-          proxy.scrollTo(newValue, anchor: .center)
+          proxy.scrollTo(newValue)
         }
       }
     }
     .frame(maxHeight: .infinity)
-  }
-
-  private var footer: some View {
-    HStack(spacing: 12) {
-      Image(systemName: "folder")
-        .font(.system(size: 12, weight: .medium))
-      Text("Files")
-        .fontWeight(.medium)
-      if let notice = controller.notice {
-        Text("·")
-        Text(notice)
-          .lineLimit(1)
-      } else {
-        Spacer(minLength: 12)
-        ForEach(controller.keyHints) { hint in
-          KeyHintView(hint: hint)
-        }
-      }
-      Spacer(minLength: 8)
-      if controller.isSearching {
-        ProgressView()
-          .controlSize(.small)
-      }
-    }
-    .font(.system(size: 12))
-    .foregroundStyle(.secondary)
-    .padding(.horizontal, 14)
-    .frame(height: LauncherLayout.footerHeight)
   }
 
   private func emptyState(symbol: String, title: String, detail: String) -> some View {
@@ -217,16 +215,16 @@ struct FileResultRow: View {
         .resizable()
         .interpolation(.high)
         .frame(width: LauncherLayout.iconSize, height: LauncherLayout.iconSize)
-      HStack(alignment: .firstTextBaseline, spacing: 8) {
-        Text(file.displayName)
-          .font(.system(size: 14, weight: .medium))
-          .lineLimit(1)
-          .layoutPriority(1)
-        Text(PathFormatter.parentDisplay(for: file.path, maxLength: 28))
-          .font(.system(size: 12))
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-          .truncationMode(.middle)
+      // The parent path shows only when it fits next to the full name.
+      ViewThatFits(in: .horizontal) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          name
+          Text(PathFormatter.parentDisplay(for: file.path, maxLength: 28))
+            .font(.system(size: 12))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+        }
+        name
       }
       Spacer(minLength: 0)
     }
@@ -238,22 +236,11 @@ struct FileResultRow: View {
     )
     .contentShape(Rectangle())
   }
-}
 
-struct KeyHintView: View {
-  let hint: FileSearchController.KeyHint
-
-  var body: some View {
-    HStack(spacing: 4) {
-      Text(hint.key)
-        .font(.caption2.weight(.semibold))
-        .padding(.horizontal, 5)
-        .padding(.vertical, 1)
-        .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(.quaternary))
-      Text(hint.label)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-    }
+  private var name: some View {
+    Text(file.displayName)
+      .font(.system(size: 14, weight: .medium))
+      .lineLimit(1)
   }
 }
 
@@ -292,9 +279,6 @@ struct FileDetailView: View {
         .scaledToFit()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(22)
-    } else if loader.isLoading {
-      ProgressView()
-        .controlSize(.small)
     } else {
       Image(nsImage: FileIconCache.shared.icon(for: file))
         .resizable()
@@ -304,37 +288,35 @@ struct FileDetailView: View {
     }
   }
 
+  /// Takes its natural height so every row stays visible. The preview above shrinks to fit.
   private var metadata: some View {
-    ScrollView(.vertical) {
-      VStack(alignment: .leading, spacing: 0) {
-        Text("Metadata")
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(.secondary)
-          .padding(.bottom, 6)
-        ForEach(rows) { row in
-          HStack(alignment: .firstTextBaseline, spacing: 16) {
-            Text(row.label)
-              .foregroundStyle(.secondary)
-            Spacer(minLength: 12)
-            Text(row.value)
-              .lineLimit(1)
-              .truncationMode(.middle)
-              .textSelection(.enabled)
-          }
-          .font(.system(size: 13))
-          .padding(.vertical, 3)
-          .overlay(alignment: .bottom) {
-            Divider()
-          }
+    VStack(alignment: .leading, spacing: 0) {
+      Text("Metadata")
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(.secondary)
+        .padding(.bottom, 6)
+      ForEach(rows) { row in
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+          Text(row.label)
+            .foregroundStyle(.secondary)
+          Spacer(minLength: 12)
+          Text(row.value)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .textSelection(.enabled)
+        }
+        .font(.system(size: 13))
+        .padding(.vertical, 3)
+        .overlay(alignment: .bottom) {
+          Divider()
         }
       }
-      .padding(.horizontal, 20)
-      .padding(.top, 10)
-      .padding(.bottom, 6)
     }
-    .frame(height: LauncherLayout.detailMetadataHeight, alignment: .top)
+    .padding(.horizontal, 20)
+    .padding(.top, 10)
+    .padding(.bottom, 6)
+    .fixedSize(horizontal: false, vertical: true)
     .padding(.bottom, LauncherLayout.detailFooterSafeInset)
-    .clipped()
   }
 
   private var rows: [Row] {

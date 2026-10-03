@@ -21,7 +21,7 @@ public enum FileDefaultAction: String, CaseIterable, Sendable {
   public var title: String {
     switch self {
     case .open: "Open"
-    case .reveal: "Reveal in Finder"
+    case .reveal: "Show in Finder"
     }
   }
 

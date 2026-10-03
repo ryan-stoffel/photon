@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Foundation
+import PhotonCore
 
 /// State and behaviour of the launcher's file mode. The launcher feeds it the
 /// query and key events; it owns the results, the selection, Quick Look, and
@@ -18,15 +19,6 @@ public final class FileSearchController: ObservableObject {
     case needsAccess(String)
   }
 
-  public struct KeyHint: Identifiable, Equatable, Sendable {
-    public let key: String
-    public let label: String
-
-    public var id: String {
-      key
-    }
-  }
-
   /// Ask the host to make the launcher panel key again (after Quick Look closes).
   public var onRequestFocus: (@MainActor () -> Void)?
   /// Ask the host to hide the launcher (after an action ran).
@@ -39,7 +31,6 @@ public final class FileSearchController: ObservableObject {
   @Published public private(set) var results: [RankedFile] = []
   @Published public private(set) var status: Status = .idle
   @Published public private(set) var isSearching = false
-  @Published public private(set) var showsInfo = false
   @Published public private(set) var notice: String?
   @Published public private(set) var accessNotice: String?
   @Published public private(set) var isRequestingAccess = false
@@ -58,7 +49,9 @@ public final class FileSearchController: ObservableObject {
   private var query = ""
   private var searchTask: Task<Void, Never>?
   private var noticeTask: Task<Void, Never>?
-  private var selectionMovedByUser = false
+  /// Query the current `results` belong to. A new query selects the first row, while a
+  /// re-run of the same query (after a settings change) keeps the selection.
+  private var resultsQuery = ""
   private var protectedResumeQuery: String?
   private var resumeProtectionTask: Task<Void, Never>?
 
@@ -75,6 +68,9 @@ public final class FileSearchController: ObservableObject {
     self.engine = engine
     quickLook.onDidClose = { [weak self] in
       self?.onRequestFocus?()
+    }
+    quickLook.onMove = { [weak self] delta in
+      self?.moveSelection(delta)
     }
   }
 
@@ -95,20 +91,9 @@ public final class FileSearchController: ObservableObject {
     isRequestingAccess = false
   }
 
-  public var keyHints: [KeyHint] {
-    [
-      KeyHint(key: "\u{21A9}", label: settings.defaultAction.title),
-      KeyHint(key: "\u{2318}\u{21A9}", label: settings.defaultAction.other.title),
-      KeyHint(key: "Space", label: "Quick Look"),
-      KeyHint(key: "\u{2318}C", label: "Copy Path"),
-      KeyHint(key: "\u{2318}I", label: "Info")
-    ]
-  }
-
   // MARK: - Lifecycle
 
   public func activate(query: String) {
-    showsInfo = false
     update(query: query)
   }
 
@@ -173,6 +158,7 @@ public final class FileSearchController: ObservableObject {
   private func loadRecents() {
     isSearching = true
     status = .searching
+    resultsQuery = ""
     searchTask = Task { [weak self] in
       guard let self else {
         return
@@ -185,7 +171,6 @@ public final class FileSearchController: ObservableObject {
       results = response?.files ?? []
       status = results.isEmpty ? .noRecents : .recents
       selectedID = results.first?.id
-      selectionMovedByUser = false
     }
   }
 
@@ -200,7 +185,6 @@ public final class FileSearchController: ObservableObject {
     quickLook.hide()
     noticeTask?.cancel()
     notice = nil
-    showsInfo = false
     query = ""
     clearResults()
   }
@@ -230,8 +214,9 @@ public final class FileSearchController: ObservableObject {
     } else {
       status = .results
     }
-    selectionMovedByUser = false
-    if let selectedID, results.contains(where: { $0.id == selectedID }) {
+    let sameQuery = query == resultsQuery
+    resultsQuery = query
+    if sameQuery, let selectedID, results.contains(where: { $0.id == selectedID }) {
       return
     }
     selectedID = results.first?.id
@@ -239,27 +224,25 @@ public final class FileSearchController: ObservableObject {
 
   private func clearResults() {
     results = []
+    resultsQuery = ""
     status = .idle
     isSearching = false
     selectedID = nil
-    selectionMovedByUser = false
   }
 
   // MARK: - Selection
 
+  /// Moves the selection by `delta` rows, stopping at the first and last rows.
   public func moveSelection(_ delta: Int) {
     guard !results.isEmpty else {
       return
     }
     let index = results.firstIndex { $0.id == selectedID } ?? 0
-    let next = (index + delta + results.count) % results.count
-    selectedID = results[next].id
-    selectionMovedByUser = true
+    selectedID = results[SelectionNavigation.moving(from: index, by: delta, count: results.count)].id
   }
 
   public func select(_ file: FileResult) {
     selectedID = file.id
-    selectionMovedByUser = true
   }
 
   // MARK: - Actions
@@ -282,14 +265,6 @@ public final class FileSearchController: ObservableObject {
     }
     FileActions.copyPath(selected)
     show(notice: "Path copied")
-  }
-
-  public func toggleInfo() {
-    if showsInfo {
-      showsInfo = false
-    } else if selected != nil {
-      showsInfo = true
-    }
   }
 
   public func toggleQuickLook() {
@@ -329,61 +304,10 @@ public final class FileSearchController: ObservableObject {
 
   // MARK: - Keys
 
-  /// Handles file-mode shortcuts. Returns true when the event was consumed.
-  /// Up, down, Enter, and Escape (outside Quick Look) stay with the launcher.
+  /// Escape closes Quick Look. Returns true when the event was consumed. Action shortcuts
+  /// (⌘↵, ⌘Y, ⌥⌘C) run from the launcher's action list; arrows and Enter stay with the launcher.
   public func handle(_ event: NSEvent) -> Bool {
-    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-    if flags.contains(.command) {
-      return handleCommandShortcut(event)
-    }
-    switch event.keyCode {
-    case 49:
-      return handleSpace()
-    case 53:
-      return handleEscape()
-    default:
-      return false
-    }
-  }
-
-  private func handleCommandShortcut(_ event: NSEvent) -> Bool {
-    if event.keyCode == 36 || event.keyCode == 76 {
-      if performSecondaryAction() {
-        onRequestDismiss?()
-      }
-      return true
-    }
-    switch event.charactersIgnoringModifiers?.lowercased() ?? "" {
-    case "c":
-      copyPath()
-      return true
-    case "i":
-      toggleInfo()
-      return true
-    case "y":
-      toggleQuickLook()
-      return true
-    default:
-      return false
-    }
-  }
-
-  /// Space previews once the user has moved the selection; before that it
-  /// keeps typing into the query so multi-word searches still work.
-  private func handleSpace() -> Bool {
-    if quickLook.isVisible {
-      quickLook.hide()
-      return true
-    }
-    guard selectionMovedByUser, selected != nil else {
-      return false
-    }
-    toggleQuickLook()
-    return true
-  }
-
-  private func handleEscape() -> Bool {
-    guard quickLook.isVisible else {
+    guard event.keyCode == 53, quickLook.isVisible else {
       return false
     }
     quickLook.hide()

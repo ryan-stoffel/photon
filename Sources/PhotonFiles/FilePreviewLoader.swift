@@ -6,14 +6,13 @@ import QuickLookThumbnailing
 @MainActor
 final class FilePreviewLoader: ObservableObject {
   @Published private(set) var image: NSImage?
-  @Published private(set) var isLoading = false
 
   private var task: Task<Void, Never>?
 
+  /// Shows the cached Finder icon right away, then swaps in the Quick Look thumbnail.
   func load(_ file: FileResult, size: CGSize, scale: CGFloat) {
     task?.cancel()
-    image = nil
-    isLoading = true
+    image = FileIconCache.shared.icon(for: file)
     task = Task {
       let request = QLThumbnailGenerator.Request(
         fileAt: file.url,
@@ -26,7 +25,6 @@ final class FilePreviewLoader: ObservableObject {
         return
       }
       image = representation?.nsImage ?? FileIconCache.shared.icon(for: file)
-      isLoading = false
     }
   }
 }
