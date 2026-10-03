@@ -123,7 +123,6 @@ private struct WelcomeChromeStroke: View {
 
 /// One window on the active space. Same material and corners as the launcher.
 final class WelcomeWindow: NSWindow {
-  static let identifier = NSUserInterfaceItemIdentifier("photon.welcome")
   static let contentWidth: CGFloat = 600
   static let contentHeight: CGFloat = 460
 
@@ -141,7 +140,6 @@ final class WelcomeWindow: NSWindow {
     window.title = WelcomeCopy.step
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
-    window.identifier = identifier
     window.isReleasedWhenClosed = false
     window.isRestorable = false
     window.level = .normal
