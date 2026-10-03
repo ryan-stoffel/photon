@@ -11,6 +11,15 @@ extension LauncherPanelController {
       guard let self else {
         return false
       }
+      // actions[0] is the primary (↵) action and has no shortcut; runSelection() handles it.
+      if let action = model.currentActions.dropFirst().first(where: { $0.shortcut?.matches(event) == true }) {
+        Task {
+          if await action.run() {
+            hide(restorePrevious: false)
+          }
+        }
+        return true
+      }
       switch model.session {
       case .clipboard:
         return handleClipboardKey(event) == nil

@@ -154,7 +154,7 @@ func displayedTitles(_ report: [String: Any]) -> [String] {
 }
 
 /// Finder.app is the first command, Search Files and filename hits sit below it,
-/// and the query has not been promoted into a files-only list.
+/// and the launcher stays in the root list.
 func finderQueryKeepsTheApp(_ report: [String: Any]) -> Bool {
   let state = launcher(report)
   let ids = strings(state["displayedCommandIDs"])
@@ -1681,7 +1681,6 @@ do {
 
   clickSearchField(report)
   try require(focusPhotonTextField(pid: pid), "drag chrome does not hijack the search field")
-  try sendRuntimeCommand("holdCommandList")
   try require(setPhotonTextFieldValue(pid: pid, value: "clipboard"), "search field remains editable after dragging")
   report = try wait("row remains clickable after dragging") {
     string(launcher($0)["query"]) == "clipboard"
@@ -1717,7 +1716,6 @@ do {
     }
   }
   try require(enteredClipboard, "row click enters clipboard instead of starting a drag")
-  try sendRuntimeCommand("releaseCommandList")
   try sendRuntimeCommand("hideLauncher")
   _ = try wait("drag interaction checks close cleanly") {
     !bool(launcher($0)["visible"])
@@ -1978,22 +1976,14 @@ do {
   clickSearchField(report)
   try require(focusPhotonTextField(pid: pid), "Accessibility focuses mixed-search field")
   try require(setPhotonTextFieldValue(pid: pid, value: "ember"), "Accessibility enters mixed file query")
-  report = try wait("mixed launcher promotes into Files split UI with the seeded PDF", timeout: 12) {
+  report = try wait("mixed launcher keeps the seeded PDF as a root row", timeout: 12) {
     string(launcher($0)["query"]) == "ember"
-      && string(launcher($0)["mode"]) == "files"
-      && string(launcher($0)["content"]) == "fullHeight"
+      && string(launcher($0)["mode"]).isEmpty
+      && string(launcher($0)["content"]) == "rows"
       && displayedTitles($0).contains(expectedFile)
-      && string(launcher($0)["fileSelectedName"]) == expectedFile
-      && abs(double(dictionary(launcher($0)["frame"])["width"]) - launcherBarWidth) < 0.5
-      && abs(double(frame($0)["width"]) - sharedExpandedWidth) < 0.5
-      && abs(double(frame($0)["height"]) - sharedExpandedHeight) < 0.5
+      && abs(double(frame($0)["width"]) - launcherBarWidth) < 0.5
   }
-  try captureLauncher(
-    report,
-    name: "ember-mixed-search",
-    expectedText: expectedFile,
-    additionalExpectedText: ["Results", "Metadata", "Name", "Where", "Type"]
-  )
+  try captureLauncher(report, name: "ember-mixed-search", expectedText: expectedFile)
 
   try sendRuntimeCommand("hideLauncher")
   _ = try wait("launcher closes before explicit Files recents check") {

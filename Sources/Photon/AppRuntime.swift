@@ -34,7 +34,7 @@ final class AppRuntime: ObservableObject {
     let defaults = Self.userDefaultsForLaunch()
     let settings = SettingsStore(defaults: defaults)
     self.settings = settings
-    let dir = Self.applicationSupportDirectory()
+    let dir = Self.dataDirectory()
     fileAccess = FileAccessCoordinator(defaults: defaults)
     frecencyURL = dir.appendingPathComponent("frecency.json")
     launcher = LauncherPanelController(
@@ -130,7 +130,8 @@ final class AppRuntime: ObservableObject {
     }
   }
 
-  private static func applicationSupportDirectory() -> URL {
+  /// Photon's data folder in Application Support, or under the isolated root for UI scenarios and parity runs.
+  static func dataDirectory() -> URL {
     if let root = isolatedDataRoot {
       return root.appendingPathComponent("Photon", isDirectory: true)
     }

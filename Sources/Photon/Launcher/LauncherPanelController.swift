@@ -14,7 +14,7 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
   let registry: CommandRegistry
   private let frecencyURL: URL
   let model: LauncherViewModel
-  /// Set by `FileSearchIntegration` so main-bar queries can promote into Files mode.
+  /// Set by `FileSearchIntegration` so hiding can cancel inline file searches.
   weak var filesProvider: FilesProvider?
   /// Set by `FileSearchIntegration` for parity hooks and hard resets between Files sessions.
   weak var fileSearchController: FileSearchController?
@@ -120,33 +120,6 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
       return
     }
     Task { await model.refresh() }
-  }
-
-  /// Opens the full Files session (split preview, recents, footer) for a main-bar query.
-  func promoteFilesMode(query: String) {
-    guard panel?.isVisible == true else {
-      return
-    }
-    guard !NativeParityReporter.suppressFilesPromotion else {
-      return
-    }
-    guard model.showsCommandList, model.activeMode == nil else {
-      return
-    }
-    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard trimmed.count >= FileSearchSettings.inlineMinimumQueryLength else {
-      return
-    }
-    guard filesProvider?.hasInlineResults(for: trimmed) == true else {
-      return
-    }
-    guard let mode = model.modes.first(where: { $0.id == "files" }) else {
-      return
-    }
-    if let prefetched = filesProvider?.inlineRankedFiles(for: trimmed) {
-      fileSearchController?.seedResults(prefetched, query: trimmed)
-    }
-    model.enter(mode: mode, query: trimmed)
   }
 
   func preload() {

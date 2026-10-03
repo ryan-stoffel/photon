@@ -1,8 +1,17 @@
 import AppKit
 
-/// One entry in the ⌘K action panel. The first action of a list is the primary (↵) action
-/// the footer names. `shortcut` is drawn as keycaps and runs the action when pressed while
-/// the launcher is key, whether or not the panel is open.
+/// One entry in the ⌘K action panel. `shortcut` is drawn as keycaps and runs the action when
+/// pressed while the launcher is key, whether or not the panel is open.
+///
+/// Rules for every action list:
+/// - `actions[0]` is the primary action and its shortcut is nil. ↵ keeps running it through
+///   `runSelection()` / `performPrimaryAction()`, so its `run` must do the same thing. The footer
+///   shows its title.
+/// - Every other shortcut includes ⌘ or ⌃. Reserved: ↵ ↑ ↓ Esc ⌫ ⌘K ⌘W ⌘A ⌘C ⌘V ⌘X ⌘Z ⇧⌘Z ⌃N ⌃P
+///   PgUp PgDn Home End.
+/// - Building the list does no IO. `run` returns true to hide, and dispatch hides with
+///   `restorePrevious: false`.
+/// - Ids are "<area>.<verb>", for example "app.showInFinder" or "file.copyPath".
 struct LauncherAction: Identifiable {
   let id: String
   let title: String

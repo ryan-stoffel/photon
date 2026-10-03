@@ -32,7 +32,7 @@ final class FileSearchIntegration {
     launcher.filesProvider = provider
     launcher.fileSearchController = controller
     launcher.register(mode: FileSearchMode(controller: controller))
-    provider.onInlineResultsChanged = { [weak launcher] query, hasFileHits in
+    provider.onInlineResultsChanged = { [weak launcher] query in
       guard let launcher else {
         return
       }
@@ -40,26 +40,7 @@ final class FileSearchIntegration {
       guard launcher.model.query.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed else {
         return
       }
-      guard hasFileHits else {
-        launcher.refreshResults()
-        return
-      }
-      // An application match stays in the command list. Promoting here would
-      // hide Finder.app (and any other app-name query) behind a files-only list.
-      let registry = launcher.registry
-      Task { @MainActor [weak launcher] in
-        guard let launcher else {
-          return
-        }
-        guard launcher.model.query.trimmingCharacters(in: .whitespacesAndNewlines) == trimmed else {
-          return
-        }
-        if await registry.containsApplication(matching: trimmed) {
-          launcher.refreshResults()
-        } else {
-          launcher.promoteFilesMode(query: trimmed)
-        }
-      }
+      launcher.refreshResults()
     }
 
     // objectWillChange fires before the write lands; hop once through the run loop to read the new values.

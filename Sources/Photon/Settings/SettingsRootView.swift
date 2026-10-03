@@ -7,6 +7,8 @@ struct SettingsRootView: View {
   @EnvironmentObject private var settingsFocus: SettingsFocusModel
   @FocusState private var focus: SettingsFocusTarget?
   @State private var hostWindow: NSWindow?
+  /// The open pane's `.settingsFocused` controls in layout order, from `SettingsFocusOrderKey`.
+  @State private var contentOrder: [SettingsFocusTarget] = []
 
   var body: some View {
     HStack(spacing: 0) {
@@ -17,6 +19,7 @@ struct SettingsRootView: View {
         .frame(width: LauncherLayout.hairline)
       SettingsDetailView()
         .id(settings.selectedPane)
+        .onPreferenceChange(SettingsFocusOrderKey.self) { contentOrder = $0 }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -64,7 +67,7 @@ struct SettingsRootView: View {
   }
 
   private func moveFocus(forward: Bool) {
-    let order = SettingsFocusTarget.order(pane: settings.selectedPane)
+    let order = SettingsPaneID.allCases.map { SettingsFocusTarget.sidebar($0) } + contentOrder
     guard let first = order.first, let last = order.last else {
       return
     }

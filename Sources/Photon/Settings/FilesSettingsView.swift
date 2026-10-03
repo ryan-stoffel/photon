@@ -44,7 +44,7 @@ struct FilesSettingsView: View {
       PhotonSettingsCard(
         title: "Actions",
         footer: "Command-Enter performs the other action. Space or Command-Y opens Quick Look. "
-          + "Up to three strong matches appear below applications once you have typed three characters."
+          + "Filename matches appear below other results after three characters."
       ) {
         PhotonSettingsRow(title: "Enter") {
           Picker("Enter", selection: $settings.filesDefaultAction) {

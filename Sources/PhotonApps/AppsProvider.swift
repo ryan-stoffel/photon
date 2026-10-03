@@ -48,6 +48,14 @@ public final class AppsProvider: CommandProvider, @unchecked Sendable {
     try await open(app)
   }
 
+  /// Bundle URL behind an `app:` command, for Show in Finder and Copy Path. Nil for panes and other providers.
+  public func applicationURL(for command: Command) -> URL? {
+    guard command.id.hasPrefix("app:") else {
+      return nil
+    }
+    return index.applications.first { $0.id == command.id }?.url
+  }
+
   @MainActor
   private func open(_ app: IndexedApplication) async throws {
     if app.url.pathExtension == "app" {
