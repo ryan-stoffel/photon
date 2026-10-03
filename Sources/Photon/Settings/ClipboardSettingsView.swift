@@ -22,6 +22,9 @@ struct ClipboardSettingsView: View {
     .onAppear {
       clipboard.refreshAccessibility()
     }
+    .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+      clipboard.refreshAccessibility()
+    }
     .confirmationDialog(
       "Clear clipboard history?",
       isPresented: $isConfirmingClear,
@@ -39,7 +42,7 @@ struct ClipboardSettingsView: View {
   private var historySection: some View {
     PhotonSettingsCard(
       title: "History",
-      footer: "Pinned items never expire and do not count against the limit."
+      footer: "Pinned items never expire. They count toward the limit but are never removed."
     ) {
       PhotonSettingsRow(title: "Save clipboard history") {
         Toggle("", isOn: $settings.clipboardEnabled)
@@ -77,15 +80,16 @@ struct ClipboardSettingsView: View {
   private var pasteSection: some View {
     PhotonSettingsCard(
       title: "Paste",
-      footer: "Cmd+Return always copies without pasting."
+      footer: "Return runs the primary action. Cmd+Return runs the other one."
     ) {
-      PhotonSettingsRow(title: "Return key") {
-        Picker("Return key", selection: $settings.clipboardPasteBehavior) {
+      PhotonSettingsRow(title: "Primary Action") {
+        Picker("Primary Action", selection: $settings.clipboardPasteBehavior) {
           ForEach(ClipboardPasteBehavior.allCases) { behavior in
             Text(behavior.label).tag(behavior)
           }
         }
         .labelsHidden()
+        .settingsFocused(.control("clipboard.pasteBehavior"))
         .frame(maxWidth: 180)
       }
       if settings.clipboardPasteBehavior == .paste {
@@ -112,6 +116,7 @@ struct ClipboardSettingsView: View {
           clipboard.openAccessibilitySettings()
         }
         .buttonStyle(.borderless)
+        .settingsFocused(.control("clipboard.accessibility"))
       }
     }
     .padding(.horizontal, 10)
@@ -128,12 +133,34 @@ struct ClipboardSettingsView: View {
           .toggleStyle(.switch)
           .labelsHidden()
           .disabled(!settings.clipboardEnabled)
+          .settingsFocused(.control("clipboard.hotkeyEnabled"))
       }
       PhotonSettingsRow(title: "Shortcut") {
         HotkeyRecorder(combo: $settings.clipboardHotkey)
           .frame(width: 180, height: 24)
       }
+      if let hotkeyClash {
+        Text(hotkeyClash)
+          .font(.system(size: 12))
+          .foregroundStyle(.red)
+          .padding(.horizontal, 10)
+          .padding(.bottom, 6)
+      }
     }
+  }
+
+  /// Carbon refuses a second registration of the same combo, so one of the two shortcuts would not work.
+  private var hotkeyClash: String? {
+    guard settings.clipboardEnabled, settings.clipboardHotkeyEnabled else {
+      return nil
+    }
+    if settings.clipboardHotkey == settings.hotkey {
+      return "The launcher already uses this shortcut."
+    }
+    if settings.clipboardHotkey == settings.notesHotkey {
+      return "Notes already uses this shortcut."
+    }
+    return nil
   }
 
   private var excludedAppsSection: some View {
@@ -173,9 +200,12 @@ struct ClipboardSettingsView: View {
         TextField("Bundle identifier, e.g. com.example.app", text: $newBundleID)
           .textFieldStyle(.roundedBorder)
           .onSubmit(addTypedBundleID)
+          .settingsFocused(.control("clipboard.excludedField"))
         Button("Add", action: addTypedBundleID)
           .disabled(newBundleID.trimmingCharacters(in: .whitespaces).isEmpty)
+          .settingsFocused(.control("clipboard.excludedAdd"))
         Button("Choose App…", action: chooseApp)
+          .settingsFocused(.control("clipboard.chooseApp"))
       }
       .padding(.horizontal, 10)
       .padding(.bottom, 6)
@@ -189,18 +219,23 @@ struct ClipboardSettingsView: View {
           .foregroundStyle(.secondary)
           .monospacedDigit()
       }
-      PhotonSettingsCaption(text: "Stored in ~/Library/Application Support/Photon/Clipboard")
+      PhotonSettingsCaption(text: "Stored in \(Self.storagePath)")
       HStack {
         Spacer()
         Button("Clear History…", role: .destructive) {
           isConfirmingClear = true
         }
         .disabled(clipboard.items.isEmpty)
+        .settingsFocused(.control("clipboard.clear"))
       }
       .padding(.horizontal, 10)
       .padding(.bottom, 6)
     }
   }
+
+  /// The folder `AppRuntime` gives the clipboard store, with the home folder shown as ~.
+  private static let storagePath = (AppRuntime.dataDirectory().appendingPathComponent("Clipboard").path as NSString)
+    .abbreviatingWithTildeInPath
 
   private func addTypedBundleID() {
     let trimmed = newBundleID.trimmingCharacters(in: .whitespacesAndNewlines)
