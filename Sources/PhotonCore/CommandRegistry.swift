@@ -36,6 +36,8 @@ public final class CommandRegistry: @unchecked Sendable {
     }
   }
 
+  /// Ranks every provider's matches for `query`. A typed query orders by text match, and frecency
+  /// (capped at 0.2) only breaks near-ties. The empty query orders by raw frecency.
   public func search(_ query: String, frecency: FrecencyStore) async -> [RankedCommand] {
     let snapshot = allProviders
     let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -50,8 +52,9 @@ public final class CommandRegistry: @unchecked Sendable {
           continue
         }
         let freq = frecency.score(id: command.id)
+        let boost = trimmed.isEmpty ? freq : min(freq, 2) * 0.1
         ranked.append(
-          RankedCommand(command: command, textScore: text ?? 0, frecencyScore: freq)
+          RankedCommand(command: command, textScore: text ?? 0, frecencyScore: boost)
         )
       }
     }
@@ -71,9 +74,13 @@ public final class CommandRegistry: @unchecked Sendable {
     try await provider.execute(command)
   }
 
+  /// Exact title 6, exact keyword 5, fuzzy title (0, 1], fuzzy keyword 0.15, otherwise no match.
   private func textScore(query: String, command: Command) -> Double? {
     if query.isEmpty {
       return 0
+    }
+    if command.title.caseInsensitiveCompare(query) == .orderedSame {
+      return 6
     }
     if command.keywords.contains(where: { $0.caseInsensitiveCompare(query) == .orderedSame }) {
       return 5
