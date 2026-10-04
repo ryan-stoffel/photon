@@ -259,6 +259,11 @@ struct LauncherView: View {
     )
     .contentShape(Rectangle())
     .onTapGesture {
+      // A click outside the open ⌘K panel only closes it.
+      if model.showsActions {
+        model.showsActions = false
+        return
+      }
       model.selectedID = row.id
       Task { await run() }
     }

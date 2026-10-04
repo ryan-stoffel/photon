@@ -35,7 +35,16 @@ extension LauncherViewModel {
       showsActions = false
     } else if !currentActions.isEmpty {
       actionQuery = ""
+      actionsOpenedTitle = actionPanelTitle
       showsActions = true
+    }
+  }
+
+  /// Closes ⌘K when the clipboard or mode selection moved under it, so its actions never
+  /// silently retarget another item. Two items with the same title do not trigger a close.
+  func closeActionsIfSelectionMoved() {
+    if showsActions, actionPanelTitle != actionsOpenedTitle {
+      showsActions = false
     }
   }
 

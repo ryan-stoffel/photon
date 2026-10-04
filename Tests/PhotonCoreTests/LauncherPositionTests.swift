@@ -42,7 +42,7 @@ final class LauncherPositionTests: XCTestCase {
     let origin = PanelOrigin(x: visible.midX - panel.width / 2, y: 400)
     let stored = LauncherPosition.storedPosition(origin: origin, panelSize: panel, visible: visible)
     XCTAssertTrue(stored.isHorizontallyCentered)
-    XCTAssertEqual(stored.top, 400 + panel.height, accuracy: 0.001)
+    XCTAssertEqual(stored.topInset, visible.maxY - (400 + panel.height), accuracy: 0.001)
   }
 
   func testTopSavedAtExpandedHeightReopensCompactAtTheSameTop() {
@@ -56,7 +56,7 @@ final class LauncherPositionTests: XCTestCase {
     XCTAssertEqual(compact.y + panel.height, 200 + expanded.height, accuracy: 0.001)
   }
 
-  func testStoredPositionFollowsAVisibleFrameWithANonZeroOrigin() {
+  func testStoredPositionKeepsTopInsetAndCenterOffsetOnALargerDisplay() {
     let primary = ScreenVisibleFrame(minX: 0, minY: 80, width: 1440, height: 820)
     let secondary = ScreenVisibleFrame(minX: 1440, minY: 25, width: 1920, height: 1050)
     let stored = LauncherPosition.storedPosition(
@@ -66,8 +66,12 @@ final class LauncherPositionTests: XCTestCase {
     )
     XCTAssertFalse(stored.isHorizontallyCentered)
     let origin = LauncherPosition.origin(panelSize: panel, visible: secondary, stored: stored)
-    XCTAssertEqual(origin.x, secondary.minX + 20, accuracy: 0.001)
-    XCTAssertEqual(origin.y - secondary.minY, 500 - primary.minY, accuracy: 0.001)
+    XCTAssertEqual(origin.x + panel.width / 2 - secondary.midX, 20 + panel.width / 2 - primary.midX, accuracy: 0.001)
+    XCTAssertEqual(
+      secondary.maxY - (origin.y + panel.height),
+      primary.maxY - (500 + panel.height),
+      accuracy: 0.001
+    )
   }
 
   func testClampingKeepsPanelInsideVisibleFrame() {
@@ -78,7 +82,11 @@ final class LauncherPositionTests: XCTestCase {
   }
 
   func testStoredOriginUsesSavedYAndCenterFlag() {
-    let stored = LauncherStoredPosition(top: 512 + panel.height, isHorizontallyCentered: true, left: 0)
+    let stored = LauncherStoredPosition(
+      topInset: visible.maxY - (512 + panel.height),
+      isHorizontallyCentered: true,
+      centerOffset: 0
+    )
     let origin = LauncherPosition.origin(panelSize: panel, visible: visible, stored: stored)
     XCTAssertEqual(origin.y, 512, accuracy: 0.001)
     XCTAssertEqual(origin.x, visible.midX - panel.width / 2, accuracy: 0.001)
@@ -202,7 +210,11 @@ final class LauncherPositionTests: XCTestCase {
   }
 
   func testStoredOriginUsesSavedXWhenNotCentered() {
-    let stored = LauncherStoredPosition(top: 300 + panel.height, isHorizontallyCentered: false, left: 120)
+    let stored = LauncherStoredPosition(
+      topInset: visible.maxY - (300 + panel.height),
+      isHorizontallyCentered: false,
+      centerOffset: 120 + panel.width / 2 - visible.midX
+    )
     let origin = LauncherPosition.origin(panelSize: panel, visible: visible, stored: stored)
     XCTAssertEqual(origin.x, 120, accuracy: 0.001)
     XCTAssertEqual(origin.y, 300, accuracy: 0.001)

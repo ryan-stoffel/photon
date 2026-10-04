@@ -92,7 +92,7 @@ final class LauncherLayoutTests: XCTestCase {
     }
   }
 
-  func testSuggestionsFitOnOnePage() {
+  func testFullSuggestionsPageFillsTheExpandedPanelAndScrolls() {
     XCTAssertEqual(LauncherLayout.suggestionCount, LauncherLayout.maxVisibleRows)
     XCTAssertEqual(
       LauncherLayout.height(
@@ -100,6 +100,8 @@ final class LauncherLayoutTests: XCTestCase {
       ),
       LauncherLayout.expandedHeight
     )
+    // The section header takes a row's worth of space, so the last suggestion scrolls into view.
+    XCTAssertGreaterThan(LauncherLayout.suggestionCount, LauncherLayout.visibleRecommendationRows)
   }
 
   func testRecommendationCatalogIsTallerThanOneVisiblePage() {
@@ -108,7 +110,7 @@ final class LauncherLayoutTests: XCTestCase {
     XCTAssertEqual(
       LauncherLayout.visibleRecommendationRows,
       SelectionNavigation.visibleRowCount(
-        listHeight: LauncherLayout.expandedListHeight,
+        listHeight: LauncherLayout.expandedListHeight - LauncherLayout.sectionHeaderHeight,
         rowHeight: LauncherLayout.rowHeight,
         inset: LauncherLayout.listInset
       )

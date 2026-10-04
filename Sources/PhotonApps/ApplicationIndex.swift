@@ -57,7 +57,8 @@ public final class ApplicationIndex: @unchecked Sendable {
     }
     includeSystemFinder(into: &found)
 
-    // Two copies of one bundle id (Xcode and Xcode-beta) would share a row id. The first root scanned wins.
+    // Two copies of one bundle id (Xcode and Xcode-beta) would share a row id. The earlier root wins,
+    // then the first name in `collectApps` order, so Xcode beats Xcode-beta.
     var seenIDs = Set<String>()
     found = found.filter { seenIDs.insert($0.id).inserted }
 
@@ -95,7 +96,11 @@ public final class ApplicationIndex: @unchecked Sendable {
     ) else {
       return
     }
-    for url in children where !url.lastPathComponent.hasPrefix(".") {
+    // Directory order is hash order on APFS. Sort by name without the extension so the dedupe is stable.
+    let sorted = children.sorted {
+      $0.deletingPathExtension().lastPathComponent < $1.deletingPathExtension().lastPathComponent
+    }
+    for url in sorted where !url.lastPathComponent.hasPrefix(".") {
       if url.pathExtension == "app" {
         if let app = readApp(at: url) {
           found.append(app)

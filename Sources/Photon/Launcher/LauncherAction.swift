@@ -24,7 +24,7 @@ struct LauncherAction: Identifiable {
   let run: @MainActor () async -> Bool
 }
 
-/// A key equivalent: a virtual key code plus device-independent modifiers.
+/// A key equivalent: a virtual key code plus device-independent modifiers. See `matches` for letter keys.
 struct LauncherShortcut: Equatable {
   let keyCode: UInt16
   let modifiers: NSEvent.ModifierFlags
@@ -33,11 +33,27 @@ struct LauncherShortcut: Equatable {
 
   static let relevantModifiers: NSEvent.ModifierFlags = [.control, .option, .shift, .command]
 
-  /// Caps Lock, Fn, and numeric-pad flags never affect the match. Keypad Enter (76) counts as Return (36).
+  /// Letters match by character so other keyboard layouts keep working. Other keys, and letters
+  /// typed on a non-Latin layout, match by key code. Caps Lock, Fn, and numeric-pad flags never
+  /// affect the match. Keypad Enter (76) counts as Return (36).
   func matches(_ event: NSEvent) -> Bool {
+    guard event.modifierFlags.intersection(Self.relevantModifiers) == modifiers.intersection(Self.relevantModifiers)
+    else {
+      return false
+    }
+    if let letter = Self.asciiLetter(key), let typed = event.charactersIgnoringModifiers.flatMap(Self.asciiLetter) {
+      return typed == letter
+    }
     let eventKey = event.keyCode == 76 ? 36 : event.keyCode
     return eventKey == keyCode
-      && event.modifierFlags.intersection(Self.relevantModifiers) == modifiers.intersection(Self.relevantModifiers)
+  }
+
+  /// The lowercased letter when `text` is a single ASCII letter.
+  private static func asciiLetter(_ text: String) -> Character? {
+    guard text.count == 1, let character = text.lowercased().first, character.isASCII, character.isLetter else {
+      return nil
+    }
+    return character
   }
 
   /// Keycap labels in macOS order: ⌃ ⌥ ⇧ ⌘ then the key.

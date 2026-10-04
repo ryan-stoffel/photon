@@ -74,6 +74,9 @@ final class LauncherViewModel: ObservableObject {
   /// Highlighted ⌘K panel row. Nil means the first filtered action.
   @Published var actionSelectedID: String?
 
+  /// `actionPanelTitle` when ⌘K opened. Mode and clipboard selections close the panel when it changes.
+  var actionsOpenedTitle = ""
+
   @Published private(set) var activeMode: (any LauncherMode)? {
     didSet { updateContent() }
   }
@@ -124,6 +127,7 @@ final class LauncherViewModel: ObservableObject {
           guard let self else {
             return
           }
+          closeActionsIfSelectionMoved()
           objectWillChange.send()
           updateContent()
         }
@@ -186,6 +190,7 @@ final class LauncherViewModel: ObservableObject {
   }
 
   func refreshLayout() {
+    closeActionsIfSelectionMoved()
     objectWillChange.send()
     updateContent()
   }

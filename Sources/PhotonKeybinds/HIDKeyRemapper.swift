@@ -67,10 +67,10 @@ public enum HIDKeyRemapper {
     }
   }
 
-  /// True when a Photon mapping is present in the current session.
-  public static func isInstalled(source: UInt64) -> Bool {
+  /// True when a Photon mapping is present in the current session, nil when hidutil could not be read.
+  public static func isInstalled(source: UInt64) -> Bool? {
     guard let existing = try? currentMapping() else {
-      return false
+      return nil
     }
     return existing.contains(HIDKeyMappingPair(source: source, destination: HyperKeySource.destinationUsage))
   }

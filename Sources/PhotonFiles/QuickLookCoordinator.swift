@@ -100,13 +100,16 @@ extension QuickLookCoordinator: @preconcurrency QLPreviewPanelDelegate {
       return false
     }
     let modifiers = event.modifierFlags.intersection([.control, .option, .shift, .command])
+    // ⌘Y matches by character so other keyboard layouts keep working.
+    if modifiers == .command, event.charactersIgnoringModifiers?.lowercased() == "y" {
+      hide()
+      return true
+    }
     switch event.keyCode {
     case 125 where modifiers.isEmpty:
       onMove?(1)
     case 126 where modifiers.isEmpty:
       onMove?(-1)
-    case 16 where modifiers == .command:
-      hide()
     default:
       return false
     }

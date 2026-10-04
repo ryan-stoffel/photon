@@ -28,6 +28,11 @@ final class CalculatorEngineTests: XCTestCase {
     XCTAssertEqual(CalculatorEngine.evaluate("-(10^19)")?.value, "-1e+19")
   }
 
+  func testExactIntegersUpTo2Pow53PrintInFull() {
+    XCTAssertEqual(CalculatorEngine.evaluate("10^15+1")?.value, "1000000000000001")
+    XCTAssertEqual(CalculatorEngine.evaluate("2^53")?.value, "9007199254740992")
+  }
+
   func testNegativeOperandsAndRightAssociativePower() {
     let cases = ["2*-3": "-6", "3 - -2": "5", "2^-1": "0.5", "10 / -2": "-5", "2^3^2": "512", "-3^2": "-9"]
     for (query, value) in cases {
@@ -51,6 +56,8 @@ final class CalculatorEngineTests: XCTestCase {
     XCTAssertEqual(CalculatorEngine.evaluate("5 \u{2212} 2", locale: enUS)?.value, "3")
     XCTAssertEqual(CalculatorEngine.evaluate("1.000,5 + 1", locale: Locale(identifier: "de_DE"))?.value, "1001.5")
     XCTAssertEqual(CalculatorEngine.evaluate("0.1 + 0.2", locale: Locale(identifier: "de_DE"))?.value, "0.3")
+    XCTAssertEqual(CalculatorEngine.evaluate("0.125 * 8", locale: Locale(identifier: "de_DE"))?.value, "1")
+    XCTAssertEqual(CalculatorEngine.evaluate("10.125 * 8", locale: Locale(identifier: "de_DE"))?.value, "81000")
   }
 
   func testDisplayValueGroupsForTheLocaleAndCopyStaysRaw() throws {

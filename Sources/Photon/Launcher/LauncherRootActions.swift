@@ -16,9 +16,19 @@ extension LauncherViewModel {
       return [LauncherAction(id: "calculator.copyAnswer", title: "Copy Answer", symbol: "doc.on.doc", run: primary)]
     }
     if let path = FilesProvider.path(forCommandID: command.id) {
+      // ↵ runs the Settings > Files Enter action through FilesProvider.execute, ⌘↵ the other one.
+      let url = URL(fileURLWithPath: path)
+      let enter = (mode(forInlineProvider: command.providerID) as? FileSearchMode)?.controller.settings
+        .defaultAction ?? .open
+      let other = enter == .open
+        ? showInFinder(id: "file.showInFinder", url: url)
+        : LauncherAction(id: "file.open", title: "Open", symbol: "arrow.up.forward.app", shortcut: .commandReturn) {
+          NSWorkspace.shared.open(url)
+          return true
+        }
       return [
-        LauncherAction(id: "file.open", title: "Open", symbol: "arrow.up.forward.app", run: primary),
-        showInFinder(id: "file.showInFinder", url: URL(fileURLWithPath: path)),
+        LauncherAction(id: enter.actionID, title: enter.title, symbol: enter.symbol, run: primary),
+        other,
         copy(id: "file.copyPath", title: "Copy Path", value: path, modifier: .option),
       ]
     }

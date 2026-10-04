@@ -45,6 +45,16 @@ final class MdfindQueryRunner: @unchecked Sendable {
       finish(Outcome(spotlightAvailable: false))
       return
     }
+    // A cancel that landed while the process launched could not stop it (terminate() raises before launch).
+    lock.lock()
+    let cancelledDuringLaunch = self.process !== process
+    lock.unlock()
+    if cancelledDuringLaunch {
+      if process.isRunning {
+        process.terminate()
+      }
+      return
+    }
     // Drain stdout while mdfind runs: a full pipe buffer would block it until the timeout.
     DispatchQueue.global(qos: .userInitiated).async { [weak self] in
       let data = (try? output.fileHandleForReading.readToEnd()) ?? Data()
@@ -53,11 +63,8 @@ final class MdfindQueryRunner: @unchecked Sendable {
     }
   }
 
+  /// `finish` only terminates a launched process: terminate() on an unlaunched one raises.
   func cancel() {
-    lock.lock()
-    let process = process
-    lock.unlock()
-    process?.terminate()
     finish(Outcome(cancelled: true))
   }
 
@@ -67,7 +74,9 @@ final class MdfindQueryRunner: @unchecked Sendable {
     timedOut = true
     let process = process
     lock.unlock()
-    process?.terminate()
+    if let process, process.isRunning {
+      process.terminate()
+    }
   }
 
   private func processFinished(_ process: Process, data: Data, scanLimit: Int) {

@@ -63,10 +63,10 @@ public enum LauncherLayout {
   public static let suggestionCount = maxVisibleRows
   /// Empty-query recommendations list the full catalog (apps, recs, shortcuts), not one page.
   public static let recommendationCatalogLimit = 250
-  /// Fully visible rows in the expanded recommendations list.
+  /// Fully visible rows under the first section header in the expanded recommendations list.
   public static var visibleRecommendationRows: Int {
     SelectionNavigation.visibleRowCount(
-      listHeight: expandedListHeight,
+      listHeight: expandedListHeight - sectionHeaderHeight,
       rowHeight: rowHeight,
       inset: listInset
     )

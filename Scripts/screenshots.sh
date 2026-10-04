@@ -17,6 +17,7 @@ SCENARIOS=(
   launcher-empty
   launcher-recs
   launcher-query:saf
+  launcher-actions:saf
   calculator
   clipboard-empty
   files-empty

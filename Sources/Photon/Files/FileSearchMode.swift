@@ -138,7 +138,7 @@ final class FileSearchMode: LauncherMode {
   }
 }
 
-private extension FileDefaultAction {
+extension FileDefaultAction {
   var actionID: String {
     self == .open ? "file.open" : "file.showInFinder"
   }

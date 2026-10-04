@@ -173,8 +173,15 @@ final class StatusItemController: NSObject {
     return item
   }
 
+  /// Brings an open launcher forward without resetting its query or mode.
   @objc private func openLauncher() {
-    runtime.launcher.show()
+    let launcher = runtime.launcher
+    if let panel = launcher.panel, panel.isVisible, launcher.model.session == .commands {
+      panel.makeKey()
+      launcher.model.requestSearchFocus()
+      return
+    }
+    launcher.show()
   }
 
   /// Unlike the hotkey, the menu item never closes clipboard history that is already showing.

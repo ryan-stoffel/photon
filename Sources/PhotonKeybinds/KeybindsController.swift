@@ -75,11 +75,19 @@ public final class KeybindsController: ObservableObject {
     permissionTimer = nil
     unregisterCarbon()
     engine.stop()
-    // Only undo our own mapping, so a second instance quitting cannot wipe the running one's.
-    if installedSource != nil {
+    // Only undo our own mapping. Release and dev install the same pair, so leave it while the other one runs.
+    // ponytail: if that instance has Hyper off, the mapping stays until it applies again or logout.
+    if installedSource != nil, !Self.otherPhotonIsRunning {
       removeRemap()
     }
     hyperStatus = .disabled
+  }
+
+  private static var otherPhotonIsRunning: Bool {
+    let current = ProcessInfo.processInfo.processIdentifier
+    return ["com.ryanstoffel.photon", "com.ryanstoffel.photon.dev"]
+      .flatMap(NSRunningApplication.runningApplications(withBundleIdentifier:))
+      .contains { $0.processIdentifier != current && !$0.isTerminated }
   }
 
   public func perform(_ action: WindowAction) throws {
@@ -115,7 +123,8 @@ public final class KeybindsController: ObservableObject {
     }
     Task {
       let installed = await Task.detached { HIDKeyRemapper.isInstalled(source: usage) }.value
-      guard !installed, installedSource == source else {
+      // A failed read is not a missing mapping: reinstalling would fail too and stop a working engine.
+      guard installed == false, installedSource == source else {
         return
       }
       installedSource = nil

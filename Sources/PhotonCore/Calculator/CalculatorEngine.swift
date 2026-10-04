@@ -17,15 +17,16 @@ public enum CalculatorEngine: Sendable {
     return result
   }
 
-  /// Maps × ÷ − to ASCII operators, drops the locale's grouping separator when exactly three digits follow it,
-  /// and turns its decimal separator into ".". The three-digit rule keeps "0.1" a decimal in "." grouping locales.
+  /// Maps × ÷ − to ASCII operators, drops the locale's grouping separator when exactly three digits follow it
+  /// and the digits before it are not a lone 0, and turns its decimal separator into ".". Those rules keep
+  /// "0.1" and "0.125" decimals in "." grouping locales.
   private static func normalize(_ query: String, locale: Locale) -> String {
     var text = query
       .replacingOccurrences(of: "×", with: "*")
       .replacingOccurrences(of: "÷", with: "/")
       .replacingOccurrences(of: "\u{2212}", with: "-")
     if let grouping = locale.groupingSeparator, !grouping.isEmpty {
-      let pattern = "(?<=\\d)" + NSRegularExpression.escapedPattern(for: grouping) + "(?=\\d{3}(?!\\d))"
+      let pattern = "(?<=\\d)(?<!\\b0)" + NSRegularExpression.escapedPattern(for: grouping) + "(?=\\d{3}(?!\\d))"
       text = text.replacingOccurrences(of: pattern, with: "", options: .regularExpression)
     }
     if let decimal = locale.decimalSeparator, decimal != "." {

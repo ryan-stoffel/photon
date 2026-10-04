@@ -52,7 +52,8 @@ final class NotesIntegration {
     applyHotkey()
   }
 
-  private func applyHotkey() {
+  /// Registers the Notes shortcut, or retries one that failed. A no-op when it is already registered.
+  func applyHotkey() {
     let combo = settings.notesHotkey
     guard combo != registeredCombo else {
       return

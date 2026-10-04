@@ -102,18 +102,20 @@ final class AppRuntime: ObservableObject {
       applyHotkey()
       applyClipboardHotkey()
       settings.onHotkeyChange = { [weak self] in
-        self?.applyHotkey()
+        self?.applyGlobalHotkeys()
       }
       settings.onClipboardChange = { [weak self] in
         self?.applyClipboardSettings()
       }
       notes.start()
+      let notesChange = settings.onNotesChange
+      settings.onNotesChange = { [weak self] in
+        notesChange?()
+        self?.applyGlobalHotkeys()
+      }
       keybinds.apply(settings.keybinds)
       settings.onKeybindsChange = { [weak self] in
-        guard let self else {
-          return
-        }
-        keybinds.apply(settings.keybinds)
+        self?.applyGlobalHotkeys()
       }
       if NativeParityReporter.isRequested {
         // The harness launches a fresh app. Mark the welcome seen so it cannot
@@ -369,7 +371,17 @@ final class AppRuntime: ObservableObject {
 
   private func applyClipboardSettings() {
     clipboard.settings = settings.clipboardSettings
+    applyGlobalHotkeys()
+  }
+
+  /// Re-applies every global shortcut when any of them changes, so one that lost a clash earlier
+  /// registers once its combo is free. The launcher goes first because it may have just released one.
+  /// Launcher, clipboard and notes shortcuts that are already registered are left alone. Keybinds rebuild.
+  private func applyGlobalHotkeys() {
+    applyHotkey()
     applyClipboardHotkey()
+    notes.applyHotkey()
+    keybinds.apply(settings.keybinds)
   }
 
   private func applyClipboardHotkey() {

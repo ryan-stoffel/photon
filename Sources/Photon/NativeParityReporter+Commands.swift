@@ -430,8 +430,8 @@ extension NativeParityReporter {
     }
     return [
       "exists": true,
-      "left": position.left,
-      "top": position.top,
+      "centerOffset": position.centerOffset,
+      "topInset": position.topInset,
       "centered": position.isHorizontallyCentered,
     ]
   }

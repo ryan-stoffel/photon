@@ -29,7 +29,7 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
   var autoHideSuppressedUntil = Date.distantPast
   /// App that was frontmost before a mode asked us to activate; restored on hide.
   private var previousApplication: NSRunningApplication?
-  /// Photon window (a note, Settings) that was key before the launcher opened. Clipboard paste goes back to it.
+  /// Photon window (a note, Settings) that was key before the launcher opened. Dismissal and paste return to it.
   private weak var previousKeyWindow: NSWindow?
   /// Left by a dismissal that keeps the view; `show()` restores it within `popToRootDelay`.
   var popState: LauncherPopState?
@@ -162,6 +162,8 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     guard let panel else {
       return
     }
+    // Launch and quit notifications miss apps that change activation policy, so re-read the dots.
+    runningApps.refresh()
     model.resetForShow()
     collapseToCompactIfNeeded(force: true)
     position(panel)
@@ -253,7 +255,10 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     panel?.orderOut(nil)
     stopMonitor()
     persistFrecency()
-    if restorePrevious {
+    if restorePrevious, let window = previousKeyWindow, window.isVisible {
+      previousApplication = nil
+      window.makeKey()
+    } else if restorePrevious {
       restorePreviousApplication()
     } else {
       previousApplication = nil
@@ -314,15 +319,11 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
   /// Hides the panel and returns key focus to where the paste belongs: the Photon window
   /// that was key before the launcher opened, else the app that was frontmost.
   private func prepareForPasteDelivery() {
-    if let window = previousKeyWindow, window.isVisible {
-      hide(restorePrevious: false)
-      window.makeKey()
-    } else {
-      hide()
-      // Only needed when Photon itself is active. Otherwise it would also hide a floating note.
-      if NSApp.isActive {
-        NSApp.hide(nil)
-      }
+    let returnsToWindow = previousKeyWindow?.isVisible == true
+    hide()
+    // Only needed when Photon itself is active. Otherwise it would also hide a floating note.
+    if !returnsToWindow, NSApp.isActive {
+      NSApp.hide(nil)
     }
     RunLoop.current.run(until: Date().addingTimeInterval(0.05))
   }

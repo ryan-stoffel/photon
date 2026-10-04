@@ -43,20 +43,21 @@ public struct PanelOrigin: Equatable, Sendable {
   }
 }
 
-/// User-customized launcher placement, measured from the bottom-left of the visible frame so it
-/// carries across displays. The top edge is stored because the panel height changes with its content.
+/// User-customized launcher placement, measured from the top edge and horizontal center of the
+/// visible frame so it lands in the same spot on displays of any size. The top edge is stored because
+/// the panel height changes with its content.
 /// The field names changed from `originY`/`originX`, so positions saved by older builds fall back to the default.
 public struct LauncherStoredPosition: Equatable, Codable, Sendable {
-  /// Top edge above `visible.minY`.
-  public var top: Double
+  /// Panel top edge below `visible.maxY`.
+  public var topInset: Double
   public var isHorizontallyCentered: Bool
-  /// Left edge right of `visible.minX`. Ignored when centered horizontally.
-  public var left: Double
+  /// Panel center offset from `visible.midX`. Ignored when centered horizontally.
+  public var centerOffset: Double
 
-  public init(top: Double, isHorizontallyCentered: Bool, left: Double) {
-    self.top = top
+  public init(topInset: Double, isHorizontallyCentered: Bool, centerOffset: Double) {
+    self.topInset = topInset
     self.isHorizontallyCentered = isHorizontallyCentered
-    self.left = left
+    self.centerOffset = centerOffset
   }
 }
 
@@ -83,10 +84,11 @@ public enum LauncherPosition {
     guard let stored else {
       return defaultOrigin(panelSize: panelSize, visible: visible)
     }
-    let x = stored.isHorizontallyCentered
-      ? visible.midX - panelSize.width / 2
-      : visible.minX + stored.left
-    let origin = PanelOrigin(x: x, y: visible.minY + stored.top - panelSize.height)
+    let offset = stored.isHorizontallyCentered ? 0 : stored.centerOffset
+    let origin = PanelOrigin(
+      x: visible.midX + offset - panelSize.width / 2,
+      y: visible.maxY - stored.topInset - panelSize.height
+    )
     return clampedOrigin(origin, panelSize: panelSize, visible: visible)
   }
 
@@ -182,9 +184,9 @@ public enum LauncherPosition {
     let midX = origin.x + panelSize.width / 2
     let horizontal = resolveHorizontalSnap(panelMidX: midX, panelWidth: panelSize.width, visible: visible)
     return LauncherStoredPosition(
-      top: origin.y + panelSize.height - visible.minY,
+      topInset: visible.maxY - (origin.y + panelSize.height),
       isHorizontallyCentered: horizontal.isHorizontallyCentered,
-      left: horizontal.originX - visible.minX
+      centerOffset: horizontal.originX + panelSize.width / 2 - visible.midX
     )
   }
 }

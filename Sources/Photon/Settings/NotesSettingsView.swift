@@ -18,7 +18,7 @@ struct NotesSettingsView: View {
     if combo == settings.hotkey {
       return "Also used by the launcher shortcut."
     }
-    if combo == settings.clipboardHotkey {
+    if settings.clipboardEnabled, settings.clipboardHotkeyEnabled, combo == settings.clipboardHotkey {
       return "Also used by the Clipboard History shortcut."
     }
     return nil

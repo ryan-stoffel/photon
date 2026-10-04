@@ -127,7 +127,10 @@ public final class ClipboardHistoryViewModel: ObservableObject {
     switch event.keyCode {
     case 36, 76:
       if isConfirmingClear {
-        confirmClearAll()
+        // A held Return from the ⌘K "Delete All Entries" row must not confirm through key repeat.
+        if !event.isARepeat {
+          confirmClearAll()
+        }
       } else if event.modifierFlags.contains(.command) {
         Task { await performSecondaryAction() }
       } else {
