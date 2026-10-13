@@ -141,7 +141,7 @@ final class LauncherViewModel: ObservableObject {
   /// Searches finish out of order when typing fast; only the latest one may publish.
   private var searchGeneration = 0
   /// Query behind `results`. A new query moves the selection back to the first row.
-  private var resultsQuery = ""
+  private(set) var resultsQuery = ""
 
   init(registry: CommandRegistry, frecency: FrecencyStore) {
     self.registry = registry
@@ -437,28 +437,7 @@ final class LauncherViewModel: ObservableObject {
   }
 
   private func updateContent() {
-    var next: LauncherContent = switch session {
-    case .clipboard:
-      clipboardContent()
-    case .commands:
-      if let activeMode {
-        if activeMode.prefersCompactLauncherLayout {
-          .searchOnly
-        } else {
-          .fullHeight
-        }
-      } else if query.isEmpty, !preferences.showsSuggestions, !revealsRecommendations {
-        .searchOnly
-      } else if query.isEmpty {
-        .recommendations
-      } else if results.isEmpty, query != resultsQuery {
-        // The first search for this query is still running. Keep the height instead of
-        // flashing an empty row before the results land.
-        content
-      } else {
-        .rows(count: results.count, showsCalculatorHero: calculatorHero != nil)
-      }
-    }
+    var next = session == .clipboard ? clipboardContent() : commandsContent()
     // The ⌘K panel needs room, so a compact or short panel grows while it is open.
     if showsActions {
       switch next {
@@ -471,21 +450,6 @@ final class LauncherViewModel: ObservableObject {
     if next != content {
       content = next
     }
-  }
-
-  /// Clipboard history always opens expanded. A filter with no matches keeps the height. History that
-  /// is off shows one message line, sized like the zero-result list (no section header).
-  private func clipboardContent() -> LauncherContent {
-    guard let clipboard else {
-      return .searchOnly
-    }
-    if !clipboard.manager.items.isEmpty {
-      return .fullHeight
-    }
-    if clipboard.showsCompactEmptyRow {
-      return .rows(count: 0, showsCalculatorHero: false)
-    }
-    return .searchOnly
   }
 
   /// Rows resolve their icon on first draw; this warms the ones below the fold.
