@@ -105,7 +105,8 @@ final class PhotonSettingsWindowCloseDelegate: NSObject, NSWindowDelegate {
   }
 
   func windowDidBecomeKey(_ notification: Notification) {
-    guard let window = notification.object as? PhotonSettingsWindow else {
+    // Keep an in-progress text edit focused when Settings becomes key again.
+    guard let window = notification.object as? PhotonSettingsWindow, !(window.firstResponder is NSText) else {
       return
     }
     window.makeFirstResponder(window.hostingView)

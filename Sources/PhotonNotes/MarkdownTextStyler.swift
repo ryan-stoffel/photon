@@ -39,6 +39,15 @@ struct MarkdownTextStyler {
     return paragraph
   }
 
+  /// Indents every line of a quote paragraph, including wrapped ones.
+  private var quoteParagraphStyle: NSParagraphStyle {
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.lineSpacing = (baseSize * 0.22).rounded()
+    paragraph.firstLineHeadIndent = baseSize
+    paragraph.headIndent = baseSize
+    return paragraph
+  }
+
   /// Resets `range` to the base look, then layers the spans that intersect it.
   func apply(_ spans: [MarkdownSpan], to storage: NSTextStorage, in range: NSRange) {
     storage.setAttributes(baseAttributes, range: range)
@@ -52,10 +61,22 @@ struct MarkdownTextStyler {
         attributes[.font] = font
       }
       storage.addAttributes(attributes, range: clipped)
-      if span.kind == .title {
+      if let style = paragraphStyle(for: span.kind) {
         let paragraph = (storage.string as NSString).paragraphRange(for: clipped)
-        storage.addAttribute(.paragraphStyle, value: titleParagraphStyle, range: paragraph)
+        storage.addAttribute(.paragraphStyle, value: style, range: paragraph)
       }
+    }
+  }
+
+  /// Paragraph styles are read from a paragraph's first character, so they cover the whole paragraph.
+  private func paragraphStyle(for kind: MarkdownSpanKind) -> NSParagraphStyle? {
+    switch kind {
+    case .title:
+      titleParagraphStyle
+    case .quote:
+      quoteParagraphStyle
+    default:
+      nil
     }
   }
 
@@ -89,8 +110,10 @@ struct MarkdownTextStyler {
     switch kind {
     case .headingMarker, .codeFence, .syntax:
       [.foregroundColor: NSColor.tertiaryLabelColor]
-    case .listMarker:
+    case .listMarker, .quote:
       [.foregroundColor: NSColor.secondaryLabelColor]
+    case .link:
+      [.foregroundColor: NSColor.controlAccentColor]
     case let .checkbox(checked):
       [
         .foregroundColor: checked ? NSColor.controlAccentColor : NSColor.secondaryLabelColor,

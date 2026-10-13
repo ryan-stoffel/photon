@@ -116,6 +116,8 @@ public struct WindowBinding: Codable, Equatable, Identifiable, Sendable {
 /// Who owns a shortcut, for conflict reporting.
 public enum BindingOwner: Hashable, Sendable {
   case launcher
+  case clipboard
+  case notes
   case app(UUID)
   case window(WindowAction)
 }
@@ -203,8 +205,13 @@ public struct KeybindsConfiguration: Codable, Equatable, Sendable {
     windowBindings = Self.defaultWindowBindings
   }
 
-  /// Shortcuts used by more than one owner. `launcher` is the launcher hotkey from the General tab.
-  public func conflicts(launcher: KeyShortcut? = nil) -> [ShortcutConflict] {
+  /// Shortcuts used by more than one owner. `launcher`, `clipboard` and `notes` are Photon's own hotkeys;
+  /// pass `nil` for one that is not registered.
+  public func conflicts(
+    launcher: KeyShortcut? = nil,
+    clipboard: KeyShortcut? = nil,
+    notes: KeyShortcut? = nil
+  ) -> [ShortcutConflict] {
     var owners: [KeyShortcut: [BindingOwner]] = [:]
     var order: [KeyShortcut] = []
 
@@ -219,6 +226,8 @@ public struct KeybindsConfiguration: Codable, Equatable, Sendable {
     }
 
     add(launcher, .launcher)
+    add(clipboard, .clipboard)
+    add(notes, .notes)
     for hotkey in appHotkeys {
       add(hotkey.shortcut, .app(hotkey.id))
     }
@@ -235,7 +244,11 @@ public struct KeybindsConfiguration: Codable, Equatable, Sendable {
   }
 
   /// Every owner that takes part in a conflict; handy for marking rows in the UI.
-  public func conflictingOwners(launcher: KeyShortcut? = nil) -> Set<BindingOwner> {
-    Set(conflicts(launcher: launcher).flatMap(\.owners))
+  public func conflictingOwners(
+    launcher: KeyShortcut? = nil,
+    clipboard: KeyShortcut? = nil,
+    notes: KeyShortcut? = nil
+  ) -> Set<BindingOwner> {
+    Set(conflicts(launcher: launcher, clipboard: clipboard, notes: notes).flatMap(\.owners))
   }
 }

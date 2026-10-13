@@ -6,7 +6,7 @@ final class HyperKeyEngineTests: XCTestCase {
   func testHyperDownForcesCapsLockOffWhenSuppressed() {
     let engine = HyperKeyEngine()
     let forced = Counter()
-    engine.onSuppressCapsLock = { forced.increment() }
+    engine.onSuppressCapsLock = { _ in forced.increment() }
     engine.update(HyperKeyEngine.Configuration(suppressCapsLock: true))
 
     guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 79, keyDown: true) else {
@@ -21,7 +21,7 @@ final class HyperKeyEngineTests: XCTestCase {
   func testCapsLockKeyCodeIsTreatedAsHyperWhenSuppressed() {
     let engine = HyperKeyEngine()
     let forced = Counter()
-    engine.onSuppressCapsLock = { forced.increment() }
+    engine.onSuppressCapsLock = { _ in forced.increment() }
     engine.update(HyperKeyEngine.Configuration(suppressCapsLock: true))
 
     guard let down = CGEvent(
@@ -39,7 +39,7 @@ final class HyperKeyEngineTests: XCTestCase {
   func testFlagsChangedClearsCapsLockWhenSuppressed() {
     let engine = HyperKeyEngine()
     let forced = Counter()
-    engine.onSuppressCapsLock = { forced.increment() }
+    engine.onSuppressCapsLock = { _ in forced.increment() }
     engine.update(HyperKeyEngine.Configuration(suppressCapsLock: true))
 
     guard let event = CGEvent(keyboardEventSource: nil, virtualKey: HyperKeyEngine.capsLockKeyCode, keyDown: false)
@@ -56,7 +56,7 @@ final class HyperKeyEngineTests: XCTestCase {
   func testDoesNotForceCapsLockOffWhenNotSuppressed() {
     let engine = HyperKeyEngine()
     let forced = Counter()
-    engine.onSuppressCapsLock = { forced.increment() }
+    engine.onSuppressCapsLock = { _ in forced.increment() }
     engine.update(HyperKeyEngine.Configuration(suppressCapsLock: false))
 
     guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 79, keyDown: true) else {
@@ -65,6 +65,54 @@ final class HyperKeyEngineTests: XCTestCase {
     }
     XCTAssertNil(engine.handle(type: .keyDown, event: down))
     XCTAssertEqual(forced.value, 0)
+  }
+
+  func testToggleTapLatchesCapsLockOnAndSuppressionKeepsIt() throws {
+    let engine = HyperKeyEngine()
+    let requested = Recorder()
+    engine.onSuppressCapsLock = { requested.append($0) }
+    engine.update(HyperKeyEngine.Configuration(tapBehavior: .capsLock, suppressCapsLock: true))
+
+    let down = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 79, keyDown: true))
+    let up = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 79, keyDown: false))
+    XCTAssertNil(engine.handle(type: .keyDown, event: down))
+    XCTAssertNil(engine.handle(type: .keyUp, event: up))
+    XCTAssertEqual(requested.values, [false, true])
+
+    // A Shift press while latched on carries the Caps Lock flag and must keep it.
+    let shift = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 56, keyDown: true))
+    shift.flags = .maskAlphaShift
+    XCTAssertNotNil(engine.handle(type: .flagsChanged, event: shift))
+    XCTAssertTrue(shift.flags.contains(.maskAlphaShift))
+    XCTAssertEqual(requested.values, [false, true])
+
+    XCTAssertNil(engine.handle(type: .keyDown, event: down))
+    XCTAssertNil(engine.handle(type: .keyUp, event: up))
+    XCTAssertEqual(requested.values, [false, true, true, false])
+  }
+
+  func testDisabledTapReleasesAHeldHyperKey() throws {
+    let engine = HyperKeyEngine()
+    let down = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 79, keyDown: true))
+    XCTAssertNil(engine.handle(type: .keyDown, event: down))
+    _ = engine.handle(type: .tapDisabledByTimeout, event: down)
+
+    let letter = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true))
+    let result = try XCTUnwrap(engine.handle(type: .keyDown, event: letter))
+    XCTAssertFalse(KeyModifiers(cgEventFlags: result.takeUnretainedValue().flags.rawValue).isHyper)
+  }
+}
+
+private final class Recorder: @unchecked Sendable {
+  private let lock = NSLock()
+  private var list: [Bool] = []
+
+  var values: [Bool] {
+    lock.withLock { list }
+  }
+
+  func append(_ value: Bool) {
+    lock.withLock { list.append(value) }
   }
 }
 

@@ -26,8 +26,9 @@ struct NotesOverlayView: View {
         }
       }
       if kind == .format {
-        VStack {
-          Spacer()
+        // The overlay is only `formatBarStrip` tall here, so nothing above the bar may claim height.
+        VStack(spacing: 0) {
+          Spacer(minLength: 0)
           NoteFormatBar(onStyle: onStyle, onClose: onDismiss)
         }
       }
@@ -41,6 +42,11 @@ extension NotesWindow {
   func rebuildOverlay() {
     overlayHosting?.removeFromSuperview()
     overlayHosting = nil
+    // The format bar strip overlaps the editor's bottom 32 pt, so the caret line must scroll above it.
+    // Switching to manual insets keeps the automatic titlebar inset already applied at the top.
+    let reservesFormatBar = overlayKind == .format
+    scrollView.automaticallyAdjustsContentInsets = !reservesFormatBar
+    scrollView.contentInsets.bottom = reservesFormatBar ? 32 : 0
     guard overlayKind != .none else {
       overlayContainer.isHidden = true
       return
@@ -67,6 +73,8 @@ extension NotesWindow {
     ])
     overlayHosting = host
     overlayContainer.isHidden = false
-    panel.makeFirstResponder(host)
+    // The format bar is a toolbar, not a modal: the editor keeps focus while it shows.
+    formatBarStrip.isActive = overlayKind == .format
+    panel.makeFirstResponder(overlayKind == .format ? textView : host)
   }
 }

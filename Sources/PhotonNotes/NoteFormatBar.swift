@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Bottom format bar: headings, emphasis, code, link, and lists.
+/// Bottom format bar: headings, emphasis, code, link, code block, and lists. Tooltips show the chords
+/// that `NotesWindow.handleShortcut` binds.
 struct NoteFormatBar: View {
   var onStyle: (MarkdownFormatStyle) -> Void
   var onClose: () -> Void
@@ -9,22 +10,26 @@ struct NoteFormatBar: View {
     HStack(spacing: 4) {
       Menu {
         Button("Heading 1") { onStyle(.heading(1)) }
+          .keyboardShortcut("1", modifiers: [.option, .command])
         Button("Heading 2") { onStyle(.heading(2)) }
+          .keyboardShortcut("2", modifiers: [.option, .command])
         Button("Heading 3") { onStyle(.heading(3)) }
+          .keyboardShortcut("3", modifiers: [.option, .command])
       } label: {
         label("H", systemImage: "chevron.down")
       }
       .menuIndicator(.hidden)
-      iconButton("bold", help: "Bold") { onStyle(.bold) }
-      iconButton("italic", help: "Italic") { onStyle(.italic) }
-      iconButton("strikethrough", help: "Strikethrough") { onStyle(.strikethrough) }
-      iconButton("underline", help: "Underline") { onStyle(.underline) }
-      iconButton("chevron.left.forwardslash.chevron.right", help: "Code") { onStyle(.inlineCode) }
-      iconButton("link", help: "Link") { onStyle(.link) }
-      iconButton("text.quote", help: "Quote") { onStyle(.quote) }
-      iconButton("list.bullet", help: "Bullet list") { onStyle(.bulletList) }
-      iconButton("list.number", help: "Numbered list") { onStyle(.numberedList) }
-      iconButton("checklist", help: "Checklist") { onStyle(.checklist) }
+      iconButton("bold", help: "Bold ⌘B") { onStyle(.bold) }
+      iconButton("italic", help: "Italic ⌘I") { onStyle(.italic) }
+      iconButton("strikethrough", help: "Strikethrough ⇧⌘S") { onStyle(.strikethrough) }
+      iconButton("underline", help: "Underline ⌘U") { onStyle(.underline) }
+      iconButton("chevron.left.forwardslash.chevron.right", help: "Code ⌘E") { onStyle(.inlineCode) }
+      iconButton("link", help: "Link ⌘L") { onStyle(.link) }
+      iconButton("curlybraces", help: "Code block ⌥⌘C") { onStyle(.codeBlock) }
+      iconButton("text.quote", help: "Quote ⇧⌘B") { onStyle(.quote) }
+      iconButton("list.bullet", help: "Bullet list ⇧⌘8") { onStyle(.bulletList) }
+      iconButton("list.number", help: "Numbered list ⇧⌘7") { onStyle(.numberedList) }
+      iconButton("checklist", help: "Checklist ⇧⌘9") { onStyle(.checklist) }
       Spacer(minLength: 8)
       Button(action: onClose) {
         Image(systemName: "xmark")

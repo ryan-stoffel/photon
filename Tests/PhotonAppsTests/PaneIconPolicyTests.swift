@@ -77,6 +77,16 @@ final class PaneIconPolicyTests: XCTestCase {
     XCTAssertEqual(icon, PaneIconPolicy.systemSettingsIcon)
   }
 
+  func testSettingsExtensionWithoutADeclaredIconUsesSystemSettings() {
+    let appex = URL(fileURLWithPath: "/System/Library/ExtensionKit/Extensions/Wi-Fi.appex", isDirectory: true)
+    let graphic = PaneIconPolicy.icon(forSettingsExtensionAt: appex, info: ["CFBundleIcons": [String: Any]()])
+    XCTAssertEqual(graphic, .fileIcon(path: appex.path))
+    let catalog = PaneIconPolicy.icon(forSettingsExtensionAt: appex, info: ["CFBundleIconName": "AppIcon"])
+    XCTAssertEqual(catalog, .fileIcon(path: appex.path))
+    let plugin = PaneIconPolicy.icon(forSettingsExtensionAt: appex, info: ["CFBundleIconFile": "icon"])
+    XCTAssertEqual(plugin, PaneIconPolicy.systemSettingsIcon)
+  }
+
   func testCandidateFileNames() {
     XCTAssertEqual(PaneIconPolicy.candidateFileNames(for: "Network.icns"), ["Network.icns"])
     XCTAssertEqual(PaneIconPolicy.candidateFileNames(for: "Icon.PNG"), ["Icon.PNG"])

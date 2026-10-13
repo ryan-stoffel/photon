@@ -10,7 +10,7 @@ final class SelectionNavigationTests: XCTestCase {
 
   func testDownOnTheLastVisibleRowAdvancesIntoTheCatalog() {
     let visible = SelectionNavigation.visibleRowCount(
-      listHeight: LauncherLayout.expandedListHeight,
+      listHeight: LauncherLayout.expandedListHeight - LauncherLayout.sectionHeaderHeight,
       rowHeight: LauncherLayout.rowHeight,
       inset: LauncherLayout.listInset
     )

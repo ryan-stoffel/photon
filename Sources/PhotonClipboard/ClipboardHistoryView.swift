@@ -3,7 +3,8 @@ import AppKit
 import PhotonCore
 import SwiftUI
 
-/// Footer for clipboard mode in the launcher panel (mode label and key hints).
+/// Footer for clipboard mode in the launcher panel: the clear-all confirmation, a paste
+/// notice, or the mode label with the primary action and the ⌘K hint.
 public struct ClipboardLauncherFooter: View {
   @ObservedObject private var model: ClipboardHistoryViewModel
 
@@ -20,7 +21,7 @@ public struct ClipboardLauncherFooter: View {
           .foregroundStyle(.primary)
           .lineLimit(1)
         Spacer()
-        KeyHint(key: "↩", label: "Confirm")
+        KeyHint(key: "↵", label: "Confirm")
         KeyHint(key: "esc", label: "Cancel")
       } else if let notice = model.notice {
         Image(systemName: "exclamationmark.triangle.fill")
@@ -39,25 +40,20 @@ public struct ClipboardLauncherFooter: View {
       } else {
         Image(systemName: "clipboard")
           .font(.system(size: 12, weight: .medium))
-        Text("Clipboard")
+        Text("Clipboard History")
           .fontWeight(.medium)
-        if let hint = model.footerEmptyHint {
-          Text("·")
-          Text(hint)
-            .lineLimit(1)
-        }
         Spacer(minLength: 12)
-        KeyHint(key: "↩", label: model.manager.settings.pasteBehavior == .paste ? "Paste" : "Copy")
-        KeyHint(key: "⌘↩", label: "Copy")
-        KeyHint(key: "⌘P", label: model.selectedItem?.isPinned == true ? "Unpin" : "Pin")
-        KeyHint(key: "⌘⌫", label: "Delete")
-        KeyHint(key: "⌘⇧⌫", label: "Clear all")
-        KeyHint(key: "esc", label: "Back")
+        if model.selectedItem != nil {
+          KeyHint(key: "↵", label: model.manager.settings.pasteBehavior.label)
+          Divider()
+            .frame(height: 14)
+          KeyHint(key: "⌘K", label: "Actions")
+        }
       }
     }
-    .font(.system(size: 12))
+    .font(.system(size: 13))
     .foregroundStyle(.secondary)
-    .padding(.horizontal, 14)
+    .padding(.horizontal, 16)
     .frame(height: LauncherLayout.footerHeight)
   }
 }
@@ -78,7 +74,7 @@ public struct ClipboardLauncherRow: View {
         .frame(width: LauncherLayout.iconSize, height: LauncherLayout.iconSize)
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         Text(item.title.isEmpty ? item.kind.label : item.title)
-          .font(.system(size: 14, weight: .medium))
+          .font(.system(size: 14))
           .lineLimit(1)
           .layoutPriority(1)
         HStack(spacing: 4) {
@@ -94,11 +90,11 @@ public struct ClipboardLauncherRow: View {
       }
       Spacer(minLength: 0)
     }
-    .padding(.horizontal, 10)
+    .padding(.horizontal, LauncherLayout.rowHorizontalPadding)
     .frame(height: LauncherLayout.rowHeight)
     .background(
-      RoundedRectangle(cornerRadius: 8, style: .continuous)
-        .fill(isSelected ? Color.primary.opacity(0.09) : Color.clear)
+      RoundedRectangle(cornerRadius: LauncherLayout.rowCornerRadius, style: .continuous)
+        .fill(isSelected ? Color.primary.opacity(0.1) : Color.clear)
     )
     .contentShape(Rectangle())
     .accessibilityElement(children: .combine)
@@ -110,16 +106,17 @@ public struct ClipboardLauncherRow: View {
 
   private func symbolTile(_ name: String) -> some View {
     ZStack {
-      RoundedRectangle(cornerRadius: 7, style: .continuous)
+      RoundedRectangle(cornerRadius: 5, style: .continuous)
         .fill(Color.primary.opacity(0.08))
       Image(systemName: name)
-        .font(.system(size: 13, weight: .semibold))
+        .font(.system(size: 11, weight: .semibold))
         .foregroundStyle(.secondary)
     }
-    .frame(width: LauncherLayout.iconSize - 2, height: LauncherLayout.iconSize - 2)
+    .frame(width: LauncherLayout.iconSize, height: LauncherLayout.iconSize)
   }
 }
 
+/// "Paste to Active App ↵": the label first, then the key in a small cap.
 public struct KeyHint: View {
   let key: String
   let label: String
@@ -131,12 +128,13 @@ public struct KeyHint: View {
 
   public var body: some View {
     HStack(spacing: 4) {
-      Text(key)
-        .font(.caption.weight(.semibold))
-        .padding(.horizontal, 5)
-        .padding(.vertical, 1)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
       Text(label)
+        .padding(.trailing, 4)
+      Text(key)
+        .font(.system(size: 12, weight: .medium))
+        .frame(minWidth: 20, minHeight: 20)
+        .padding(.horizontal, 2)
+        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
     }
   }
 }

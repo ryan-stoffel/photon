@@ -43,7 +43,7 @@
       <string>BUNDLE_ID_PLACEHOLDER.note</string>
       <key>CFBundleURLSchemes</key>
       <array>
-        <string>photon</string>
+        <string>URL_SCHEME_PLACEHOLDER</string>
       </array>
     </dict>
   </array>

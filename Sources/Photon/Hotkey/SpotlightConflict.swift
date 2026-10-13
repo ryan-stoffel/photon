@@ -5,13 +5,22 @@ enum SpotlightConflict {
   static let spotlightHotKeyID = "64"
   private static let shownKey = "hasShownSpotlightGuidance"
 
-  static func conflicts(with combo: HotkeyCombo) -> Bool {
+  /// Spotlight's entry in the symbolic hotkeys plist. A Mac that never changed it has none and uses ⌘Space.
+  private static var spotlightEntry: NSDictionary? {
     let url = URL(
       fileURLWithPath: NSHomeDirectory() + "/Library/Preferences/com.apple.symbolichotkeys.plist"
     )
-    guard let root = NSDictionary(contentsOf: url),
-          let keys = root["AppleSymbolicHotKeys"] as? NSDictionary,
-          let spotlight = keys[spotlightHotKeyID] as? NSDictionary,
+    let keys = NSDictionary(contentsOf: url)?["AppleSymbolicHotKeys"] as? NSDictionary
+    return keys?[spotlightHotKeyID] as? NSDictionary
+  }
+
+  /// Like `conflicts(with:)`, but a missing plist entry counts as Spotlight's stock ⌘Space. The welcome uses it.
+  static func likelyConflicts(with combo: HotkeyCombo) -> Bool {
+    spotlightEntry == nil ? combo == .defaultCombo : conflicts(with: combo)
+  }
+
+  static func conflicts(with combo: HotkeyCombo) -> Bool {
+    guard let spotlight = spotlightEntry,
           (spotlight["enabled"] as? Bool) == true,
           let value = spotlight["value"] as? NSDictionary,
           let parameters = value["parameters"] as? [Any],
@@ -67,6 +76,11 @@ enum SpotlightConflict {
     if response == .alertFirstButtonReturn {
       openKeyboardSettings()
     }
+  }
+
+  /// Stops `adviseIfNeeded` from showing its alert, for when the welcome already covered the conflict.
+  static func markShown() {
+    UserDefaults.standard.set(true, forKey: shownKey)
   }
 
   static func openKeyboardSettings() {

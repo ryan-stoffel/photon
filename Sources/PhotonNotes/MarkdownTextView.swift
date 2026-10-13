@@ -7,11 +7,16 @@ final class MarkdownTextView: NSTextView {
   var placeholder = "Start writing…"
 
   override func mouseDown(with event: NSEvent) {
-    let modifiers = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    let modifiers = event.modifierFlags.intersection([.command, .option, .control, .shift])
     if event.clickCount == 1, modifiers.isEmpty, toggleCheckbox(at: event.locationInWindow) {
       return
     }
     super.mouseDown(with: event)
+  }
+
+  /// ⌘↵: flips the checkbox on the caret's line, wherever the caret sits on it.
+  func toggleCheckboxOnCaretLine() -> Bool {
+    applyToggle(MarkdownCheckbox.toggleOnLine(in: string, at: selectedRange().location))
   }
 
   override func insertNewline(_ sender: Any?) {
@@ -50,8 +55,12 @@ final class MarkdownTextView: NSTextView {
 
   private func toggleCheckbox(at locationInWindow: NSPoint) -> Bool {
     let point = convert(locationInWindow, from: nil)
-    let index = characterIndexForInsertion(at: point)
-    guard let toggle = MarkdownCheckbox.toggle(in: string, at: index) else {
+    return applyToggle(MarkdownCheckbox.toggle(in: string, at: characterIndexForInsertion(at: point)))
+  }
+
+  /// Applies the toggle as an undoable edit and keeps the selection.
+  private func applyToggle(_ toggle: MarkdownCheckbox.Toggle?) -> Bool {
+    guard let toggle else {
       return false
     }
     let selection = selectedRange()

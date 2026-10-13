@@ -11,8 +11,9 @@ Set `PHOTON_UI_SCENARIO` (or pass `--ui-scenario <name>`) at launch:
 | `launcher-empty` | Launcher open, empty query, compact bar |
 | `launcher-recs` | Empty bar after Down: recommended apps / recents |
 | `launcher-query:saf` | Launcher with query `saf` (Safari and related rows) |
+| `launcher-actions:<query>[\|<filter>]` | Launcher with a query and the ⌘K action panel open, optionally filtered |
 | `calculator` | Launcher with query `2 + 2` and the Raycast-style calculator hero card |
-| `clipboard-empty` | Clipboard mode with empty history (compact bar) |
+| `clipboard-empty` | Clipboard mode with empty history (one message row) |
 | `files-empty` | File search mode, empty query (compact panel) |
 | `files-query:<text>` | File search mode with a seeded query |
 | `settings:appearance` | Settings window; selects **Appearance** when that tab exists, otherwise **General** |

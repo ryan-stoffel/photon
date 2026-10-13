@@ -8,7 +8,7 @@ import Foundation
 /// A quick press without another key runs the configured tap behaviour.
 ///
 /// When Caps Lock is the Hyper source, the tap also watches `flagsChanged` and the Caps Lock key
-/// code so holding Hyper cannot leave Caps Lock on.
+/// code and holds the lock at its latched state: off, unless a "Toggle Caps Lock" tap turned it on.
 ///
 /// The tap runs on the main run loop; state is guarded by a lock because the callback is plain C.
 public final class HyperKeyEngine: @unchecked Sendable {
@@ -18,7 +18,7 @@ public final class HyperKeyEngine: @unchecked Sendable {
     /// Keys with a Hyper shortcut. They are swallowed and reported through `onHyperShortcut`.
     public var boundKeyCodes: Set<UInt16>
     public var tapThreshold: TimeInterval
-    /// When true, Caps Lock lock state is forced off on Hyper down/up and flagsChanged.
+    /// When true, the Caps Lock lock state is held at the latched value on Hyper down/up and flagsChanged.
     public var suppressCapsLock: Bool
 
     public init(
@@ -64,15 +64,16 @@ public final class HyperKeyEngine: @unchecked Sendable {
     set { lock.withLock { shortcutHandler = newValue } }
   }
 
-  /// Hook for tests and for `CapsLockState.forceOff` while Caps Lock is Hyper.
-  public var onSuppressCapsLock: (@Sendable () -> Void)? {
+  /// Hook for tests. Receives the Caps Lock state to enforce while Caps Lock is Hyper.
+  /// Without a hook the engine sets `CapsLockState` itself.
+  public var onSuppressCapsLock: (@Sendable (Bool) -> Void)? {
     get { lock.withLock { suppressHandler } }
     set { lock.withLock { suppressHandler = newValue } }
   }
 
   private let lock = NSLock()
   private var shortcutHandler: (@Sendable (UInt16) -> Void)?
-  private var suppressHandler: (@Sendable () -> Void)?
+  private var suppressHandler: (@Sendable (Bool) -> Void)?
   private var configuration = Configuration()
   private var tap: CFMachPort?
   private var runLoopSource: CFRunLoopSource?
@@ -83,6 +84,8 @@ public final class HyperKeyEngine: @unchecked Sendable {
   private var hyperDownAt: TimeInterval = 0
   private var modifiedKeys = Set<Int64>()
   private var swallowedKeys = Set<Int64>()
+  /// Caps Lock state a "Toggle Caps Lock" tap asked for. Suppression enforces it instead of always off.
+  private var capsLockLatched = false
 
   public init() {}
 
@@ -95,7 +98,12 @@ public final class HyperKeyEngine: @unchecked Sendable {
   }
 
   public func update(_ configuration: Configuration) {
-    lock.withLock { self.configuration = configuration }
+    lock.withLock {
+      self.configuration = configuration
+      if !configuration.suppressCapsLock || configuration.tapBehavior != .capsLock {
+        capsLockLatched = false
+      }
+    }
   }
 
   /// While suspended (a shortcut recorder is active) Hyper still adds modifier flags, but bound keys
@@ -129,6 +137,8 @@ public final class HyperKeyEngine: @unchecked Sendable {
     tap = port
     runLoopSource = source
     resetState()
+    // Toggle mode keeps the Caps Lock state the user had when Hyper started, not a latch from a previous run.
+    capsLockLatched = configuration.suppressCapsLock && configuration.tapBehavior == .capsLock && CapsLockState.isOn
   }
 
   public func stop() {
@@ -148,7 +158,12 @@ public final class HyperKeyEngine: @unchecked Sendable {
 
   func handle(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-      if let tap = lock.withLock({ tap }) {
+      // Key-ups that arrived while the tap was off are lost, so drop Hyper state instead of leaving it held.
+      let tap = lock.withLock { () -> CFMachPort? in
+        resetState()
+        return self.tap
+      }
+      if let tap {
         CGEvent.tapEnable(tap: tap, enable: true)
       }
       return Unmanaged.passUnretained(event)
@@ -181,14 +196,16 @@ public final class HyperKeyEngine: @unchecked Sendable {
   }
 
   private func handleFlagsChanged(_ event: CGEvent) -> Unmanaged<CGEvent>? {
-    let suppress = lock.withLock { configuration.suppressCapsLock }
+    let (suppress, latched) = lock.withLock { (configuration.suppressCapsLock, capsLockLatched) }
     guard suppress else {
       return Unmanaged.passUnretained(event)
     }
     let keyCode = UInt16(truncatingIfNeeded: event.getIntegerValueField(.keyboardEventKeycode))
     let capsOn = event.flags.contains(.maskAlphaShift)
-    if capsOn || keyCode == Self.capsLockKeyCode {
-      requestCapsLockOff()
+    if capsOn != latched || keyCode == Self.capsLockKeyCode {
+      enforceCapsLock(latched)
+    }
+    if !latched {
       event.flags.remove(.maskAlphaShift)
     }
     if keyCode == Self.capsLockKeyCode {
@@ -238,7 +255,7 @@ public final class HyperKeyEngine: @unchecked Sendable {
   private func handleHyperKey(down: Bool, isRepeat: Bool) -> Decision {
     if down {
       if configuration.suppressCapsLock {
-        requestCapsLockOffLocked()
+        enforceCapsLockLocked()
       }
       if !hyperDown, !isRepeat {
         hyperDown = true
@@ -251,32 +268,37 @@ public final class HyperKeyEngine: @unchecked Sendable {
     hyperDown = false
     let held = ProcessInfo.processInfo.systemUptime - hyperDownAt
     if wasDown, !hyperUsed, held < configuration.tapThreshold, configuration.tapBehavior != .nothing {
-      return .tap(configuration.tapBehavior)
+      guard configuration.suppressCapsLock, configuration.tapBehavior == .capsLock else {
+        return .tap(configuration.tapBehavior)
+      }
+      // Suppression would undo a plain toggle, so the tap flips the state it enforces.
+      capsLockLatched.toggle()
     }
     if configuration.suppressCapsLock {
-      requestCapsLockOffLocked()
+      enforceCapsLockLocked()
     }
     return .swallow
   }
 
-  private func requestCapsLockOff() {
-    if let handler = onSuppressCapsLock {
-      handler()
-    } else {
-      CapsLockState.forceOff()
-    }
+  private func enforceCapsLock(_ on: Bool) {
+    Self.setCapsLock(on, handler: onSuppressCapsLock)
   }
 
-  /// Caller already holds `lock`.
-  private func requestCapsLockOffLocked() {
+  /// Enforces `capsLockLatched`. Caller already holds `lock`.
+  private func enforceCapsLockLocked() {
     let handler = suppressHandler
+    let on = capsLockLatched
     lock.unlock()
-    if let handler {
-      handler()
-    } else {
-      CapsLockState.forceOff()
-    }
+    Self.setCapsLock(on, handler: handler)
     lock.lock()
+  }
+
+  private static func setCapsLock(_ on: Bool, handler: (@Sendable (Bool) -> Void)?) {
+    if let handler {
+      handler(on)
+    } else if CapsLockState.isOn != on {
+      CapsLockState.set(on)
+    }
   }
 
   private func resetState() {

@@ -18,6 +18,10 @@ final class NoteActionTests: XCTestCase {
         .moveListItemUp,
         .moveListItemDown,
         .format,
+        .zoomIn,
+        .zoomOut,
+        .resetZoom,
+        .deleteNote,
       ]
     )
   }

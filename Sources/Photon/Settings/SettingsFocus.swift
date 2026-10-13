@@ -13,29 +13,15 @@ enum SettingsFocusTarget: Hashable {
       "content:\(id)"
     }
   }
+}
 
-  static func order(pane: SettingsPaneID) -> [SettingsFocusTarget] {
-    let sidebar = SettingsPaneID.allCases.map { SettingsFocusTarget.sidebar($0) }
-    return sidebar + content(for: pane).map { SettingsFocusTarget.control($0) }
-  }
+/// Collects every `.settingsFocused` target in view order, so the open pane's Tab order
+/// follows its layout. A control joins the order by adding `.settingsFocused` in its own view.
+struct SettingsFocusOrderKey: PreferenceKey {
+  static let defaultValue: [SettingsFocusTarget] = []
 
-  private static func content(for pane: SettingsPaneID) -> [String] {
-    switch pane {
-    case .general:
-      ["general.keyboardSettings", "general.launchAtLogin", "general.replayOnboarding"]
-    case .appearance:
-      ["appearance.suggestions", "appearance.width", "appearance.reset", "appearance.mode"]
-    case .clipboard:
-      ["clipboard.enabled", "clipboard.retention", "clipboard.maxItems"]
-    case .notes:
-      ["notes.size", "notes.float", "notes.launch"]
-    case .files:
-      ["files.scope", "files.contents", "files.maxResults"]
-    case .keybinds:
-      ["keybinds.hyper", "keybinds.accessibility"]
-    case .about:
-      ["about.repository"]
-    }
+  static func reduce(value: inout [SettingsFocusTarget], nextValue: () -> [SettingsFocusTarget]) {
+    value += nextValue()
   }
 }
 
@@ -110,7 +96,9 @@ private struct SettingsFocusedModifier: ViewModifier {
 
   func body(content: Content) -> some View {
     if let focus {
-      content.focused(focus, equals: target)
+      content
+        .focused(focus, equals: target)
+        .preference(key: SettingsFocusOrderKey.self, value: [target])
     } else {
       content
     }

@@ -6,6 +6,51 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-10-13
+
+Raycast parity pass: `⌘K` actions, exact-title ranking, calculator fixes, and a glitch-free launcher with Raycast's metrics.
+
+### Added
+
+- `⌘K` opens an action panel for the selected item in the launcher, clipboard history, and Files, with a filter field. Root rows offer Show in Finder `⌘↵`, Copy Path, Copy Name, Copy Bundle Identifier, Quit Application while the app runs, Reset Ranking, and Copy Answer for the calculator. Every action's shortcut also works with the panel closed.
+- One launcher footer shows the view name, the Return action, and `Actions ⌘K`. Lists have Suggestions, Commands, and Results headers, and rows show a right-aligned type label.
+- A launcher query with no matches offers Search Files with that text.
+- Reopening the launcher within 90 seconds of a hotkey toggle or a click elsewhere returns to the same view and query. `⌘W` closes the launcher.
+- Clipboard history: `⌘↵` runs the other primary action, `⇧⌘P` pins, `⌃X` deletes an entry, and `⌃⇧X` deletes all after a confirmation. An empty search with pins shows Pinned and Recent sections. Retention adds 3 months, 6 months, and 1 year.
+- Calculator: percent, `of`, `×` `÷` `−`, and the locale's grouping and decimal separators. Conversions keep their unit and show a unit-name pill, `1 in to cm` works, `B` means bytes, and spelled-out metric lengths are accepted. The answer card shows a Question pill and a grouped answer, and double-clicking it copies the answer.
+- Notes: Raycast format shortcuts (`⌘B` `⌘I` `⌘U` `⌘E` `⌘L`, `⇧⌘S` `⇧⌘B`, `⇧⌘7` `⇧⌘8` `⇧⌘9`, `⌥⌘1`–`⌥⌘3`, `⌥⌘C` code block), `⌘↵` to toggle a task, and a switcher with Pinned and Notes sections (`⇧⌘P` pins, `⌃X` deletes, `⌘1`–`⌘9` open pinned notes). The `⌘K` list adds Copy Note, Delete Note, Format `⌥⌘,`, and Zoom In, Out, and Reset. The launcher adds Search Notes.
+- Keychain Access, Archive Utility, and the other CoreServices utilities are searchable. Wi-Fi, Lock Screen, Login Items, and Storage are listed as Settings panes.
+- Pressing a half window shortcut again cycles ½ → ⅔ → ⅓.
+- Edit (Undo, Redo, Cut, Copy, Paste, Select All) and Window (Close `⌘W`, Minimize `⌘M`) menus.
+- The welcome says "Spotlight uses this shortcut." and offers Open Keyboard Settings when the launcher shortcut collides with Spotlight.
+- Settings shows a red caption when the launcher, clipboard, or Notes shortcuts match each other. Reset Key Mapping also shows while the Hyper key is Active.
+
+### Changed
+
+- Typed queries rank exact titles first, then exact keywords, then fuzzy matches. Frecency only breaks near-ties, so title matches outrank recently used keyword matches and typing an app's exact name lists that app first.
+- Esc clears typed text first, then leaves clipboard history or Files, then closes the launcher. Only a fresh Backspace on an empty search leaves a mode.
+- The launcher opens on the screen under the mouse. Its saved position is now stored relative to the screen and resets once. The center snap area is narrower on small screens, so the panel can sit off-center on a laptop.
+- Clipboard history always opens expanded on the newest entry. The Primary Action setting reads Paste to Active App or Copy to Clipboard.
+- Files: Space types instead of opening Quick Look, Copy Path moved to `⌥⌘C`, "Reveal in Finder" is now "Show in Finder", and Recent Files lists files used in the last 30 days, newest first.
+- System Settings panes use the current Settings names and icons, and apps use their Finder names.
+- New Note is now Create Note in the launcher. Window thirds use Raycast's First and Last names, and window rows read "Window Management".
+- Photon-Dev keeps its data in `~/Library/Application Support/Photon-Dev` and starts empty.
+- Settings Tab order follows each pane's layout.
+- The launcher uses Raycast's metrics: 20 pt icons, 14 pt titles and subtitles, larger section headers, a 40 pt footer that emphasizes the Return action, and a 474 pt expanded panel.
+
+### Fixed
+
+- Root search no longer switches into Files mode when filename hits arrive, and file rows trail commands, panes and the calculator.
+- Launcher glitches: a growing panel no longer shows a blank frame, the first typed character no longer flashes an empty row, arrow keys scroll only when the selected row is cut off and keep whole rows in view, clearing a Files search keeps the list while recents reload, and symbol icons no longer flash a placeholder.
+- Launcher: the selection returns to the first row when the query changes. A held Backspace no longer leaves Files or clipboard history. Editing shortcuts work in the search field, and input method composition keeps its keys. Losing focus no longer reactivates the previous app. Paste goes back to a note or Settings window that was key. The hidden launcher can no longer be dragged from other windows.
+- Calculator: large results such as `2^64` no longer crash. Unary minus and power precedence are correct. `.` stays a decimal point in locales that group with `.`.
+- Apps: Safari shows again on macOS 27. Bundle ids no longer produce unrelated matches. Duplicate app copies show once. The launcher hides immediately when opening an app. Running dots match the Dock. `login` opens Login Items.
+- Files: searches skip Spotlight system files under `~/Library`, and broad searches no longer stall for 1.8 seconds. Recent Files honors the Never search folders. Content search shows text-only matches. Up, Down, and `⌘Y` work while Quick Look is open. Inline file rows still open after a settings change. Folder grants on unplugged volumes are kept. Every Files settings control is reachable with Tab.
+- Clipboard: an unreadable history index is moved aside instead of overwritten, and Clear History removes those backups. A capture whose data fails to save is dropped instead of stored empty. Image paste writes PNG only. Keypad `⌘Enter` runs the secondary action.
+- Notes: each format edit is one undo step. Formats come off when applied again, and list formats apply to every selected line. Search Notes as the first notes action opens a note.
+- Keybinds: a Toggle Caps Lock tap now works with Caps Lock as Hyper. Held Hyper state is dropped when macOS disables the event tap. A failed shortcut change keeps the previous binding. The recorder cancels when focus leaves it, records key equivalents such as `⌘W` and `⌘,`, and rejects Shift-only shortcuts. Photon refuses a Hyper key another tool already remaps. Window commands move a window back on screen when an app refuses the requested size.
+- Launch at login shows the real login item status and keeps its error when the toggle snaps back. The This Mac search scope persists. The status menu no longer closes an open panel. Quitting with SIGTERM or SIGINT removes the Hyper key remap. Opening Settings no longer hides a note titled "Settings", and Settings keeps text-field focus when it becomes key again.
+
 ## [0.4.8] - 2026-09-29
 
 Ryan welcome window, compact footer, and Settings click focus.

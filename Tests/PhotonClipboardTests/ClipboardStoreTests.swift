@@ -170,6 +170,39 @@ final class ClipboardStoreTests: XCTestCase {
     XCTAssertEqual(reloaded.items.map(\.text), ["first", "second"])
   }
 
+  func testUnreadableIndexIsMovedAsideUntilRemoveAll() async throws {
+    let directory = makeDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let unreadable = Data("[{\"kind\":\"color\"}]".utf8)
+    try unreadable.write(to: directory.appendingPathComponent("index.json"))
+
+    let store = ClipboardStore(directory: directory)
+    let result = await store.insert(ClipboardCapture(text: "new"), settings: settings)
+    XCTAssertEqual(result?.snapshot.items.map(\.text), ["new"])
+
+    let names = try FileManager.default.contentsOfDirectory(atPath: directory.path)
+    let backup = try XCTUnwrap(names.first { $0.hasPrefix("index.unreadable-") && $0.hasSuffix(".json") })
+    XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent(backup)), unreadable)
+
+    _ = await store.removeAll()
+    XCTAssertFalse(try FileManager.default.contentsOfDirectory(atPath: directory.path).contains(backup))
+  }
+
+  func testCaptureIsDroppedWhenItsBlobCannotBeWritten() async throws {
+    let directory = makeDirectory()
+    defer { try? FileManager.default.removeItem(at: directory) }
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    // A plain file where the blobs folder belongs makes every blob write fail.
+    try Data().write(to: directory.appendingPathComponent("blobs"))
+
+    let store = ClipboardStore(directory: directory)
+    let image = await store.insert(ClipboardCapture(imagePNG: png(9)), settings: settings)
+    XCTAssertNil(image)
+    let text = await store.insert(ClipboardCapture(text: "short text needs no blob"), settings: settings)
+    XCTAssertEqual(text?.snapshot.items.map(\.kind), [.text])
+  }
+
   func testEmptyCaptureIsIgnored() async {
     let directory = makeDirectory()
     defer { try? FileManager.default.removeItem(at: directory) }

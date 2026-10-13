@@ -43,8 +43,8 @@ struct FilesSettingsView: View {
 
       PhotonSettingsCard(
         title: "Actions",
-        footer: "Command-Enter performs the other action. Space or Command-Y opens Quick Look. "
-          + "Up to three strong matches appear below applications once you have typed three characters."
+        footer: "Command-Enter performs the other action. Command-Y opens Quick Look. "
+          + "Filename matches appear below other results after three characters."
       ) {
         PhotonSettingsRow(title: "Enter") {
           Picker("Enter", selection: $settings.filesDefaultAction) {
@@ -53,12 +53,14 @@ struct FilesSettingsView: View {
             }
           }
           .labelsHidden()
+          .settingsFocused(.control("files.action"))
           .frame(maxWidth: 180)
         }
         PhotonSettingsRow(title: "Show file matches in the main list") {
           Toggle("", isOn: $settings.filesInlineResults)
             .toggleStyle(.switch)
             .labelsHidden()
+            .settingsFocused(.control("files.inline"))
         }
       }
 
@@ -93,6 +95,7 @@ struct FilesSettingsView: View {
           fileAccess.requestAccess(parent: NSApp.keyWindow)
         }
         .buttonStyle(.borderless)
+        .settingsFocused(.control("files.grantFolder"))
         .padding(.horizontal, 10)
         .padding(.bottom, 6)
         if fileAccess.status == .requesting {
@@ -152,6 +155,7 @@ private struct FolderListEditor: View {
       addFolders()
     }
     .buttonStyle(.borderless)
+    .settingsFocused(.control("files.excludeFolder"))
     .padding(.horizontal, 10)
     .padding(.bottom, 6)
   }

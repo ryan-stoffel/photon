@@ -64,9 +64,11 @@ final class KeyShortcutTests: XCTestCase {
     }
   }
 
-  func testBindableRequiresModifiersUnlessFunctionKey() {
+  func testBindableRequiresANonShiftModifierUnlessFunctionKey() {
     XCTAssertTrue(KeyShortcut(keyCode: 0, modifiers: .command).isBindable)
     XCTAssertFalse(KeyShortcut(keyCode: 0, modifiers: []).isBindable)
+    XCTAssertFalse(KeyShortcut(keyCode: 0, modifiers: .shift).isBindable)
+    XCTAssertTrue(KeyShortcut(keyCode: 0, modifiers: [.shift, .option]).isBindable)
     XCTAssertTrue(KeyShortcut(keyCode: 79, modifiers: []).isBindable)
   }
 

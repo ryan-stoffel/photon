@@ -32,11 +32,13 @@ struct PhotonApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
   let runtime = AppRuntime()
   private(set) var statusItemController: StatusItemController?
+  private var signalSources: [DispatchSourceSignal] = []
 
   func applicationDidFinishLaunching(_: Notification) {
     NSApp.setActivationPolicy(.accessory)
     PhotonAppIcon.install()
-    installSettingsMenu()
+    installMainMenu()
+    terminateOnSignals()
     statusItemController = StatusItemController(runtime: runtime)
     runtime.start()
     runtime.runUIScenarioIfNeeded()
@@ -56,20 +58,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     runtime.stop()
   }
 
-  private func installSettingsMenu() {
-    let mainMenu = NSMenu()
-    let appItem = NSMenuItem()
-    let appMenu = NSMenu(title: PhotonProduct.displayName)
-    let settingsItem = NSMenuItem(
-      title: "Settings…",
-      action: #selector(openSettingsMenu),
-      keyEquivalent: ","
-    )
+  /// Replaces SwiftUI's main menu. Edit and Window items have nil targets, so ⌘C, ⌘V and ⌘W
+  /// reach whichever Photon window is key.
+  private func installMainMenu() {
+    let settingsItem = NSMenuItem(title: "Settings…", action: #selector(openSettingsMenu), keyEquivalent: ",")
     settingsItem.target = self
-    appMenu.addItem(settingsItem)
-    appItem.submenu = appMenu
-    mainMenu.addItem(appItem)
+    let mainMenu = NSMenu()
+    mainMenu.addItem(submenu(PhotonProduct.displayName, [settingsItem]))
+    mainMenu.addItem(submenu("Edit", [
+      NSMenuItem(title: "Undo", action: Selector(("undo:")), keyEquivalent: "z"),
+      NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "Z"),
+      .separator(),
+      NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"),
+      NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"),
+      NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"),
+      NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"),
+    ]))
+    mainMenu.addItem(submenu("Window", [
+      NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w"),
+      NSMenuItem(title: "Minimize", action: #selector(NSWindow.performMiniaturize(_:)), keyEquivalent: "m"),
+    ]))
     NSApp.mainMenu = mainMenu
+  }
+
+  private func submenu(_ title: String, _ items: [NSMenuItem]) -> NSMenuItem {
+    let menu = NSMenu(title: title)
+    items.forEach(menu.addItem)
+    let item = NSMenuItem()
+    item.submenu = menu
+    return item
+  }
+
+  /// SIGTERM and SIGINT (pkill, Ctrl-C) quit through `NSApp.terminate`, so `applicationWillTerminate`
+  /// still restores the Caps Lock remap.
+  private func terminateOnSignals() {
+    for sig in [SIGTERM, SIGINT] {
+      signal(sig, SIG_IGN)
+      let source = DispatchSource.makeSignalSource(signal: sig, queue: .main)
+      source.setEventHandler {
+        MainActor.assumeIsolated {
+          NSApp.terminate(nil)
+        }
+      }
+      source.resume()
+      signalSources.append(source)
+    }
   }
 
   @objc private func openSettingsMenu() {
@@ -140,11 +173,23 @@ final class StatusItemController: NSObject {
     return item
   }
 
+  /// Brings an open launcher forward without resetting its query or mode.
   @objc private func openLauncher() {
-    runtime.toggleLauncher()
+    let launcher = runtime.launcher
+    if let panel = launcher.panel, panel.isVisible, launcher.model.session == .commands {
+      panel.makeKey()
+      launcher.model.requestSearchFocus()
+      return
+    }
+    launcher.show()
   }
 
+  /// Unlike the hotkey, the menu item never closes clipboard history that is already showing.
   @objc private func openClipboard() {
+    let launcher = runtime.launcher
+    if launcher.panel?.isVisible == true, launcher.model.session == .clipboard {
+      return
+    }
     runtime.showClipboardHistory()
   }
 

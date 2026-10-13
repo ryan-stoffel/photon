@@ -94,6 +94,29 @@ final class WindowLayoutTests: XCTestCase {
     }
   }
 
+  func testRepeatedHalfPressesCycleHalfTwoThirdsThird() throws {
+    let visible = try XCTUnwrap(screens["macbook-dock-bottom"])
+    let half = CGRect(x: 0, y: 70, width: 720, height: 805)
+    let twoThirds = CGRect(x: 0, y: 70, width: 960, height: 805)
+    let third = CGRect(x: 0, y: 70, width: 480, height: 805)
+    XCTAssertEqual(WindowLayout.frame(for: .leftHalf, window: window, in: visible), half)
+    XCTAssertEqual(WindowLayout.frame(for: .leftHalf, window: half, in: visible), twoThirds)
+    XCTAssertEqual(WindowLayout.frame(for: .leftHalf, window: twoThirds, in: visible), third)
+    XCTAssertEqual(WindowLayout.frame(for: .leftHalf, window: third, in: visible), half)
+
+    // Apps that snap to a character grid land a few points short and still advance.
+    let snapped = CGRect(x: 0, y: 70, width: 713, height: 805)
+    XCTAssertEqual(WindowLayout.frame(for: .leftHalf, window: snapped, in: visible), twoThirds)
+
+    // Right and bottom cycles stay anchored to their edge.
+    let rightThird = WindowLayout.frame(for: .rightHalf, window: frame(.rightTwoThirds, visible), in: visible)
+    XCTAssertEqual(rightThird, frame(.rightThird, visible))
+    let bottomHalf = frame(.bottomHalf, visible)
+    let bottomTwoThirds = try XCTUnwrap(WindowLayout.frame(for: .bottomHalf, window: bottomHalf, in: visible))
+    XCTAssertEqual(bottomTwoThirds.minY, visible.minY)
+    XCTAssertEqual(bottomTwoThirds.height, (visible.height * 2 / 3).rounded())
+  }
+
   func testMaximizeFillsTheVisibleFrame() {
     for (name, visible) in screens {
       XCTAssertEqual(frame(.maximize, visible), visible, name)

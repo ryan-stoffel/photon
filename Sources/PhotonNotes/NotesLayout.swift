@@ -26,11 +26,12 @@ public enum NotesLayout: Sendable {
     CGSize(width: panelWidth, height: max(proposed.height, minimumHeight))
   }
 
+  /// "3,069 characters", grouped for the current locale.
   public static func characterCountLabel(_ count: Int, capitalized: Bool) -> String {
     let noun = count == 1 ? "character" : "characters"
     if capitalized {
-      return "\(count) \(noun.prefix(1).uppercased())\(noun.dropFirst())"
+      return "\(count.formatted()) \(noun.prefix(1).uppercased())\(noun.dropFirst())"
     }
-    return "\(count) \(noun)"
+    return "\(count.formatted()) \(noun)"
   }
 }

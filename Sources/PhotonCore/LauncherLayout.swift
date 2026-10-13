@@ -35,18 +35,18 @@ public enum LauncherContent: Equatable, Sendable {
   case searchOnly
   /// Empty-query recommendations revealed by pressing Down.
   case recommendations
-  /// The command list. `0` rows still shows one line (indexing or no results).
+  /// The command list. `0` rows still shows one message line ("No results", or clipboard history off).
   /// When `showsCalculatorHero` is true, the first result is rendered as a calculator card instead of a row.
   case rows(count: Int, showsCalculatorHero: Bool)
   /// A feature view with its own layout (clipboard history, file search).
   case fullHeight
 }
 
-/// Fixed metrics of the launcher panel. Heights are derived here so the
+/// Fixed metrics of the launcher panel, matched to Raycast's. Heights are derived here so the
 /// AppKit window and the SwiftUI content always agree on the panel size.
 public enum LauncherLayout {
   public static let searchFieldHeight: Double = 56
-  public static let footerHeight: Double = 32
+  public static let footerHeight: Double = 40
   /// Bottom padding inside the Files/clipboard detail pane so metadata cannot
   /// paint over the command footer.
   public static let detailFooterSafeInset: Double = 10
@@ -57,16 +57,16 @@ public enum LauncherLayout {
   public static let panelDragSlop: Double = 6
   public static let rowHeight: Double = 40
   /// Padding above the first and below the last row.
-  public static let listInset: Double = 6
+  public static let listInset: Double = 8
   public static let maxVisibleRows = 10
   /// Rows shown for an empty query when suggestions are enabled.
   public static let suggestionCount = maxVisibleRows
   /// Empty-query recommendations list the full catalog (apps, recs, shortcuts), not one page.
   public static let recommendationCatalogLimit = 250
-  /// Fully visible rows in the expanded recommendations list.
+  /// Fully visible rows under the first section header in the expanded recommendations list.
   public static var visibleRecommendationRows: Int {
     SelectionNavigation.visibleRowCount(
-      listHeight: expandedListHeight,
+      listHeight: expandedListHeight - sectionHeaderHeight,
       rowHeight: rowHeight,
       inset: listInset
     )
@@ -74,32 +74,41 @@ public enum LauncherLayout {
 
   public static let hairline: Double = 1
   public static let cornerRadius: Double = 12
-  public static let iconSize: Double = 28
+  public static let iconSize: Double = 20
+  /// Selection highlight radius and the row's inner padding, shared by every launcher list.
+  public static let rowCornerRadius: Double = 10
+  public static let rowHorizontalPadding: Double = 8
   /// Legacy wide-panel metric. Expanded Files/clipboard keep `panelWidth` and
   /// split list/preview horizontally inside `detailListWidth` instead.
   public static let detailWidth: Double = 980
-  /// Shared launcher-recommendations, Files, and clipboard panel height.
-  public static let expandedHeight: Double = 502
+  /// Shared launcher-recommendations, Files, and clipboard panel height. Once the header scrolls
+  /// away, the list shows exactly nine rows between its insets.
+  public static let expandedHeight: Double = 474
   public static let expandedListHeight = expandedHeight - searchFieldHeight - footerHeight - 2 * hairline
   public static let detailHeight = expandedHeight
   /// Left-hand results column inside an expanded Files or clipboard panel.
   public static let detailListWidth: Double = 268
+  /// Section title above a run of rows: "Suggestions", "Commands", "Results", "Calculator".
+  public static let sectionHeaderHeight: Double = 28
   /// Raycast-style calculator hero card (section label + split card).
   public static let calculatorSectionSpacing: Double = 8
   public static let calculatorCardHeight: Double = 108
-  public static let calculatorSectionHeaderHeight: Double = 18
 
-  /// Height of the list area for `count` rows, clamped to `maxVisibleRows` and never below one row.
+  /// Height of the list area for `count` rows. Rows sit under a "Results" (or fallback) header.
+  /// Zero rows still shows one message line, without a header. Never taller than one expanded page.
   public static func listHeight(rowCount count: Int, showsCalculatorHero: Bool = false) -> Double {
     let heroHeight = showsCalculatorHero
-      ? calculatorSectionHeaderHeight + calculatorSectionSpacing + calculatorCardHeight + listInset
+      ? sectionHeaderHeight + calculatorSectionSpacing + calculatorCardHeight + listInset
       : 0
     let dataRows = showsCalculatorHero ? max(count - 1, 0) : count
     if showsCalculatorHero, dataRows == 0 {
       return heroHeight
     }
+    let header = dataRows > 0 ? sectionHeaderHeight : 0
     let visible = min(max(dataRows, 1), maxVisibleRows)
-    return heroHeight + Double(visible) * rowHeight + 2 * listInset
+    // The hero's bottom inset already separates it from the rows, so only the bottom inset remains.
+    let insets = showsCalculatorHero ? listInset : 2 * listInset
+    return min(heroHeight + header + Double(visible) * rowHeight + insets, expandedListHeight)
   }
 
   /// Search field and footer with a hairline between them.

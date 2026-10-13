@@ -1,6 +1,7 @@
 import AppKit
 
-/// ⌘, opens Settings whenever Photon receives key events, including a key launcher panel.
+/// ⌘, opens Settings whenever Photon receives key events, including a key launcher panel, unless a
+/// shortcut recorder is recording.
 @MainActor
 final class SettingsShortcutMonitor {
   static let commaKeyCode: UInt16 = 43
@@ -11,7 +12,10 @@ final class SettingsShortcutMonitor {
   init(handler: @escaping () -> Void) {
     self.handler = handler
     localMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-      guard let self, Self.isSettingsShortcut(event) else {
+      // A recording shortcut field gets ⌘, as a combo instead.
+      guard let self, Self.isSettingsShortcut(event),
+            (event.window?.firstResponder as? HotkeyRecorderView)?.recording != true
+      else {
         return event
       }
       self.handler()

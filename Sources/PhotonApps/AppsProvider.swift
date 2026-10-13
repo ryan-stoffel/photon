@@ -48,10 +48,27 @@ public final class AppsProvider: CommandProvider, @unchecked Sendable {
     try await open(app)
   }
 
+  /// Bundle URL behind an `app:` command, for Show in Finder and Copy Path. Nil for panes and other providers.
+  public func applicationURL(for command: Command) -> URL? {
+    guard command.id.hasPrefix("app:") else {
+      return nil
+    }
+    return index.applications.first { $0.id == command.id }?.url
+  }
+
+  /// Starts an `.app` launch without waiting for LaunchServices, so the launcher hides at once.
+  /// Launch errors only reach the log because the panel is already gone.
   @MainActor
-  private func open(_ app: IndexedApplication) async throws {
+  private func open(_ app: IndexedApplication) throws {
     if app.url.pathExtension == "app" {
-      _ = try await ForegroundActivation.launch(at: app.url, bundleIdentifier: bundleIdentifier(for: app))
+      let bundleID = bundleIdentifier(for: app)
+      Task {
+        do {
+          try await ForegroundActivation.launch(at: app.url, bundleIdentifier: bundleID)
+        } catch {
+          NSLog("Photon: could not launch \(app.url.path): \(error)")
+        }
+      }
       return
     }
     let ok = NSWorkspace.shared.open(app.url)

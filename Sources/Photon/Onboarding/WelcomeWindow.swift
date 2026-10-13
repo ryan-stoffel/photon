@@ -9,6 +9,8 @@ enum WelcomeCopy {
   static let productName = "Photon"
   static let grantButton = "Grant Access"
   static let grantingButton = "Waiting for macOS…"
+  static let spotlightConflict = "Spotlight uses this shortcut."
+  static let openKeyboardSettings = "Open Keyboard Settings"
 
   static var shortcutCaption: String {
     "Press this to open \(productName)."
@@ -18,11 +20,14 @@ enum WelcomeCopy {
 @MainActor
 final class WelcomeModel: ObservableObject {
   let hotkey: HotkeyCombo
+  /// Shows the Spotlight note and its Keyboard Settings button under the keycaps.
+  let spotlightConflict: Bool
   @Published var isGranting = false
   var grant: () -> Void = {}
 
-  init(hotkey: HotkeyCombo) {
+  init(hotkey: HotkeyCombo, spotlightConflict: Bool) {
     self.hotkey = hotkey
+    self.spotlightConflict = spotlightConflict
   }
 }
 
@@ -46,6 +51,17 @@ struct WelcomeView: View {
         .padding(.top, 6)
       WelcomeKeycaps(labels: model.hotkey.keycapLabels, accessibilityLabel: model.hotkey.displayString)
         .padding(.top, 28)
+      if model.spotlightConflict {
+        Text(WelcomeCopy.spotlightConflict)
+          .font(.system(size: 12))
+          .foregroundStyle(.secondary)
+          .padding(.top, 16)
+        Button(WelcomeCopy.openKeyboardSettings) {
+          SpotlightConflict.openKeyboardSettings()
+        }
+        .buttonStyle(.borderless)
+        .padding(.top, 4)
+      }
       Spacer(minLength: 0)
       Button(model.isGranting ? WelcomeCopy.grantingButton : WelcomeCopy.grantButton) {
         model.grant()
@@ -107,7 +123,6 @@ private struct WelcomeChromeStroke: View {
 
 /// One window on the active space. Same material and corners as the launcher.
 final class WelcomeWindow: NSWindow {
-  static let identifier = NSUserInterfaceItemIdentifier("photon.welcome")
   static let contentWidth: CGFloat = 600
   static let contentHeight: CGFloat = 460
 
@@ -125,7 +140,6 @@ final class WelcomeWindow: NSWindow {
     window.title = WelcomeCopy.step
     window.titleVisibility = .hidden
     window.titlebarAppearsTransparent = true
-    window.identifier = identifier
     window.isReleasedWhenClosed = false
     window.isRestorable = false
     window.level = .normal
@@ -232,13 +246,13 @@ final class WelcomeController {
     window?.contentView?.layer?.cornerRadius ?? 0
   }
 
-  func present(hotkey: HotkeyCombo) {
+  func present(hotkey: HotkeyCombo, spotlightConflict: Bool = false) {
     presentationGeneration += 1
     grantTask?.cancel()
     grantTask = nil
     finished = false
     tearDown()
-    let model = WelcomeModel(hotkey: hotkey)
+    let model = WelcomeModel(hotkey: hotkey, spotlightConflict: spotlightConflict)
     let window = WelcomeWindow.make(model: model)
     let box = WelcomeBox(self)
     model.grant = {

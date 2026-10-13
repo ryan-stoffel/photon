@@ -1,6 +1,7 @@
 import Combine
 import PhotonClipboard
 import PhotonCore
+import PhotonFiles
 import SwiftUI
 
 /// What the panel shows below the search field. Clipboard is its own session
@@ -18,14 +19,12 @@ final class LauncherViewModel: ObservableObject {
       guard query != oldValue else {
         return
       }
+      showsActions = false
       switch session {
       case .clipboard:
-        if !query.isEmpty {
-          clipboardShowsResults = true
-        }
         clipboard?.query = query
       case .commands:
-        if clipboard != nil, let sub = ClipboardProvider.historyQuery(fromLauncherQuery: query) {
+        if clipboard != nil, activeMode == nil, let sub = ClipboardProvider.historyQuery(fromLauncherQuery: query) {
           enterClipboard(query: sub)
         } else if activeMode == nil, let match = prefixMatch(in: query) {
           enter(mode: match.mode, query: match.remainder)
@@ -47,7 +46,14 @@ final class LauncherViewModel: ObservableObject {
     didSet { updateContent() }
   }
 
-  @Published var selectedID: String?
+  @Published var selectedID: String? {
+    didSet {
+      if selectedID != oldValue {
+        showsActions = false
+      }
+    }
+  }
+
   @Published var isLoading = false
   @Published var lastError: String?
   @Published private(set) var focusGeneration = 0
@@ -55,10 +61,21 @@ final class LauncherViewModel: ObservableObject {
     didSet { updateContent() }
   }
 
-  /// Clipboard list stays collapsed until the user types or presses Down (like compact launcher rows).
-  @Published private(set) var clipboardShowsResults = false {
+  /// The ⌘K action panel. It closes when the query or the selection changes, and on hide.
+  @Published var showsActions = false {
     didSet { updateContent() }
   }
+
+  /// Filter text typed into the ⌘K panel.
+  @Published var actionQuery = "" {
+    didSet { actionSelectedID = nil }
+  }
+
+  /// Highlighted ⌘K panel row. Nil means the first filtered action.
+  @Published var actionSelectedID: String?
+
+  /// `actionPanelTitle` when ⌘K opened. Mode and clipboard selections close the panel when it changes.
+  var actionsOpenedTitle = ""
 
   @Published private(set) var activeMode: (any LauncherMode)? {
     didSet { updateContent() }
@@ -71,6 +88,9 @@ final class LauncherViewModel: ObservableObject {
 
   /// How many leading rows belong to the Suggestions section. Zero hides the header.
   @Published var suggestionCount = 0
+
+  /// True when a typed query matched nothing and the list holds the Search Files fallback instead.
+  @Published private(set) var showsFallbacks = false
 
   /// Drives the panel height; `LauncherPanelController` resizes the window when it changes.
   @Published private(set) var content: LauncherContent = .searchOnly
@@ -107,6 +127,7 @@ final class LauncherViewModel: ObservableObject {
           guard let self else {
             return
           }
+          closeActionsIfSelectionMoved()
           objectWillChange.send()
           updateContent()
         }
@@ -119,6 +140,8 @@ final class LauncherViewModel: ObservableObject {
   let trailingLimit = 5
   /// Searches finish out of order when typing fast; only the latest one may publish.
   private var searchGeneration = 0
+  /// Query behind `results`. A new query moves the selection back to the first row.
+  private(set) var resultsQuery = ""
 
   init(registry: CommandRegistry, frecency: FrecencyStore) {
     self.registry = registry
@@ -167,6 +190,7 @@ final class LauncherViewModel: ObservableObject {
   }
 
   func refreshLayout() {
+    closeActionsIfSelectionMoved()
     objectWillChange.send()
     updateContent()
   }
@@ -208,16 +232,22 @@ final class LauncherViewModel: ObservableObject {
     if results.isEmpty {
       isLoading = true
     }
-    let ranked = await registry.search(query, frecency: frecency)
+    let searched = query
+    let ranked = await registry.search(searched, frecency: frecency)
     guard showsCommandList, generation == searchGeneration else {
       return
     }
-    let arranged = arrange(ranked, forEmptyQuery: query.isEmpty)
+    let arranged = arrange(ranked, forEmptyQuery: searched.isEmpty)
     if suggestionCount != arranged.suggestionCount {
       suggestionCount = arranged.suggestionCount
     }
-    results = arranged.commands
-    if !results.contains(where: { $0.id == selectedID }) {
+    let fallback = arranged.commands.isEmpty ? fallbackCommand(for: searched) : nil
+    showsFallbacks = fallback != nil
+    let queryChanged = searched != resultsQuery
+    // Set before `results` so `updateContent` sees fresh results.
+    resultsQuery = searched
+    results = fallback.map { [$0] } ?? arranged.commands
+    if queryChanged || !results.contains(where: { $0.id == selectedID }) {
       selectedID = results.first?.id
     }
     isLoading = false
@@ -227,19 +257,7 @@ final class LauncherViewModel: ObservableObject {
 
   func moveSelection(_ delta: Int) {
     if session == .clipboard {
-      guard let clipboard, !clipboard.results.isEmpty else {
-        return
-      }
-      if !clipboardShowsResults {
-        clipboardShowsResults = true
-        if delta < 0 {
-          clipboard.selectLast()
-        } else {
-          clipboard.selectFirst()
-        }
-        return
-      }
-      clipboard.moveSelection(delta)
+      clipboard?.moveSelection(delta)
       return
     }
     if let activeMode {
@@ -283,13 +301,14 @@ final class LauncherViewModel: ObservableObject {
     if ranked.command.id == ClipboardProvider.historyCommandID, clipboard != nil {
       frecency.recordUse(id: ranked.command.id)
       lastError = nil
-      enterClipboard(query: "", expandDetail: true)
+      enterClipboard(query: "")
       return false
     }
     if let mode = modes.first(where: { $0.activationCommandID == ranked.command.id }) {
       frecency.recordUse(id: ranked.command.id)
       lastError = nil
-      enter(mode: mode, query: "")
+      // The zero-result fallback carries the typed text into the mode.
+      enter(mode: mode, query: showsFallbacks ? query.trimmingCharacters(in: .whitespacesAndNewlines) : "")
       return false
     }
     do {
@@ -306,13 +325,12 @@ final class LauncherViewModel: ObservableObject {
   // MARK: Clipboard session
 
   /// Switches the panel to clipboard history. `query` seeds its search field.
-  func enterClipboard(query initialQuery: String, expandDetail: Bool = false) {
+  func enterClipboard(query initialQuery: String) {
     guard let clipboard else {
       return
     }
     exitMode(clearingQuery: false)
     lastError = nil
-    clipboardShowsResults = expandDetail || !initialQuery.isEmpty
     session = .clipboard
     clipboard.reset()
     if query != initialQuery {
@@ -328,7 +346,6 @@ final class LauncherViewModel: ObservableObject {
     guard session == .clipboard else {
       return
     }
-    clipboardShowsResults = false
     session = .commands
     if query.isEmpty {
       Task { await refresh() }
@@ -380,7 +397,7 @@ final class LauncherViewModel: ObservableObject {
   }
 
   private func resetTransientUI() {
-    clipboardShowsResults = false
+    showsActions = false
     revealsRecommendations = false
     if session == .clipboard {
       session = .commands
@@ -403,47 +420,36 @@ final class LauncherViewModel: ObservableObject {
     if suggestionCount != 0 {
       suggestionCount = 0
     }
+    showsFallbacks = false
+    resultsQuery = ""
     selectedID = nil
   }
 
+  /// Search Files, offered when a typed query matches nothing. `runSelection` enters Files with the query.
+  private func fallbackCommand(for query: String) -> RankedCommand? {
+    guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+          let command = (registry.provider(id: "files") as? FilesProvider)?.searchCommand,
+          modes.contains(where: { $0.activationCommandID == command.id })
+    else {
+      return nil
+    }
+    return RankedCommand(command: command, textScore: 0, frecencyScore: 0)
+  }
+
   private func updateContent() {
-    let next: LauncherContent = switch session {
-    case .clipboard:
-      clipboardContent()
-    case .commands:
-      if let activeMode {
-        if activeMode.prefersCompactLauncherLayout {
-          .searchOnly
-        } else {
-          .fullHeight
-        }
-      } else if query.isEmpty, !preferences.showsSuggestions, !revealsRecommendations {
-        .searchOnly
-      } else if query.isEmpty {
-        .recommendations
-      } else {
-        .rows(count: results.count, showsCalculatorHero: calculatorHero != nil)
+    var next = session == .clipboard ? clipboardContent() : commandsContent()
+    // The ⌘K panel needs room, so a compact or short panel grows while it is open.
+    if showsActions {
+      switch next {
+      case .searchOnly, .rows:
+        next = showsCommandList ? .recommendations : .fullHeight
+      case .recommendations, .fullHeight:
+        break
       }
     }
     if next != content {
       content = next
     }
-  }
-
-  private func clipboardContent() -> LauncherContent {
-    guard let clipboard else {
-      return .searchOnly
-    }
-    if !clipboardShowsResults, query.isEmpty, !clipboard.showsCompactEmptyRow {
-      return .searchOnly
-    }
-    if !clipboard.results.isEmpty {
-      return .fullHeight
-    }
-    if clipboard.showsCompactEmptyRow {
-      return .rows(count: 1, showsCalculatorHero: false)
-    }
-    return .searchOnly
   }
 
   /// Rows resolve their icon on first draw; this warms the ones below the fold.

@@ -14,6 +14,13 @@ struct GeneralSettingsView: View {
           HotkeyRecorder(combo: $settings.hotkey)
             .frame(width: 180, height: 24)
         }
+        if let hotkeyClash {
+          Text("\(hotkeyClash) also uses this shortcut. Only one of them can have it.")
+            .font(.system(size: 12))
+            .foregroundStyle(.red)
+            .padding(.horizontal, 10)
+            .padding(.bottom, 6)
+        }
         Button("Open Keyboard Settings") {
           SpotlightConflict.openKeyboardSettings()
         }
@@ -52,5 +59,16 @@ struct GeneralSettingsView: View {
         }
       }
     }
+  }
+
+  /// The other Photon feature registered on the launcher hotkey, if any. Carbon rejects the second registration.
+  private var hotkeyClash: String? {
+    if settings.clipboardEnabled, settings.clipboardHotkeyEnabled, settings.clipboardHotkey == settings.hotkey {
+      return "Clipboard History"
+    }
+    if settings.notesHotkey == settings.hotkey {
+      return "Notes"
+    }
+    return nil
   }
 }

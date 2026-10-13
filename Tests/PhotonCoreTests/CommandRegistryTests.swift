@@ -2,53 +2,43 @@ import PhotonCore
 import XCTest
 
 final class CommandRegistryTests: XCTestCase {
-  func testFinderQueryMatchesAnApplication() async {
-    let registry = CommandRegistry()
-    registry.register(
-      FixtureProvider(
-        id: "apps",
-        results: [
-          command("app:com.apple.finder", title: "Finder"),
-          command("pane:com.apple.General", title: "General"),
-        ]
-      )
-    )
+  func testFrecencyDoesNotLiftAKeywordMatchAboveATitleMatch() async {
+    let safari = command("app:com.apple.Safari", title: "Safari", keywords: ["com.apple.Safari"])
+    let calendar = command("app:com.apple.iCal", title: "Calendar")
+    let registry = registry(with: [safari, calendar])
+    var frecency = FrecencyStore()
+    frecency.recordUse(id: safari.id)
 
-    let matches = await registry.containsApplication(matching: "finder")
+    let ranked = await registry.search("cal", frecency: frecency)
 
-    XCTAssertTrue(matches)
+    XCTAssertEqual(ranked.map(\.id), [calendar.id, safari.id])
   }
 
-  func testSettingsPaneDoesNotCountAsAnApplication() async {
-    let registry = CommandRegistry()
-    registry.register(
-      FixtureProvider(
-        id: "apps",
-        results: [command("pane:com.apple.General", title: "General")]
-      )
-    )
+  func testExactTitleOutranksExactKeyword() async {
+    let paneKeywords = ["settings", "preferences", "system settings"]
+    let panes = ["General", "Bluetooth", "Wi-Fi"].map {
+      command("pane:\($0)", title: $0, keywords: paneKeywords)
+    }
+    let settings = command("app:com.apple.systempreferences", title: "System Settings")
+    let mail = command("app:com.apple.mail", title: "Mail")
+    let accounts = command("pane:com.apple.Internet-Accounts", title: "Internet Accounts", keywords: ["mail"])
+    let registry = registry(with: panes + [accounts, settings, mail])
 
-    let matches = await registry.containsApplication(matching: "general")
+    let settingsFirst = await registry.search("system settings", frecency: FrecencyStore()).first
+    let mailFirst = await registry.search("mail", frecency: FrecencyStore()).first
 
-    XCTAssertFalse(matches)
+    XCTAssertEqual(settingsFirst?.id, settings.id)
+    XCTAssertEqual(mailFirst?.id, mail.id)
   }
 
-  func testBlankQueryDoesNotMatchAnApplication() async {
+  private func registry(with commands: [Command]) -> CommandRegistry {
     let registry = CommandRegistry()
-    registry.register(
-      FixtureProvider(
-        id: "apps",
-        results: [command("app:com.apple.finder", title: "Finder")]
-      )
-    )
-
-    let matches = await registry.containsApplication(matching: "  ")
-
-    XCTAssertFalse(matches)
+    registry.register(FixtureProvider(id: "apps", results: commands))
+    return registry
   }
 
-  private func command(_ id: String, title: String) -> Command {
-    Command(id: id, title: title, providerID: "apps")
+  private func command(_ id: String, title: String, keywords: [String] = []) -> Command {
+    Command(id: id, title: title, keywords: keywords, providerID: "apps")
   }
 }
 

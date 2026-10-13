@@ -1,8 +1,14 @@
 import Foundation
 
-/// `photon://note/<id>` links that open a specific note.
+/// `photon://note/<id>` links that open a specific note. Photon-Dev uses `photon-dev://` because it keeps
+/// its own notes folder.
 public enum NoteDeepLink: Sendable {
-  public static let scheme = "photon"
+  /// The app bundle's URL scheme, "photon" outside a bundle (tests, `swift run`).
+  public static let scheme: String = {
+    let types = Bundle.main.object(forInfoDictionaryKey: "CFBundleURLTypes") as? [[String: Any]]
+    return (types?.first?["CFBundleURLSchemes"] as? [String])?.first ?? "photon"
+  }()
+
   public static let host = "note"
 
   public static func url(for id: String) -> URL? {

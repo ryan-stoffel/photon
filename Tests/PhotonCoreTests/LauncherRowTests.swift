@@ -13,7 +13,6 @@ final class LauncherRowTests: XCTestCase {
     XCTAssertEqual(row.title, "Safari")
     XCTAssertNil(row.detail)
     XCTAssertEqual(row.icon, .fileIcon(path: "/Applications/Safari.app"))
-    XCTAssertEqual(row.actionVerb, "Open")
   }
 
   func testMeaningfulSubtitleBecomesDetail() {
@@ -51,14 +50,16 @@ final class LauncherRowTests: XCTestCase {
     XCTAssertEqual(row.detail, "milk eggs bread")
   }
 
-  func testWindowCommandsRunInsteadOfOpen() {
-    let row = LauncherRow(command: Command(id: "window:leftHalf", title: "Left Half", providerID: "keybinds"))
-    XCTAssertEqual(row.actionVerb, "Run")
-  }
-
-  func testCalculatorRowCopies() {
-    let row = LauncherRow(command: Command(id: "calculator:x", title: "1+1 → 2", providerID: "calculator"))
-    XCTAssertEqual(row.actionVerb, "Copy Answer")
+  func testAccessoryNamesTheResultType() {
+    func accessory(_ id: String, _ providerID: String) -> String? {
+      LauncherRow(command: Command(id: id, title: "X", providerID: providerID)).accessory
+    }
+    XCTAssertEqual(accessory("app:com.apple.Safari", "apps"), "Application")
+    XCTAssertEqual(accessory("pane:com.apple.Accessibility-Settings.extension", "apps"), "Command")
+    XCTAssertEqual(accessory("file:/Users/ryan/report.pdf", "files"), "File")
+    XCTAssertEqual(accessory("files:search", "files"), "Command")
+    XCTAssertEqual(accessory("note:1", "notes"), "Note")
+    XCTAssertNil(accessory("calculator:x", "calculator"))
   }
 
   func testRowIdentityFollowsTheCommand() {

@@ -4,86 +4,24 @@ import PhotonClipboard
 import PhotonCore
 import SwiftUI
 
+/// The one-row clipboard state: history is off or empty, or a filter matches nothing. Results always
+/// render in `LauncherClipboardDetailSplitView`.
 struct LauncherClipboardResultsSection: View {
   @ObservedObject var model: LauncherViewModel
 
   var body: some View {
-    ScrollViewReader { proxy in
-      ScrollView(.vertical) {
-        LazyVStack(spacing: 0) {
-          if let clipboard = model.clipboard {
-            if clipboard.results.isEmpty, clipboard.showsCompactEmptyRow {
-              messageRow(clipboard.compactEmptyMessage)
-            } else {
-              ForEach(clipboard.results) { item in
-                resultRow(item)
-                  .id(item.id)
-              }
-            }
-          }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, LauncherLayout.listInset)
-      }
-      .onChange(of: model.clipboard?.selectedID) { _, newValue in
-        if let newValue {
-          proxy.scrollTo(newValue)
-        }
-      }
-    }
-    .frame(height: LauncherLayout.listHeight(rowCount: visibleRowCount))
-  }
-
-  private var visibleRowCount: Int {
-    guard let clipboard = model.clipboard else {
-      return 1
-    }
-    if !clipboard.results.isEmpty {
-      return clipboard.results.count
-    }
-    if clipboard.showsCompactEmptyRow {
-      return 1
-    }
-    return 1
-  }
-
-  private func messageRow(_ message: String) -> some View {
     HStack {
-      Text(message)
+      Text(model.clipboard?.compactEmptyMessage ?? "")
         .font(.system(size: 13))
         .foregroundStyle(.secondary)
       Spacer()
     }
-    .padding(.horizontal, 10)
+    .padding(.horizontal, LauncherLayout.rowHorizontalPadding)
     .frame(height: LauncherLayout.rowHeight)
-  }
-
-  @ViewBuilder
-  private func resultRow(_ item: ClipboardItem) -> some View {
-    if let clipboard = model.clipboard {
-      ClipboardHistoryObservingRow(item: item, clipboard: clipboard)
-        .contextMenu {
-          Button(clipboard.manager.settings.pasteBehavior == .paste ? "Paste" : "Copy") {
-            clipboard.paste(item)
-          }
-          Button("Copy Only") {
-            clipboard.copy(item)
-          }
-          Divider()
-          Button(item.isPinned ? "Unpin" : "Pin") {
-            clipboard.togglePin(item)
-          }
-          Button("Delete", role: .destructive) {
-            clipboard.delete(item)
-          }
-        }
-        .onTapGesture(count: 2) {
-          clipboard.paste(item)
-        }
-        .onTapGesture {
-          clipboard.selectedID = item.id
-        }
-    }
+    .padding(.horizontal, 8)
+    .padding(.vertical, LauncherLayout.listInset)
+    // Same slot the window reserves for `.rows(count: 0)`: one message line, no section header.
+    .frame(height: LauncherLayout.listHeight(rowCount: 0), alignment: .top)
   }
 }
 
@@ -100,58 +38,125 @@ struct LauncherClipboardDetailSplitView: View {
 }
 
 private struct ClipboardDetailSplitBody: View {
+  private static let listTopID = "clipboard.list.top"
+
   @ObservedObject var clipboard: ClipboardHistoryViewModel
+  @State private var scrollTracker = ListScrollTracker()
 
   var body: some View {
-    HStack(spacing: 0) {
-      historyList
-        .frame(width: LauncherLayout.detailListWidth)
-        .frame(maxHeight: .infinity, alignment: .top)
-      Divider()
-      Group {
-        if let item = clipboard.selectedItem {
-          ClipboardDetailView(item: item, manager: clipboard.manager)
-        } else {
-          ContentUnavailableView("No Clipboard Item", systemImage: "clipboard")
+    if clipboard.results.isEmpty, !clipboard.query.isEmpty {
+      ContentUnavailableView.search(text: clipboard.query)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    } else {
+      HStack(spacing: 0) {
+        historyList
+          .frame(width: LauncherLayout.detailListWidth)
+          .frame(maxHeight: .infinity, alignment: .top)
+        Divider()
+        Group {
+          if let item = clipboard.selectedItem {
+            // A fresh identity per entry, so the previous entry's state never shows under new metadata.
+            ClipboardDetailView(item: item, manager: clipboard.manager)
+              .id(item.id)
+          } else {
+            ContentUnavailableView("No Clipboard Item", systemImage: "clipboard")
+          }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .frame(maxHeight: .infinity)
+      .clipped()
     }
-    .frame(maxHeight: .infinity)
-    .clipped()
   }
 
+  /// An empty query with pinned entries splits the list into Pinned and Recent. Search sorts
+  /// pinned entries first for an empty query, so the sections match keyboard order.
   private var historyList: some View {
     ScrollViewReader { proxy in
       ScrollView(.vertical) {
         LazyVStack(alignment: .leading, spacing: 0) {
-          Text("Clipboard History")
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-          ForEach(clipboard.results) { item in
-            ClipboardHistoryObservingRow(item: item, clipboard: clipboard)
-              .id(item.id)
-              .contentShape(Rectangle())
-              .onTapGesture(count: 2) {
-                clipboard.paste(item)
-              }
-              .onTapGesture {
-                clipboard.selectedID = item.id
-              }
+          // The top inset, with an id so the first row can scroll the header above it into view.
+          Color.clear
+            .frame(height: LauncherLayout.listInset)
+            .id(Self.listTopID)
+          let pinned = clipboard.query.isEmpty ? clipboard.results.filter(\.isPinned) : []
+          if pinned.isEmpty {
+            rows(clipboard.results)
+          } else {
+            let recent = clipboard.results.filter { !$0.isPinned }
+            sectionHeader("Pinned")
+            rows(pinned)
+            if !recent.isEmpty {
+              sectionHeader("Recent")
+              rows(recent)
+            }
           }
         }
         .padding(.horizontal, 8)
         .padding(.bottom, LauncherLayout.listInset)
       }
+      .listScrollViewport(scrollTracker)
       .onChange(of: clipboard.selectedID) { _, selectedID in
-        if let selectedID {
-          proxy.scrollTo(selectedID, anchor: .center)
+        guard let selectedID else {
+          return
+        }
+        // Scroll only as far as needed. The first row also reveals the inset and header above it.
+        if selectedID == clipboard.results.first?.id {
+          proxy.scrollTo(Self.listTopID, anchor: .top)
+        } else {
+          scrollTracker.reveal(selectedID, in: clipboard.results.map(\.id), with: proxy)
         }
       }
     }
     .frame(maxHeight: .infinity)
+  }
+
+  private func rows(_ items: [ClipboardItem]) -> some View {
+    ForEach(items) { item in
+      ClipboardHistoryObservingRow(item: item, clipboard: clipboard)
+        .id(item.id)
+        .listScrollRow(item.id, tracker: scrollTracker)
+        .contentShape(Rectangle())
+        .contextMenu {
+          contextMenu(for: item)
+        }
+        .onTapGesture(count: 2) {
+          clipboard.perform(clipboard.manager.settings.pasteBehavior, on: item)
+        }
+        .onTapGesture {
+          clipboard.selectedID = item.id
+        }
+    }
+  }
+
+  /// The same entry actions as the ⌘K panel.
+  @ViewBuilder
+  private func contextMenu(for item: ClipboardItem) -> some View {
+    let primary = clipboard.manager.settings.pasteBehavior
+    Button(primary.label) {
+      clipboard.perform(primary, on: item)
+    }
+    Button(primary.other.label) {
+      clipboard.perform(primary.other, on: item)
+    }
+    Divider()
+    Button(item.isPinned ? "Unpin Entry" : "Pin Entry") {
+      clipboard.togglePin(item)
+    }
+    Button("Delete Entry", role: .destructive) {
+      clipboard.delete(item)
+    }
+  }
+
+  /// Matches the launcher's Suggestions header.
+  private func sectionHeader(_ title: String) -> some View {
+    Text(title)
+      .font(.system(size: 11, weight: .semibold))
+      .foregroundStyle(.secondary)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .padding(.horizontal, 12)
+      .padding(.vertical, 2)
+      .accessibilityAddTraits(.isHeader)
   }
 }
 
@@ -166,11 +171,16 @@ private struct ClipboardHistoryObservingRow: View {
   }
 }
 
+/// Preview and Information table for one entry. The preview renders `item.text`, which capture
+/// caps at `ClipboardItem.inlineTextLimit`. Counts and file sizes load off the main thread.
 private struct ClipboardDetailView: View {
   let item: ClipboardItem
   let manager: ClipboardManager
-  @State private var fullText: String?
   @State private var image: NSImage?
+  /// Counts over the full text, including the part stored as a blob.
+  @State private var textCounts: (characters: Int, words: Int)?
+  /// Total size of the copied files. Nil while loading, or when a path is missing or a folder.
+  @State private var fileSize: String?
 
   var body: some View {
     VStack(spacing: 0) {
@@ -181,8 +191,18 @@ private struct ClipboardDetailView: View {
     }
     .clipped()
     .task(id: item.id) {
-      fullText = await manager.fullText(for: item)
-      image = await manager.image(for: item)
+      switch item.kind {
+      case .text, .link:
+        let text = await manager.fullText(for: item) ?? ""
+        textCounts = await Task.detached {
+          (text.count, text.split(whereSeparator: \.isWhitespace).count)
+        }.value
+      case .image:
+        image = await manager.image(for: item)
+      case .file:
+        let paths = item.filePaths
+        fileSize = await Task.detached { Self.fileSize(paths) }.value
+      }
     }
   }
 
@@ -203,13 +223,13 @@ private struct ClipboardDetailView: View {
       }
     case .text, .link:
       ScrollView {
-        if item.kind == .link, let text = fullText, let url = URL(string: text) {
+        if item.kind == .link, let text = item.text, let url = URL(string: text) {
           Link(text, destination: url)
             .font(.system(size: 15))
             .frame(maxWidth: .infinity, alignment: .leading)
             .textSelection(.enabled)
         } else {
-          Text(fullText ?? item.text ?? "")
+          Text(item.text ?? "")
             .font(.system(size: 14, design: .monospaced))
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .textSelection(.enabled)
@@ -241,14 +261,14 @@ private struct ClipboardDetailView: View {
         metadataRow("Content type", item.kind.label)
         switch item.kind {
         case .text, .link:
-          metadataRow("Characters", "\(displayText.count)")
-          metadataRow("Words", "\(wordCount)")
+          metadataRow("Characters", textCounts.map { "\($0.characters)" } ?? "—")
+          metadataRow("Words", textCounts.map { "\($0.words)" } ?? "—")
         case .image:
           metadataRow("Dimensions", dimensions)
           metadataRow("Image size", formattedBytes)
         case .file:
           metadataRow("Items", "\(item.filePaths.count)")
-          metadataRow("Size", formattedBytes)
+          metadataRow("Size", fileSize ?? "—")
         }
         metadataRow("Copied", item.copiedAt.formatted(date: .abbreviated, time: .shortened))
       }
@@ -278,12 +298,17 @@ private struct ClipboardDetailView: View {
     }
   }
 
-  private var displayText: String {
-    fullText ?? item.text ?? ""
-  }
-
-  private var wordCount: Int {
-    displayText.split(whereSeparator: \.isWhitespace).count
+  /// Sum of the regular files' sizes, or nil when any path is missing or not a regular file.
+  private nonisolated static func fileSize(_ paths: [String]) -> String? {
+    var total: Int64 = 0
+    for path in paths {
+      let values = try? URL(fileURLWithPath: path).resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+      guard values?.isRegularFile == true, let size = values?.fileSize else {
+        return nil
+      }
+      total += Int64(size)
+    }
+    return ByteCountFormatter.string(fromByteCount: total, countStyle: .file)
   }
 
   private var dimensions: String {

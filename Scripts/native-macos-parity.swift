@@ -154,7 +154,7 @@ func displayedTitles(_ report: [String: Any]) -> [String] {
 }
 
 /// Finder.app is the first command, Search Files and filename hits sit below it,
-/// and the query has not been promoted into a files-only list.
+/// and the launcher stays in the root list.
 func finderQueryKeepsTheApp(_ report: [String: Any]) -> Bool {
   let state = launcher(report)
   let ids = strings(state["displayedCommandIDs"])
@@ -516,7 +516,7 @@ func requireMetadataDoesNotOverlapFooter(at url: URL, name: String, renderedText
   }
 
   let metadataBoxes = boxes(matching: ["Created", "Modified"])
-  let footerBoxes = boxes(matching: ["Open", "Quick Look", "Copy Path", "Reveal"])
+  let footerBoxes = boxes(matching: ["Open", "Quick Look", "Actions"])
   for meta in metadataBoxes {
     for footer in footerBoxes {
       let overlapHeight = min(meta.maxY, footer.maxY) - max(meta.minY, footer.minY)
@@ -752,10 +752,11 @@ func dragAndReset(
   let startX = double(frame(report)["x"])
   let startY = double(frame(report)["y"])
   let screen = NSScreen.main?.visibleFrame ?? .zero
-  let roomDown = startY - screen.minY
-  // Expanded Files sits near the bottom of GitHub's Mac display. Dragging
-  // down is clamped, and a 90pt X move stays inside the snap corridor.
-  let deltaY: Double = roomDown > 80 ? 55 : -70
+  let roomUp = screen.maxY - (startY + double(frame(report)["height"]))
+  // Expanded Files sits near the bottom of GitHub's Mac display, so drag up when there is room.
+  // Dragging down is clamped, and a press near the bottom edge can reach the Dock instead of the
+  // panel. A 90pt X move stays inside the snap corridor.
+  let deltaY: Double = roomUp > 80 ? -70 : 55
   var guides = dragLauncher(
     report,
     xFromLeft: xFromLeft,
@@ -780,8 +781,12 @@ func dragAndReset(
   }
   try require(guides, "\(name) drag displays center guides")
   try sendRuntimeCommand("resetLauncherPosition")
+  // X alone can pass before the reset lands, because the corridor already snapped it back.
+  // Wait for Y too, or the next drag aims at a stale frame.
   report = try wait("\(name) drag recenters the panel") {
-    abs(double(frame($0)["x"]) - centeredX) < 80 && bool(launcher($0)["visible"])
+    abs(double(frame($0)["x"]) - centeredX) < 80
+      && abs(double(frame($0)["y"]) - startY) < 2
+      && bool(launcher($0)["visible"])
   }
   return report
 }
@@ -1320,7 +1325,8 @@ do {
     int(launcher($0)["selectedIndex"]) == 0
       && string(launcher($0)["content"]) == "recommendations"
   }
-  try captureLauncher(report, name: "launcher-recs", expectedText: "Photon")
+  // The footer reads "<primary> ↵ | Actions ⌘K"; the first row's primary title depends on the catalog.
+  try captureLauncher(report, name: "launcher-recs", expectedText: "Actions")
 
   postKey(43, flags: .maskCommand)
   report = try wait("Command-comma from the key launcher opens Settings") {
@@ -1598,7 +1604,8 @@ do {
   let panelWidth = double(frame(report)["width"])
   let screen = NSScreen.main?.visibleFrame ?? .zero
   let maxLeftTravel = max(0, centeredX - screen.minX)
-  let corridorHalf = panelWidth / 2
+  // Matches LauncherPosition.snapCorridor: half the panel, or a quarter of the free width on narrow screens.
+  let corridorHalf = min(panelWidth / 2, max(0, (screen.width - panelWidth) / 4))
   let canLeaveCorridor = maxLeftTravel > corridorHalf + 40
   let escapeDelta = canLeaveCorridor ? -(corridorHalf + 80) : -90
   let chromeMoved: ([String: Any]) -> Bool = {
@@ -1681,7 +1688,6 @@ do {
 
   clickSearchField(report)
   try require(focusPhotonTextField(pid: pid), "drag chrome does not hijack the search field")
-  try sendRuntimeCommand("holdCommandList")
   try require(setPhotonTextFieldValue(pid: pid, value: "clipboard"), "search field remains editable after dragging")
   report = try wait("row remains clickable after dragging") {
     string(launcher($0)["query"]) == "clipboard"
@@ -1693,7 +1699,8 @@ do {
   // click sometimes lands before the row is under the cursor.
   RunLoop.current.run(until: Date().addingTimeInterval(0.4))
   var enteredClipboard = false
-  let rowTops: [Double] = [56 + 1 + 6 + 20, 56 + 1 + 6 + 32, 110]
+  // Search field, hairline, list inset and the 18 pt "Results" header sit above the first row.
+  let rowTops: [Double] = [56 + 1 + 6 + 18 + 20, 56 + 1 + 6 + 18 + 32, 128]
   for rowTop in rowTops {
     if let latest = readReport() {
       report = latest
@@ -1717,7 +1724,6 @@ do {
     }
   }
   try require(enteredClipboard, "row click enters clipboard instead of starting a drag")
-  try sendRuntimeCommand("releaseCommandList")
   try sendRuntimeCommand("hideLauncher")
   _ = try wait("drag interaction checks close cleanly") {
     !bool(launcher($0)["visible"])
@@ -1735,11 +1741,11 @@ do {
   )
   RunLoop.current.run(until: Date().addingTimeInterval(0.3))
   postKey(9, flags: [.maskCommand, .maskShift])
-  report = try wait("Cmd+Shift+V opens compact clipboard history") {
+  report = try wait("Cmd+Shift+V opens clipboard history with the list and detail") {
     let value = launcher($0)
     return bool(value["visible"])
       && string(value["session"]) == "clipboard"
-      && string(value["content"]) == "searchOnly"
+      && string(value["content"]) == "fullHeight"
   }
   let anchoredTop = top(report)
 
@@ -1786,8 +1792,7 @@ do {
     bool(launcher($0)["key"]) && abs(top($0) - anchoredTop) < 0.5
   }
 
-  postKey(125)
-  report = try wait("Down expands clipboard results without moving the top edge") {
+  report = try wait("clipboard opens on the first entry without moving the top edge") {
     string(launcher($0)["content"]) == "fullHeight"
       && int(launcher($0)["clipboardSelectedIndex"]) >= 0
       && abs(top($0) - anchoredTop) < 0.5
@@ -1865,11 +1870,11 @@ do {
   )
 
   postKey(9, flags: [.maskCommand, .maskShift])
-  _ = try wait("clipboard hotkey reopens compact and unclipped") {
+  _ = try wait("clipboard hotkey reopens expanded with an empty filter") {
     let value = launcher($0)
     return bool(value["visible"])
       && string(value["session"]) == "clipboard"
-      && string(value["content"]) == "searchOnly"
+      && string(value["content"]) == "fullHeight"
       && string(value["query"]).isEmpty
   }
 
@@ -1978,22 +1983,14 @@ do {
   clickSearchField(report)
   try require(focusPhotonTextField(pid: pid), "Accessibility focuses mixed-search field")
   try require(setPhotonTextFieldValue(pid: pid, value: "ember"), "Accessibility enters mixed file query")
-  report = try wait("mixed launcher promotes into Files split UI with the seeded PDF", timeout: 12) {
+  report = try wait("mixed launcher keeps the seeded PDF as a root row", timeout: 12) {
     string(launcher($0)["query"]) == "ember"
-      && string(launcher($0)["mode"]) == "files"
-      && string(launcher($0)["content"]) == "fullHeight"
+      && string(launcher($0)["mode"]).isEmpty
+      && string(launcher($0)["content"]) == "rows"
       && displayedTitles($0).contains(expectedFile)
-      && string(launcher($0)["fileSelectedName"]) == expectedFile
-      && abs(double(dictionary(launcher($0)["frame"])["width"]) - launcherBarWidth) < 0.5
-      && abs(double(frame($0)["width"]) - sharedExpandedWidth) < 0.5
-      && abs(double(frame($0)["height"]) - sharedExpandedHeight) < 0.5
+      && abs(double(frame($0)["width"]) - launcherBarWidth) < 0.5
   }
-  try captureLauncher(
-    report,
-    name: "ember-mixed-search",
-    expectedText: expectedFile,
-    additionalExpectedText: ["Results", "Metadata", "Name", "Where", "Type"]
-  )
+  try captureLauncher(report, name: "ember-mixed-search", expectedText: expectedFile)
 
   try sendRuntimeCommand("hideLauncher")
   _ = try wait("launcher closes before explicit Files recents check") {
@@ -2026,8 +2023,7 @@ do {
       "Type",
       "Created",
       "Modified",
-      "Open",
-      "Quick Look"
+      "Open"
     ],
     rejectMetadataFooterOverlap: true
   )

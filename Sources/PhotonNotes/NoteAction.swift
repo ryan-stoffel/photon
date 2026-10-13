@@ -14,6 +14,10 @@ public struct NoteAction: Identifiable, Equatable, Sendable {
     case moveListItemUp
     case moveListItemDown
     case format
+    case zoomIn
+    case zoomOut
+    case resetZoom
+    case deleteNote
   }
 
   public let id: Kind
@@ -53,7 +57,7 @@ public struct NoteAction: Identifiable, Equatable, Sendable {
     ),
     NoteAction(
       id: .copyNote,
-      title: "Copy Note As…",
+      title: "Copy Note",
       symbolName: "doc.on.doc",
       shortcut: "⇧⌘C",
       keywords: ["copy", "clipboard"]
@@ -90,8 +94,36 @@ public struct NoteAction: Identifiable, Equatable, Sendable {
       id: .format,
       title: "Format…",
       symbolName: "textformat",
-      shortcut: "⇧⌘F",
+      shortcut: "⌥⌘,",
       keywords: ["format", "bold", "heading"]
+    ),
+    NoteAction(
+      id: .zoomIn,
+      title: "Zoom In",
+      symbolName: "plus.magnifyingglass",
+      shortcut: "⌘=",
+      keywords: ["zoom", "larger", "text size"]
+    ),
+    NoteAction(
+      id: .zoomOut,
+      title: "Zoom Out",
+      symbolName: "minus.magnifyingglass",
+      shortcut: "⌘-",
+      keywords: ["zoom", "smaller", "text size"]
+    ),
+    NoteAction(
+      id: .resetZoom,
+      title: "Reset Zoom",
+      symbolName: "1.magnifyingglass",
+      shortcut: "⌘0",
+      keywords: ["zoom", "reset", "text size"]
+    ),
+    NoteAction(
+      id: .deleteNote,
+      title: "Delete Note",
+      symbolName: "trash",
+      shortcut: "⌃X",
+      keywords: ["delete", "remove", "trash"]
     ),
   ]
 
