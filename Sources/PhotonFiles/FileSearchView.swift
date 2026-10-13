@@ -5,6 +5,7 @@ import SwiftUI
 /// Results area and footer of the launcher while it is in file mode.
 public struct FileSearchView: View {
   @ObservedObject private var controller: FileSearchController
+  @State private var scrollTracker = ListScrollTracker()
 
   /// Scroll target for the section header, so selecting the first row shows it.
   private static let headerID = "files.list.header"
@@ -60,16 +61,16 @@ public struct FileSearchView: View {
       }
       Spacer(minLength: 12)
       if controller.selected != nil {
-        FooterKeyHint(label: controller.settings.defaultAction.title, keys: ["\u{21B5}"])
+        FooterKeyHint(label: controller.settings.defaultAction.title, keys: ["\u{21B5}"], emphasized: true)
         Rectangle()
           .fill(Color.primary.opacity(0.15))
           .frame(width: 1, height: 14)
         FooterKeyHint(label: "Actions", keys: ["\u{2318}", "K"])
       }
     }
-    .font(.system(size: 12))
+    .font(.system(size: 13))
     .foregroundStyle(.secondary)
-    .padding(.horizontal, 14)
+    .padding(.horizontal, 16)
     .frame(height: LauncherLayout.footerHeight)
   }
 
@@ -166,15 +167,16 @@ public struct FileSearchView: View {
       ScrollView(.vertical) {
         LazyVStack(spacing: 0) {
           Text(title)
-            .font(.system(size: 12, weight: .semibold))
+            .font(.system(size: 12, weight: .medium))
             .foregroundStyle(.secondary)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
+            .padding(.horizontal, LauncherLayout.rowHorizontalPadding)
             .padding(.vertical, 8)
             .id(Self.headerID)
           ForEach(controller.results) { item in
             FileResultRow(file: item.file, selected: item.id == controller.selectedID)
               .id(item.id)
+              .listScrollRow(item.id, tracker: scrollTracker)
               .onTapGesture(count: 2) {
                 controller.select(item.file)
                 if controller.performPrimaryAction() {
@@ -189,6 +191,7 @@ public struct FileSearchView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, LauncherLayout.listInset)
       }
+      .listScrollViewport(scrollTracker)
       .onChange(of: controller.selectedID) { _, newValue in
         guard let newValue else {
           return
@@ -196,7 +199,7 @@ public struct FileSearchView: View {
         if newValue == controller.results.first?.id {
           proxy.scrollTo(Self.headerID, anchor: .top)
         } else {
-          proxy.scrollTo(newValue)
+          scrollTracker.reveal(newValue, in: controller.results.map(\.id), with: proxy)
         }
       }
     }
@@ -220,22 +223,24 @@ public struct FileSearchView: View {
   }
 }
 
-/// "Open ↵": the label first, then each key in a small cap.
+/// "Open ↵": the label first, then each key in a small cap. Matches the launcher footer.
 private struct FooterKeyHint: View {
   let label: String
   let keys: [String]
+  var emphasized = false
 
   var body: some View {
     HStack(spacing: 4) {
       Text(label)
-        .padding(.trailing, 2)
+        .fontWeight(emphasized ? .medium : .regular)
+        .foregroundStyle(emphasized ? .primary : .secondary)
+        .padding(.trailing, 4)
       ForEach(keys, id: \.self) { key in
         Text(key)
-          .font(.system(size: 11, weight: .semibold))
-          .frame(minWidth: 14)
-          .padding(.horizontal, 4)
-          .padding(.vertical, 2)
-          .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.primary.opacity(0.08)))
+          .font(.system(size: 12, weight: .medium))
+          .frame(minWidth: 20, minHeight: 20)
+          .padding(.horizontal, 2)
+          .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.08)))
       }
     }
   }
@@ -264,18 +269,18 @@ struct FileResultRow: View {
       }
       Spacer(minLength: 0)
     }
-    .padding(.horizontal, 10)
+    .padding(.horizontal, LauncherLayout.rowHorizontalPadding)
     .frame(height: LauncherLayout.rowHeight)
     .background(
-      RoundedRectangle(cornerRadius: 8, style: .continuous)
-        .fill(selected ? Color.primary.opacity(0.09) : Color.clear)
+      RoundedRectangle(cornerRadius: LauncherLayout.rowCornerRadius, style: .continuous)
+        .fill(selected ? Color.primary.opacity(0.1) : Color.clear)
     )
     .contentShape(Rectangle())
   }
 
   private var name: some View {
     Text(file.displayName)
-      .font(.system(size: 14, weight: .medium))
+      .font(.system(size: 14))
       .lineLimit(1)
   }
 }

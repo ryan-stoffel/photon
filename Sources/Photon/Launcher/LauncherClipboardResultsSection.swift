@@ -16,7 +16,7 @@ struct LauncherClipboardResultsSection: View {
         .foregroundStyle(.secondary)
       Spacer()
     }
-    .padding(.horizontal, 10)
+    .padding(.horizontal, LauncherLayout.rowHorizontalPadding)
     .frame(height: LauncherLayout.rowHeight)
     .padding(.horizontal, 8)
     .padding(.vertical, LauncherLayout.listInset)
@@ -41,6 +41,7 @@ private struct ClipboardDetailSplitBody: View {
   private static let listTopID = "clipboard.list.top"
 
   @ObservedObject var clipboard: ClipboardHistoryViewModel
+  @State private var scrollTracker = ListScrollTracker()
 
   var body: some View {
     if clipboard.results.isEmpty, !clipboard.query.isEmpty {
@@ -94,6 +95,7 @@ private struct ClipboardDetailSplitBody: View {
         .padding(.horizontal, 8)
         .padding(.bottom, LauncherLayout.listInset)
       }
+      .listScrollViewport(scrollTracker)
       .onChange(of: clipboard.selectedID) { _, selectedID in
         guard let selectedID else {
           return
@@ -102,7 +104,7 @@ private struct ClipboardDetailSplitBody: View {
         if selectedID == clipboard.results.first?.id {
           proxy.scrollTo(Self.listTopID, anchor: .top)
         } else {
-          proxy.scrollTo(selectedID)
+          scrollTracker.reveal(selectedID, in: clipboard.results.map(\.id), with: proxy)
         }
       }
     }
@@ -113,6 +115,7 @@ private struct ClipboardDetailSplitBody: View {
     ForEach(items) { item in
       ClipboardHistoryObservingRow(item: item, clipboard: clipboard)
         .id(item.id)
+        .listScrollRow(item.id, tracker: scrollTracker)
         .contentShape(Rectangle())
         .contextMenu {
           contextMenu(for: item)
