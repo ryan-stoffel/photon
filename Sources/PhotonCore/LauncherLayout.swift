@@ -42,11 +42,11 @@ public enum LauncherContent: Equatable, Sendable {
   case fullHeight
 }
 
-/// Fixed metrics of the launcher panel. Heights are derived here so the
+/// Fixed metrics of the launcher panel, matched to Raycast's. Heights are derived here so the
 /// AppKit window and the SwiftUI content always agree on the panel size.
 public enum LauncherLayout {
   public static let searchFieldHeight: Double = 56
-  public static let footerHeight: Double = 32
+  public static let footerHeight: Double = 40
   /// Bottom padding inside the Files/clipboard detail pane so metadata cannot
   /// paint over the command footer.
   public static let detailFooterSafeInset: Double = 10
@@ -57,7 +57,7 @@ public enum LauncherLayout {
   public static let panelDragSlop: Double = 6
   public static let rowHeight: Double = 40
   /// Padding above the first and below the last row.
-  public static let listInset: Double = 6
+  public static let listInset: Double = 8
   public static let maxVisibleRows = 10
   /// Rows shown for an empty query when suggestions are enabled.
   public static let suggestionCount = maxVisibleRows
@@ -74,18 +74,22 @@ public enum LauncherLayout {
 
   public static let hairline: Double = 1
   public static let cornerRadius: Double = 12
-  public static let iconSize: Double = 28
+  public static let iconSize: Double = 20
+  /// Selection highlight radius and the row's inner padding, shared by every launcher list.
+  public static let rowCornerRadius: Double = 10
+  public static let rowHorizontalPadding: Double = 8
   /// Legacy wide-panel metric. Expanded Files/clipboard keep `panelWidth` and
   /// split list/preview horizontally inside `detailListWidth` instead.
   public static let detailWidth: Double = 980
-  /// Shared launcher-recommendations, Files, and clipboard panel height.
-  public static let expandedHeight: Double = 502
+  /// Shared launcher-recommendations, Files, and clipboard panel height. Once the header scrolls
+  /// away, the list shows exactly nine rows between its insets.
+  public static let expandedHeight: Double = 474
   public static let expandedListHeight = expandedHeight - searchFieldHeight - footerHeight - 2 * hairline
   public static let detailHeight = expandedHeight
   /// Left-hand results column inside an expanded Files or clipboard panel.
   public static let detailListWidth: Double = 268
   /// Section title above a run of rows: "Suggestions", "Commands", "Results", "Calculator".
-  public static let sectionHeaderHeight: Double = 18
+  public static let sectionHeaderHeight: Double = 28
   /// Raycast-style calculator hero card (section label + split card).
   public static let calculatorSectionSpacing: Double = 8
   public static let calculatorCardHeight: Double = 108

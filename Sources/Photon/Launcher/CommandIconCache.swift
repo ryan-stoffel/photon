@@ -11,7 +11,7 @@ enum ResolvedCommandIcon {
 ///
 /// Cache hits are synchronous. Misses never load Finder icons on the main
 /// thread: the row shows a symbol placeholder and the cache fills in the
-/// background. `prefetch` is safe from any thread.
+/// background. SF Symbols load inline. `prefetch` is safe from any thread.
 final class CommandIconCache: @unchecked Sendable {
   static let shared = CommandIconCache()
   /// Coalesced UI refresh after a background miss load. Set from the launcher.
@@ -53,7 +53,8 @@ final class CommandIconCache: @unchecked Sendable {
     if misses.object(forKey: key) != nil {
       return nil
     }
-    if Thread.isMainThread {
+    // SF Symbols resolve in microseconds, so they load inline instead of flashing the placeholder.
+    if Thread.isMainThread, !icon.isSymbol {
       scheduleLoad(icon, key: key as String)
       return nil
     }
@@ -140,5 +141,14 @@ final class CommandIconCache: @unchecked Sendable {
     case let .bundleResource(bundlePath, name): "resource:\(bundlePath)#\(name)"
     case let .symbol(name): "symbol:\(name)"
     }
+  }
+}
+
+private extension CommandIcon {
+  var isSymbol: Bool {
+    if case .symbol = self {
+      return true
+    }
+    return false
   }
 }

@@ -65,7 +65,7 @@ struct LauncherActionPanel: View {
   var onRun: (LauncherAction) -> Void
   @FocusState private var filterFocused: Bool
 
-  private static let rowHeight: Double = 30
+  private static let rowHeight: Double = 36
 
   var body: some View {
     let actions = model.filteredActions
@@ -119,7 +119,7 @@ struct LauncherActionPanel: View {
           .frame(width: 16)
       }
       Text(action.title)
-        .font(.system(size: 13))
+        .font(.system(size: 14))
         .lineLimit(1)
       Spacer(minLength: 8)
       KeybindChipStack(chips: chips, emphasized: selected)

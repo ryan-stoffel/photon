@@ -112,11 +112,6 @@ public final class FileSearchController: ObservableObject {
     searchTask?.cancel()
     guard !trimmed.isEmpty else {
       engine.cancel()
-      searchTask?.cancel()
-      results = []
-      selectedID = nil
-      isSearching = true
-      status = .searching
       loadRecents()
       return
     }
@@ -155,9 +150,12 @@ public final class FileSearchController: ObservableObject {
     }
   }
 
+  /// Keeps the current list on screen until recents arrive, like a typed search does.
   private func loadRecents() {
     isSearching = true
-    status = .searching
+    if results.isEmpty {
+      status = .searching
+    }
     resultsQuery = ""
     searchTask = Task { [weak self] in
       guard let self else {

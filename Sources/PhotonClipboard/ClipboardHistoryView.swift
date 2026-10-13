@@ -51,9 +51,9 @@ public struct ClipboardLauncherFooter: View {
         }
       }
     }
-    .font(.system(size: 12))
+    .font(.system(size: 13))
     .foregroundStyle(.secondary)
-    .padding(.horizontal, 14)
+    .padding(.horizontal, 16)
     .frame(height: LauncherLayout.footerHeight)
   }
 }
@@ -74,7 +74,7 @@ public struct ClipboardLauncherRow: View {
         .frame(width: LauncherLayout.iconSize, height: LauncherLayout.iconSize)
       HStack(alignment: .firstTextBaseline, spacing: 8) {
         Text(item.title.isEmpty ? item.kind.label : item.title)
-          .font(.system(size: 14, weight: .medium))
+          .font(.system(size: 14))
           .lineLimit(1)
           .layoutPriority(1)
         HStack(spacing: 4) {
@@ -90,11 +90,11 @@ public struct ClipboardLauncherRow: View {
       }
       Spacer(minLength: 0)
     }
-    .padding(.horizontal, 10)
+    .padding(.horizontal, LauncherLayout.rowHorizontalPadding)
     .frame(height: LauncherLayout.rowHeight)
     .background(
-      RoundedRectangle(cornerRadius: 8, style: .continuous)
-        .fill(isSelected ? Color.primary.opacity(0.09) : Color.clear)
+      RoundedRectangle(cornerRadius: LauncherLayout.rowCornerRadius, style: .continuous)
+        .fill(isSelected ? Color.primary.opacity(0.1) : Color.clear)
     )
     .contentShape(Rectangle())
     .accessibilityElement(children: .combine)
@@ -106,13 +106,13 @@ public struct ClipboardLauncherRow: View {
 
   private func symbolTile(_ name: String) -> some View {
     ZStack {
-      RoundedRectangle(cornerRadius: 7, style: .continuous)
+      RoundedRectangle(cornerRadius: 5, style: .continuous)
         .fill(Color.primary.opacity(0.08))
       Image(systemName: name)
-        .font(.system(size: 13, weight: .semibold))
+        .font(.system(size: 11, weight: .semibold))
         .foregroundStyle(.secondary)
     }
-    .frame(width: LauncherLayout.iconSize - 2, height: LauncherLayout.iconSize - 2)
+    .frame(width: LauncherLayout.iconSize, height: LauncherLayout.iconSize)
   }
 }
 
@@ -129,11 +129,12 @@ public struct KeyHint: View {
   public var body: some View {
     HStack(spacing: 4) {
       Text(label)
+        .padding(.trailing, 4)
       Text(key)
-        .font(.caption.weight(.semibold))
-        .padding(.horizontal, 5)
-        .padding(.vertical, 1)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
+        .font(.system(size: 12, weight: .medium))
+        .frame(minWidth: 20, minHeight: 20)
+        .padding(.horizontal, 2)
+        .background(Color.primary.opacity(0.08), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
     }
   }
 }

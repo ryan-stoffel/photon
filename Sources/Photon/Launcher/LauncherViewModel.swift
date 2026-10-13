@@ -243,11 +243,13 @@ final class LauncherViewModel: ObservableObject {
     }
     let fallback = arranged.commands.isEmpty ? fallbackCommand(for: searched) : nil
     showsFallbacks = fallback != nil
+    let queryChanged = searched != resultsQuery
+    // Set before `results` so `updateContent` sees fresh results.
+    resultsQuery = searched
     results = fallback.map { [$0] } ?? arranged.commands
-    if searched != resultsQuery || !results.contains(where: { $0.id == selectedID }) {
+    if queryChanged || !results.contains(where: { $0.id == selectedID }) {
       selectedID = results.first?.id
     }
-    resultsQuery = searched
     isLoading = false
     prefetchIcons(for: results)
     PhotonTiming.end("launcher.search", from: started)
@@ -449,6 +451,10 @@ final class LauncherViewModel: ObservableObject {
         .searchOnly
       } else if query.isEmpty {
         .recommendations
+      } else if results.isEmpty, query != resultsQuery {
+        // The first search for this query is still running. Keep the height instead of
+        // flashing an empty row before the results land.
+        content
       } else {
         .rows(count: results.count, showsCalculatorHero: calculatorHero != nil)
       }

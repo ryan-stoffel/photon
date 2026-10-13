@@ -13,9 +13,9 @@ struct LauncherFooter: View {
       Spacer(minLength: 12)
       trailing
     }
-    .font(.system(size: 12))
+    .font(.system(size: 13))
     .foregroundStyle(.secondary)
-    .padding(.horizontal, 14)
+    .padding(.horizontal, 16)
     .frame(height: LauncherLayout.footerHeight)
   }
 
@@ -30,7 +30,7 @@ struct LauncherFooter: View {
       Image(nsImage: PhotonAppIcon.current)
         .resizable()
         .interpolation(.high)
-        .frame(width: 16, height: 16)
+        .frame(width: 18, height: 18)
     }
   }
 
@@ -38,7 +38,7 @@ struct LauncherFooter: View {
   private var trailing: some View {
     let actions = model.currentActions
     if let primary = actions.first {
-      FooterKeyHint(label: primary.title, keys: ["\u{21B5}"])
+      FooterKeyHint(label: primary.title, keys: ["\u{21B5}"], emphasized: true)
     }
     if actions.count > 1 {
       Rectangle()
@@ -64,22 +64,24 @@ struct LauncherFooter: View {
   }
 }
 
-/// "Open ↵": the label first, then each key in a small cap.
+/// "Open ↵": the label first, then each key in a small cap. The primary action's label is emphasized.
 struct FooterKeyHint: View {
   let label: String
   let keys: [String]
+  var emphasized = false
 
   var body: some View {
     HStack(spacing: 4) {
       Text(label)
-        .padding(.trailing, 2)
+        .fontWeight(emphasized ? .medium : .regular)
+        .foregroundStyle(emphasized ? .primary : .secondary)
+        .padding(.trailing, 4)
       ForEach(keys, id: \.self) { key in
         Text(key)
-          .font(.system(size: 11, weight: .semibold))
-          .frame(minWidth: 14)
-          .padding(.horizontal, 4)
-          .padding(.vertical, 2)
-          .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.primary.opacity(0.08)))
+          .font(.system(size: 12, weight: .medium))
+          .frame(minWidth: 20, minHeight: 20)
+          .padding(.horizontal, 2)
+          .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(Color.primary.opacity(0.08)))
       }
     }
   }
