@@ -6,13 +6,12 @@ struct LauncherCalculatorHeroSection: View {
   let model: CalculatorDisplayModel
   let selected: Bool
   var onSelect: () -> Void
+  /// Double-click runs Copy Answer, like a double-click on a clipboard row.
+  var onActivate: () -> Void
 
   var body: some View {
     VStack(alignment: .leading, spacing: LauncherLayout.calculatorSectionSpacing) {
-      Text(CalculatorDisplayModel.sectionTitle)
-        .font(.system(size: 11, weight: .semibold))
-        .foregroundStyle(.secondary)
-        .padding(.horizontal, 12)
+      LauncherSectionHeader(title: CalculatorDisplayModel.sectionTitle)
 
       HStack(spacing: 0) {
         expressionColumn
@@ -29,12 +28,14 @@ struct LauncherCalculatorHeroSection: View {
           .strokeBorder(Color.primary.opacity(selected ? 0.14 : 0.08), lineWidth: 1)
       )
       .contentShape(Rectangle())
+      .onTapGesture(count: 2) {
+        onActivate()
+      }
       .onTapGesture {
         onSelect()
       }
     }
     .padding(.horizontal, 4)
-    .padding(.top, LauncherLayout.listInset)
     .padding(.bottom, LauncherLayout.listInset)
   }
 

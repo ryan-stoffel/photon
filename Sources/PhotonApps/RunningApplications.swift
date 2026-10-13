@@ -1,7 +1,8 @@
 import AppKit
 import Combine
 
-/// Live set of running application bundle identifiers for Dock-style launcher dots.
+/// Live set of running regular (Dock) application bundle identifiers for Dock-style launcher dots.
+/// Menu bar and background agents are left out because the Dock shows no dot for them.
 @MainActor
 public final class RunningApplications: ObservableObject {
   @Published public private(set) var bundleIdentifiers: Set<String> = []
@@ -42,7 +43,7 @@ public final class RunningApplications: ObservableObject {
   public func refresh() {
     bundleIdentifiers = Set(
       NSWorkspace.shared.runningApplications.compactMap { application in
-        guard !application.isTerminated else {
+        guard !application.isTerminated, application.activationPolicy == .regular else {
           return nil
         }
         return application.bundleIdentifier

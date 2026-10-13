@@ -137,8 +137,9 @@ struct NoteSwitcherView: View {
   var body: some View {
     VStack(spacing: 0) {
       searchField
-      header
       if model.results.isEmpty {
+        header("Notes", showsTotal: true)
+          .padding(.horizontal, 8)
         emptyState
       } else {
         list
@@ -164,30 +165,46 @@ struct NoteSwitcherView: View {
       .padding(.vertical, 12)
   }
 
-  private var header: some View {
+  /// Section header. The first section also shows the filtered and total note counts.
+  private func header(_ title: String, showsTotal: Bool) -> some View {
     HStack {
-      Text("Notes")
+      Text(title)
         .font(.system(size: 12, weight: .semibold))
         .foregroundStyle(.secondary)
       Spacer()
-      Text("\(model.results.count)/\(max(model.totalCount, 1)) Notes")
-        .font(.system(size: 12, weight: .medium))
-        .foregroundStyle(.secondary)
-      Image(systemName: "info.circle")
-        .font(.system(size: 12))
-        .foregroundStyle(.tertiary)
+      if showsTotal {
+        Text("\(model.results.count)/\(max(model.totalCount, 1)) Notes")
+          .font(.system(size: 12, weight: .medium))
+          .foregroundStyle(.secondary)
+        Image(systemName: "info.circle")
+          .font(.system(size: 12))
+          .foregroundStyle(.tertiary)
+      }
     }
-    .padding(.horizontal, 14)
-    .padding(.bottom, 6)
+    .padding(.horizontal, 6)
+    .padding(.vertical, 4)
   }
 
+  /// "Pinned" then "Notes". `results` already lists pinned notes first, so ↑/↓ order matches.
   private var list: some View {
-    ScrollViewReader { proxy in
+    let pinned = model.results.filter(\.isPinned)
+    let others = model.results.filter { !$0.isPinned }
+    return ScrollViewReader { proxy in
       ScrollView {
         LazyVStack(spacing: 2) {
-          ForEach(model.results) { item in
-            row(item)
-              .id(item.id)
+          if !pinned.isEmpty {
+            header("Pinned", showsTotal: true)
+            ForEach(pinned) { item in
+              row(item)
+                .id(item.id)
+            }
+          }
+          if !others.isEmpty {
+            header("Notes", showsTotal: pinned.isEmpty)
+            ForEach(others) { item in
+              row(item)
+                .id(item.id)
+            }
           }
         }
         .padding(.horizontal, 8)

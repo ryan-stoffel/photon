@@ -35,7 +35,7 @@ public final class WindowManager {
 
   private struct HistoryEntry {
     let key: WindowKey
-    /// Frame the window had before Photon's first change (until the user moves it by hand).
+    /// Frame the window had before Photon's first change (until the user moves it by hand or restores it).
     var original: CGRect
     /// Frame Photon last applied, used to detect manual moves in between.
     var lastApplied: CGRect
@@ -54,7 +54,12 @@ public final class WindowManager {
     }
     let application = AXUIElementCreateApplication(app.processIdentifier)
     AXUIElementSetMessagingTimeout(application, 1.0)
-    guard let window = focusedWindow(of: application), let axFrame = frame(of: window) else {
+    guard let window = focusedWindow(of: application) else {
+      throw WindowManagerError.noFocusedWindow
+    }
+    // Window elements do not inherit the application's timeout. A hung app would block main for about 6 s.
+    AXUIElementSetMessagingTimeout(window, 1.0)
+    guard let axFrame = frame(of: window) else {
       throw WindowManagerError.noFocusedWindow
     }
     guard let primaryHeight = NSScreen.screens.first?.frame.height else {
@@ -65,14 +70,25 @@ public final class WindowManager {
     guard let target = try targetFrame(for: action, window: window, current: current) else {
       return
     }
+    let applied = try setFrame(
+      target.frame,
+      bounds: target.bounds,
+      of: window,
+      in: application,
+      primaryHeight: primaryHeight
+    )
     if action != .restore {
-      recordChange(of: window, from: current, to: target)
+      recordChange(of: window, from: current, to: applied)
     }
-    try setFrame(WindowLayout.flipped(target, primaryHeight: primaryHeight), of: window, in: application)
   }
 
-  /// Target frame in bottom-left coordinates, or `nil` when the action has nothing to do.
-  private func targetFrame(for action: WindowAction, window: AXUIElement, current: CGRect) throws -> CGRect? {
+  /// Target frame in bottom-left coordinates and the display area it must stay inside (`nil` for restore),
+  /// or `nil` when the action has nothing to do.
+  private func targetFrame(
+    for action: WindowAction,
+    window: AXUIElement,
+    current: CGRect
+  ) throws -> (frame: CGRect, bounds: CGRect?)? {
     let screens = NSScreen.screens
     guard !screens.isEmpty else {
       throw WindowManagerError.noScreen
@@ -85,15 +101,15 @@ public final class WindowManager {
     switch action {
     case .nextDisplay, .previousDisplay:
       let step = action == .nextDisplay ? 1 : -1
-      let destination = WindowLayout.displayIndex(from: screenIndex, step: step, screens: frames)
-      return WindowLayout.translate(current, from: visible, to: screens[destination].visibleFrame)
+      let destination = screens[WindowLayout.displayIndex(from: screenIndex, step: step, screens: frames)].visibleFrame
+      return (WindowLayout.translate(current, from: visible, to: destination), destination)
     case .restore:
       guard let previous = restoreFrame(for: window, current: current) else {
         throw WindowManagerError.nothingToRestore
       }
-      return previous
+      return (previous, nil)
     default:
-      return WindowLayout.frame(for: action, window: current, in: visible)
+      return WindowLayout.frame(for: action, window: current, in: visible).map { ($0, visible) }
     }
   }
 
@@ -107,7 +123,8 @@ public final class WindowManager {
     }
     let original = history[index].original
     history[index].original = current
-    history[index].lastApplied = original
+    // Restore ends the run: the next layout records its own starting frame.
+    history[index].lastApplied = .null
     return original
   }
 
@@ -115,7 +132,7 @@ public final class WindowManager {
     let key = WindowKey(element: window)
     if let index = history.firstIndex(where: { $0.key == key }) {
       var entry = history.remove(at: index)
-      if !Self.approximatelyEqual(entry.lastApplied, current) {
+      if !WindowLayout.approximatelyEqual(entry.lastApplied, current, tolerance: 2) {
         entry.original = current
       }
       entry.lastApplied = target
@@ -126,11 +143,6 @@ public final class WindowManager {
     if history.count > Self.historyLimit {
       history.removeFirst(history.count - Self.historyLimit)
     }
-  }
-
-  private static func approximatelyEqual(_ lhs: CGRect, _ rhs: CGRect, tolerance: CGFloat = 2) -> Bool {
-    abs(lhs.minX - rhs.minX) <= tolerance && abs(lhs.minY - rhs.minY) <= tolerance
-      && abs(lhs.width - rhs.width) <= tolerance && abs(lhs.height - rhs.height) <= tolerance
   }
 
   // MARK: - Accessibility plumbing
@@ -160,7 +172,16 @@ public final class WindowManager {
   }
 
   /// Sets size, then position, then size again: some apps clamp the size until the window has moved.
-  private func setFrame(_ frame: CGRect, of window: AXUIElement, in application: AXUIElement) throws {
+  /// Then reads the frame back. An app that takes the position but refuses the size can end up past the display
+  /// edge, so the window is moved back inside `bounds`. Frames are bottom-left. Returns the frame it took,
+  /// or the requested frame when the read-back looks stale.
+  private func setFrame(
+    _ frame: CGRect,
+    bounds: CGRect?,
+    of window: AXUIElement,
+    in application: AXUIElement,
+    primaryHeight: CGFloat
+  ) throws -> CGRect {
     let enhanced = isEnhancedUserInterface(application)
     if enhanced {
       setEnhancedUserInterface(application, false)
@@ -171,11 +192,31 @@ public final class WindowManager {
       }
     }
 
-    var size = frame.size
-    var origin = frame.origin
+    let axFrame = WindowLayout.flipped(frame, primaryHeight: primaryHeight)
+    var size = axFrame.size
+    var origin = axFrame.origin
     try set(window, kAXSizeAttribute, value: AXValueCreate(.cgSize, &size))
     try set(window, kAXPositionAttribute, value: AXValueCreate(.cgPoint, &origin))
     try set(window, kAXSizeAttribute, value: AXValueCreate(.cgSize, &size))
+
+    guard let readBack = self.frame(of: window) else {
+      return frame
+    }
+    let actual = WindowLayout.flipped(readBack, primaryHeight: primaryHeight)
+    // A read-back away from the requested top-left is likely stale (apps that apply AX writes asynchronously
+    // still report the old frame). Record the request instead: fitting or recording the stale frame would
+    // queue a wrong position behind the real writes and overwrite Restore's original.
+    guard abs(readBack.minX - axFrame.minX) <= 2, abs(readBack.minY - axFrame.minY) <= 2 else {
+      return frame
+    }
+    guard let bounds, !bounds.contains(actual) else {
+      return actual
+    }
+    // Only the position moves: the app already refused the smaller size.
+    let fitted = WindowLayout.flipped(WindowLayout.fit(actual, in: bounds), primaryHeight: primaryHeight)
+    var fittedOrigin = fitted.origin
+    try set(window, kAXPositionAttribute, value: AXValueCreate(.cgPoint, &fittedOrigin))
+    return WindowLayout.flipped(CGRect(origin: fittedOrigin, size: readBack.size), primaryHeight: primaryHeight)
   }
 
   private func isEnhancedUserInterface(_ application: AXUIElement) -> Bool {

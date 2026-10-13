@@ -83,6 +83,18 @@ final class FileAccessCoordinatorTests: XCTestCase {
     ])
     XCTAssertEqual(coordinator.status, .cancelled)
   }
+
+  func testGrantWhoseBookmarkFailsToResolveIsKept() throws {
+    let suite = "photon-file-access-\(UUID().uuidString)"
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    // An unplugged volume: the bookmark data cannot resolve.
+    let stored = Data(#"[{"path":"/Volumes/Gone/Projects","bookmark":"AAAA"}]"#.utf8)
+    defaults.set(stored, forKey: "filesSecurityScopedBookmarks")
+
+    XCTAssertEqual(FileAccessCoordinator(defaults: defaults).folders, ["/Volumes/Gone/Projects"])
+    XCTAssertEqual(FileAccessCoordinator(defaults: defaults).folders, ["/Volumes/Gone/Projects"])
+  }
 }
 
 @MainActor

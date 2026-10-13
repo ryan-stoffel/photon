@@ -230,6 +230,8 @@ public final class FileAccessCoordinator: ObservableObject {
         relativeTo: nil,
         bookmarkDataIsStale: &stale
       ) else {
+        // Keep it: an unplugged volume resolves again once it is back.
+        refreshed.append(grant)
         continue
       }
       _ = url.startAccessingSecurityScopedResource()

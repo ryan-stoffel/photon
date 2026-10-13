@@ -74,7 +74,7 @@ Scripts/package_app.sh --dev
 open build/Photon-Dev.app
 ```
 
-That bundle is `Photon-Dev`, bundle id `com.ryanstoffel.photon.dev`, with a yellow "dev" tag on the app icon and the menu-bar image. `PHOTON_DEV=1` is the same switch. The default command does not badge anything.
+That bundle is `Photon-Dev`, bundle id `com.ryanstoffel.photon.dev`, with a yellow "dev" tag on the app icon and the menu-bar image. It keeps its data in `~/Library/Application Support/Photon-Dev`, so it starts empty and never touches the release app's clipboard history or notes. `PHOTON_DEV=1` is the same switch. The default command does not badge anything.
 
 ### Tests and lint
 

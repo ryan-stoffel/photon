@@ -163,11 +163,10 @@ public final class NotesController: NSObject {
     pasteboard.setString(url.absoluteString, forType: .string)
   }
 
+  /// Launcher "Search Notes". Goes through `show` so a first open still loads notes and picks a current one.
   public func presentSwitcher() {
-    let window = presentWindow()
-    window.notesDidChange()
-    window.show(focus: true)
-    window.presentSwitcher()
+    show(focus: true)
+    presentWindow().presentSwitcher()
   }
 
   public func presentActions() {
@@ -289,7 +288,6 @@ public final class NotesController: NSObject {
       untouchedNoteIDs.remove(id)
     }
     window?.updateTitle(NoteTitle.extract(from: content))
-    window?.notesDidChange()
     debouncer.schedule { [weak self] in
       self?.save(id: id, content: content)
     }
@@ -343,7 +341,7 @@ public final class NotesController: NSObject {
       return
     }
     do {
-      let welcome = try store.create(content: WelcomeNote.content)
+      let welcome = try store.create(content: WelcomeNote.content(directory: directory))
       switchTo(welcome.id)
     } catch {
       NSLog("Photon Notes: could not create the first note: \(error)")
@@ -454,22 +452,25 @@ public final class NotesController: NSObject {
 }
 
 enum WelcomeNote {
-  static let content = """
-  # Welcome to Photon Notes
+  /// The first note in an empty folder. `directory` is the controller's folder, which differs for Photon-Dev.
+  static func content(directory: URL) -> String {
+    """
+    # Welcome to Photon Notes
 
-  Notes are plain markdown files that save as you type.
+    Notes are plain markdown files that save as you type.
 
-  - Press ⌘N for a new note, ⌘P to browse notes, and ⌘K for actions
-  - Type `notes` or `n <title>` in the launcher to jump straight to a note
-  - ⌘+ and ⌘- change the text size; the window keeps a fixed width and remembers its height
+    - Press ⌘N for a new note, ⌘P to browse notes, and ⌘K for actions
+    - Type `notes` or `n <title>` in the launcher to jump straight to a note
+    - ⌘+ and ⌘- change the text size; the window keeps a fixed width and remembers its height
 
-  ## Formatting
+    ## Formatting
 
-  **Bold**, *italic*, `code`, headings, and lists are styled as you write.
+    **Bold**, *italic*, `code`, headings, and lists are styled as you write.
 
-  - [ ] Click a checkbox to toggle it
-  - [x] Like this one
+    - [ ] Click a checkbox to toggle it
+    - [x] Like this one
 
-  Files live in ~/Library/Application Support/Photon/Notes.
-  """
+    Files live in \((directory.path as NSString).abbreviatingWithTildeInPath).
+    """
+  }
 }

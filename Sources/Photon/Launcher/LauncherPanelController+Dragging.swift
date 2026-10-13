@@ -16,22 +16,19 @@ extension LauncherPanelController {
   }
 
   func visibleFrame(for panel: NSPanel) -> ScreenVisibleFrame {
-    let rect = (panel.screen ?? NSScreen.main ?? NSScreen.screens.first)?.visibleFrame ?? .zero
-    return ScreenVisibleFrame(
-      minX: rect.minX,
-      minY: rect.minY,
-      width: rect.width,
-      height: rect.height
-    )
+    visibleFrame(of: panel.screen ?? NSScreen.main ?? NSScreen.screens.first)
   }
 
-  /// Centred horizontally by default.
-  /// Uses a stored origin when the user has repositioned the panel.
+  /// Opens on the screen under the mouse, centred horizontally by default.
+  /// Uses the stored position when the user has repositioned the panel.
   func position(_ panel: NSPanel) {
-    guard panel.screen != nil || NSScreen.main != nil || !NSScreen.screens.isEmpty else {
+    let mouse = NSEvent.mouseLocation
+    guard let screen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) })
+      ?? NSScreen.main ?? NSScreen.screens.first
+    else {
       return
     }
-    let visible = visibleFrame(for: panel)
+    let visible = visibleFrame(of: screen)
     let size = PanelSize(width: panel.frame.width, height: panel.frame.height)
     let origin = LauncherPosition.origin(
       panelSize: size,
@@ -112,18 +109,21 @@ extension LauncherPanelController {
   func finishLiveDrag(panel: NSPanel) {
     centerGuides.hide()
     let size = PanelSize(width: panel.frame.width, height: panel.frame.height)
-    let origin = PanelOrigin(x: panel.frame.origin.x, y: panel.frame.origin.y)
+    let visible = visibleFrame(for: panel)
     let stored = LauncherPosition.storedPosition(
-      origin: origin,
-      panelWidth: size.width,
-      visible: visibleFrame(for: panel)
+      origin: PanelOrigin(x: panel.frame.origin.x, y: panel.frame.origin.y),
+      panelSize: size,
+      visible: visible
     )
     settings.launcherStoredPosition = stored
-    var frame = panel.frame
-    frame.origin.x = stored.originX
-    frame.origin.y = stored.originY
-    panel.setFrame(frame, display: false, animate: false)
+    let origin = LauncherPosition.origin(panelSize: size, visible: visible, stored: stored)
+    panel.setFrameOrigin(NSPoint(x: origin.x, y: origin.y))
     searchBarDragInitialOrigin = nil
     isDraggingLauncher = false
+  }
+
+  private func visibleFrame(of screen: NSScreen?) -> ScreenVisibleFrame {
+    let rect = screen?.visibleFrame ?? .zero
+    return ScreenVisibleFrame(minX: rect.minX, minY: rect.minY, width: rect.width, height: rect.height)
   }
 }

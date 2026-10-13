@@ -6,6 +6,7 @@ public struct IndexedApplication: Hashable, Sendable {
   public let id: String
   public let name: String
   public let subtitle: String
+  /// What opening the row opens: an `.app` or `.prefPane` bundle, or a System Settings URL for built-in panes.
   public let url: URL
   public let keywords: [String]
   public let icon: CommandIcon
@@ -36,14 +37,18 @@ public final class ApplicationIndex: @unchecked Sendable {
     for root in roots {
       collectApps(at: root, depth: 2, into: &found)
     }
+    // Keychain Access, Archive Utility and the other system utilities.
+    let coreServicesApps = URL(fileURLWithPath: "/System/Library/CoreServices/Applications", isDirectory: true)
+    collectApps(at: coreServicesApps, depth: 0, into: &found)
     if let extra = ProcessInfo.processInfo.environment["PHOTON_APPLICATIONS_EXTRA"] {
       for segment in extra.split(separator: ":") where !segment.isEmpty {
         collectApps(at: URL(fileURLWithPath: String(segment), isDirectory: true), depth: 2, into: &found)
       }
     }
 
+    collectSettingsPanes(into: &found)
+    // Third-party panes. The built-in /System/Library/PreferencePanes bundles are empty stubs on current macOS.
     let paneRoots = [
-      URL(fileURLWithPath: "/System/Library/PreferencePanes", isDirectory: true),
       URL(fileURLWithPath: "/Library/PreferencePanes", isDirectory: true),
       FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/PreferencePanes")
     ]
@@ -51,6 +56,11 @@ public final class ApplicationIndex: @unchecked Sendable {
       collectPanes(at: root, into: &found)
     }
     includeSystemFinder(into: &found)
+
+    // Two copies of one bundle id (Xcode and Xcode-beta) would share a row id. The earlier root wins,
+    // then the first name in `collectApps` order, so Xcode beats Xcode-beta.
+    var seenIDs = Set<String>()
+    found = found.filter { seenIDs.insert($0.id).inserted }
 
     found.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     lock.lock()
@@ -78,14 +88,19 @@ public final class ApplicationIndex: @unchecked Sendable {
       return
     }
     let fm = FileManager.default
+    // Dot files are skipped by name, not `.skipsHiddenFiles`: macOS 27 flags the /Applications/Safari.app link hidden.
     guard let children = try? fm.contentsOfDirectory(
       at: root,
       includingPropertiesForKeys: [.isDirectoryKey],
-      options: [.skipsHiddenFiles]
+      options: []
     ) else {
       return
     }
-    for url in children {
+    // Directory order is hash order on APFS. Sort by name without the extension so the dedupe is stable.
+    let sorted = children.sorted {
+      $0.deletingPathExtension().lastPathComponent < $1.deletingPathExtension().lastPathComponent
+    }
+    for url in sorted where !url.lastPathComponent.hasPrefix(".") {
       if url.pathExtension == "app" {
         if let app = readApp(at: url) {
           found.append(app)
@@ -112,22 +127,106 @@ public final class ApplicationIndex: @unchecked Sendable {
     }
   }
 
+  /// Built-in System Settings panes: the Settings extensions that System Settings opens by URL.
+  private func collectSettingsPanes(into found: inout [IndexedApplication]) {
+    let root = URL(fileURLWithPath: "/System/Library/ExtensionKit/Extensions", isDirectory: true)
+    guard let children = try? FileManager.default.contentsOfDirectory(
+      at: root,
+      includingPropertiesForKeys: nil,
+      options: [.skipsHiddenFiles]
+    ) else {
+      return
+    }
+    var seenTitles = Set<String>()
+    for url in children where url.pathExtension == "appex" {
+      if let pane = readSettingsPane(at: url), seenTitles.insert(pane.name).inserted {
+        found.append(pane)
+      }
+    }
+  }
+
+  private func readSettingsPane(at url: URL) -> IndexedApplication? {
+    guard let bundle = Bundle(url: url),
+          let identifier = bundle.bundleIdentifier,
+          let info = bundle.infoDictionary,
+          let attributes = info["EXAppExtensionAttributes"] as? [String: Any],
+          attributes["EXExtensionPointIdentifier"] as? String == "com.apple.Settings.extension.ui",
+          let settings = attributes["SettingsExtensionAttributes"] as? [String: Any],
+          settings["allowsXAppleSystemPreferencesURLScheme"] as? Bool == true,
+          let openURL = URL(string: "x-apple.systempreferences:\(identifier)")
+    else {
+      return nil
+    }
+    let localizedName = bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+      ?? bundle.object(forInfoDictionaryKey: "CFBundleName") as? String
+    guard let name = SystemSettingsPaneMetadata.extensionTitle(
+      bundleIdentifier: identifier,
+      localizedName: localizedName
+    ) else {
+      return nil
+    }
+    return IndexedApplication(
+      id: "pane:\(identifier)",
+      name: name,
+      subtitle: "System Settings",
+      url: openURL,
+      keywords: SystemSettingsPaneMetadata.searchKeywords(
+        displayName: name,
+        bundleIdentifier: identifier,
+        fallbackStem: url.deletingPathExtension().lastPathComponent
+      ),
+      icon: PaneIconPolicy.icon(forSettingsExtensionAt: url, info: info)
+    )
+  }
+
   private func readApp(at url: URL) -> IndexedApplication? {
     let bundle = Bundle(url: url)
-    let name = displayName(in: bundle, fallback: url.deletingPathExtension().lastPathComponent)
-    guard !name.isEmpty else {
+    let names = Self.appNames(
+      localizedName: (try? url.resourceValues(forKeys: [.localizedNameKey]))?.localizedName,
+      fileName: url.deletingPathExtension().lastPathComponent,
+      bundleNames: [
+        bundle?.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String,
+        bundle?.object(forInfoDictionaryKey: "CFBundleName") as? String
+      ]
+    )
+    guard !names.title.isEmpty else {
       return nil
     }
     let identifier = bundle?.bundleIdentifier ?? url.path
     // The launcher shows the name and icon only; the path adds nothing a user needs.
+    // The icon path is resolved so a symlinked app (Safari) draws without the alias arrow.
     return IndexedApplication(
       id: "app:\(identifier)",
-      name: name,
+      name: names.title,
       subtitle: "",
       url: url,
-      keywords: [identifier, url.lastPathComponent],
-      icon: .fileIcon(path: url.path)
+      keywords: names.keywords,
+      icon: .fileIcon(path: url.resolvingSymlinksInPath().path)
     )
+  }
+
+  /// Finder title (the localized file name without ".app") plus the other names the app goes by.
+  /// Keywords never hold the bundle id or path, so "cal" does not match com.apple.Safari.
+  static func appNames(
+    localizedName: String?,
+    fileName: String,
+    bundleNames: [String?]
+  ) -> (title: String, keywords: [String]) {
+    var title = localizedName ?? ""
+    if title.hasSuffix(".app") {
+      title.removeLast(4)
+    }
+    if title.isEmpty {
+      title = fileName
+    }
+    var keywords: [String] = []
+    for name in [fileName] + bundleNames.compactMap(\.self) where !name.isEmpty {
+      let known = ([title] + keywords).contains { $0.caseInsensitiveCompare(name) == .orderedSame }
+      if !known {
+        keywords.append(name)
+      }
+    }
+    return (title, keywords)
   }
 
   private func readPane(at url: URL) -> IndexedApplication? {
@@ -143,12 +242,11 @@ public final class ApplicationIndex: @unchecked Sendable {
       return nil
     }
     let identifier = bundle?.bundleIdentifier ?? url.path
-    var keywords = SystemSettingsPaneMetadata.searchKeywords(
+    let keywords = SystemSettingsPaneMetadata.searchKeywords(
       displayName: name,
       bundleIdentifier: identifier,
       fallbackStem: stem
     )
-    keywords.append(contentsOf: ["settings", "preferences", "system settings"])
     let icon = PaneIconPolicy.icon(
       forPaneAt: url,
       info: info,
@@ -162,17 +260,5 @@ public final class ApplicationIndex: @unchecked Sendable {
       keywords: keywords,
       icon: icon
     )
-  }
-
-  private func displayName(in bundle: Bundle?, fallback: String) -> String {
-    if let bundle {
-      if let name = bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String, !name.isEmpty {
-        return name
-      }
-      if let name = bundle.object(forInfoDictionaryKey: "CFBundleName") as? String, !name.isEmpty {
-        return name
-      }
-    }
-    return fallback
   }
 }

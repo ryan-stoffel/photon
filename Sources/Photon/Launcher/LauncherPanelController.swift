@@ -14,7 +14,7 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
   let registry: CommandRegistry
   private let frecencyURL: URL
   let model: LauncherViewModel
-  /// Set by `FileSearchIntegration` so main-bar queries can promote into Files mode.
+  /// Set by `FileSearchIntegration` so hiding can cancel inline file searches.
   weak var filesProvider: FilesProvider?
   /// Set by `FileSearchIntegration` for parity hooks and hard resets between Files sessions.
   weak var fileSearchController: FileSearchController?
@@ -29,6 +29,10 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
   var autoHideSuppressedUntil = Date.distantPast
   /// App that was frontmost before a mode asked us to activate; restored on hide.
   private var previousApplication: NSRunningApplication?
+  /// Photon window (a note, Settings) that was key before the launcher opened. Dismissal and paste return to it.
+  private weak var previousKeyWindow: NSWindow?
+  /// Left by a dismissal that keeps the view; `show()` restores it within `popToRootDelay`.
+  var popState: LauncherPopState?
   private var iconRefreshTask: Task<Void, Never>?
 
   init(settings: SettingsStore, registry: CommandRegistry, frecencyURL: URL, runningApps: RunningApplications) {
@@ -122,33 +126,6 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     Task { await model.refresh() }
   }
 
-  /// Opens the full Files session (split preview, recents, footer) for a main-bar query.
-  func promoteFilesMode(query: String) {
-    guard panel?.isVisible == true else {
-      return
-    }
-    guard !NativeParityReporter.suppressFilesPromotion else {
-      return
-    }
-    guard model.showsCommandList, model.activeMode == nil else {
-      return
-    }
-    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard trimmed.count >= FileSearchSettings.inlineMinimumQueryLength else {
-      return
-    }
-    guard filesProvider?.hasInlineResults(for: trimmed) == true else {
-      return
-    }
-    guard let mode = model.modes.first(where: { $0.id == "files" }) else {
-      return
-    }
-    if let prefetched = filesProvider?.inlineRankedFiles(for: trimmed) {
-      fileSearchController?.seedResults(prefetched, query: trimmed)
-    }
-    model.enter(mode: mode, query: trimmed)
-  }
-
   func preload() {
     if panel == nil {
       panel = makePanel()
@@ -173,7 +150,7 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
       return
     }
     if panel.isVisible {
-      hide()
+      hide(popToRoot: false)
     } else {
       show()
     }
@@ -185,9 +162,12 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     guard let panel else {
       return
     }
+    // Launch and quit notifications miss apps that change activation policy, so re-read the dots.
+    runningApps.refresh()
     model.resetForShow()
     collapseToCompactIfNeeded(force: true)
     position(panel)
+    restorePopState()
     rememberPreviousApplication()
     panel.orderFrontRegardless()
     panel.makeKey()
@@ -216,12 +196,13 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     model.resetForShow()
     collapseToCompactIfNeeded(force: true)
     position(panel)
+    // Enter first so the panel never flashes at compact height.
+    model.enterClipboard(query: "")
     rememberPreviousApplication()
     panel.orderFrontRegardless()
     panel.makeKey()
     model.requestSearchFocus()
     startMonitor()
-    model.enterClipboard(query: "")
   }
 
   /// Opens Files mode without resetting the command registry (native parity / resume flows).
@@ -259,7 +240,14 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     startMonitor()
   }
 
-  func hide(restorePrevious: Bool = true) {
+  /// `popToRoot: false` keeps the current view and query for a reopen within `popToRootDelay`.
+  func hide(restorePrevious: Bool = true, popToRoot: Bool = true) {
+    popState = popToRoot ? nil : LauncherPopState(
+      date: Date(),
+      session: model.session,
+      modeID: model.activeMode?.id,
+      query: model.query
+    )
     model.prepareForHide()
     filesProvider?.prepareForFullSession()
     model.resetForHide()
@@ -267,11 +255,15 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     panel?.orderOut(nil)
     stopMonitor()
     persistFrecency()
-    if restorePrevious {
+    if restorePrevious, let window = previousKeyWindow, window.isVisible {
+      previousApplication = nil
+      window.makeKey()
+    } else if restorePrevious {
       restorePreviousApplication()
     } else {
       previousApplication = nil
     }
+    previousKeyWindow = nil
   }
 
   func windowDidResignKey(_: Notification) {
@@ -290,7 +282,8 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
       if model.activeMode?.holdsFocus == true {
         return
       }
-      hide()
+      // Something else took key (a note, Settings, another app), so leave focus there.
+      hide(restorePrevious: false, popToRoot: false)
     }
   }
 
@@ -323,14 +316,22 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     }
   }
 
-  /// Hides the panel and returns key focus to the app that was frontmost before Photon opened.
+  /// Hides the panel and returns key focus to where the paste belongs: the Photon window
+  /// that was key before the launcher opened, else the app that was frontmost.
   private func prepareForPasteDelivery() {
+    let returnsToWindow = previousKeyWindow?.isVisible == true
     hide()
-    NSApp.hide(nil)
+    // Only needed when Photon itself is active. Otherwise it would also hide a floating note.
+    if !returnsToWindow, NSApp.isActive {
+      NSApp.hide(nil)
+    }
     RunLoop.current.run(until: Date().addingTimeInterval(0.05))
   }
 
   private func rememberPreviousApplication() {
+    if previousKeyWindow == nil, let key = NSApp.keyWindow, key !== panel {
+      previousKeyWindow = key
+    }
     guard previousApplication == nil,
           let candidate = NSWorkspace.shared.frontmostApplication,
           candidate.processIdentifier != ProcessInfo.processInfo.processIdentifier
@@ -373,11 +374,17 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
       return handlePanelDrag(event, panel: panel)
     }
     panel.installSearchBarDragMonitor()
+    panel.closeHandler = { [weak self] in
+      self?.hide()
+    }
 
     let host = NSHostingView(rootView: LauncherView(
       model: model,
       onRun: { [weak self] in
         self?.hide(restorePrevious: false)
+      },
+      onAction: { [weak self] action in
+        self?.run(action)
       }
     ).environmentObject(settings).environmentObject(runningApps))
     host.safeAreaRegions = []
@@ -404,8 +411,8 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     resize(width: model.panelWidth, content: content, force: force)
   }
 
-  /// Keeps the top edge fixed so the search field never jumps.
-  /// Recentres horizontally only when snapped to center.
+  /// Keeps the top edge fixed so the search field never jumps, unless the taller panel would
+  /// leave the visible frame. Recentres horizontally only when snapped to center.
   private func resize(width: Double, content: LauncherContent, force: Bool = false) {
     guard let panel else {
       return
@@ -424,6 +431,12 @@ final class LauncherPanelController: NSObject, NSWindowDelegate {
     }
     frame.origin.y = frame.maxY - size.height
     frame.size = size
+    let clamped = LauncherPosition.clampedOrigin(
+      PanelOrigin(x: frame.origin.x, y: frame.origin.y),
+      panelSize: PanelSize(width: size.width, height: size.height),
+      visible: visibleFrame(for: panel)
+    )
+    frame.origin = NSPoint(x: clamped.x, y: clamped.y)
     // Lower the minimum before shrinking. A previous expanded page can leave
     // contentMinSize at the tall height, and AppKit then ignores setFrame.
     panel.contentMinSize = NSSize(
@@ -457,8 +470,9 @@ extension LauncherPanelController: LauncherModeHost {
     panel.makeKey()
   }
 
+  /// Called after a mode action ran, so the opened file or app keeps focus.
   func modeRequestsDismiss() {
-    hide()
+    hide(restorePrevious: false)
   }
 
   func modeRequestsActivation() {

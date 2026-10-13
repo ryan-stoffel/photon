@@ -40,8 +40,8 @@ public final class FileSearchEngine {
   }
 
   /// Waits out the debounce window, cancels any in-flight query, runs
-  /// `mdfind` (metadata plus `-name`) and a bounded filesystem fallback, then
-  /// ranks off the main thread.
+  /// `mdfind` (the metadata query plus one filename query per term) and a
+  /// bounded filesystem fallback, then ranks off the main thread.
   /// Returns `nil` when a newer search superseded this one, in which case the
   /// caller should do nothing.
   public func search(_ request: Request) async -> Response? {
@@ -90,9 +90,14 @@ public final class FileSearchEngine {
     var invocations: [MdfindQueryRunner.Request] = [
       MdfindQueryRunner.Request(queryString: queryString, onlyIn: folders, scanLimit: scanLimit)
     ]
-    for term in terms {
+    // Shorter terms would flood the scan, and the metadata query's word-prefix clause covers them.
+    for term in terms where term.count >= SpotlightQueryBuilder.substringMinimumLength {
       invocations.append(
-        MdfindQueryRunner.Request(fileName: term, onlyIn: folders, scanLimit: scanLimit)
+        MdfindQueryRunner.Request(
+          queryString: SpotlightQueryBuilder.fileNameQueryString(for: term),
+          onlyIn: folders,
+          scanLimit: scanLimit
+        )
       )
     }
 
@@ -109,17 +114,17 @@ public final class FileSearchEngine {
         resultLimit: scanLimit
       )
     }
-    let outcomes = await withTaskGroup(of: MdfindQueryRunner.Outcome.self) { group in
-      for invocation in invocations {
+    let outcomes = await withTaskGroup(of: (Int, MdfindQueryRunner.Outcome).self) { group in
+      for (index, invocation) in invocations.enumerated() {
         group.addTask {
-          await self.runMdfind(invocation)
+          await (index, self.runMdfind(invocation))
         }
       }
-      var collected: [MdfindQueryRunner.Outcome] = []
+      var collected: [(Int, MdfindQueryRunner.Outcome)] = []
       for await outcome in group {
         collected.append(outcome)
       }
-      return collected
+      return collected.sorted { $0.0 < $1.0 }.map(\.1)
     }
     guard token == generation, !Task.isCancelled else {
       fallbackTask.cancel()
@@ -133,6 +138,10 @@ public final class FileSearchEngine {
     let completedOutcomes = outcomes.filter { !$0.cancelled }
     let spotlightAvailable = completedOutcomes.allSatisfy(\.spotlightAvailable)
     let uniquePaths = uniqued(completedOutcomes.flatMap(\.paths) + fallbackPaths)
+    // Only the metadata query (invocation 0) can match file text.
+    let contentMatches: Set<String> = request.settings.searchContents
+      ? Set(outcomes[0].paths.map(PathFormatter.resolvingFirmlink))
+      : []
     let ranked = await Task.detached(priority: .userInitiated) {
       let files = uniquePaths.compactMap(FileResultFactory.file(at:))
       let ranked = FileRanker.rank(
@@ -142,7 +151,8 @@ public final class FileSearchEngine {
         includeApplications: request.includeApplications,
         limit: request.limit,
         scope: request.settings.scope,
-        extraFolders: request.settings.extraFolders + request.settings.grantedFolders
+        extraFolders: request.settings.extraFolders + request.settings.grantedFolders,
+        contentMatches: contentMatches
       )
       FileIconCache.shared.prefetch(ranked.map(\.file))
       return ranked
@@ -153,15 +163,16 @@ public final class FileSearchEngine {
     return Response(query: trimmed, files: ranked, spotlightAvailable: spotlightAvailable)
   }
 
-  /// Loads recent documents for the empty Files view. Spotlight provides the
-  /// system-wide candidates; runtime fixtures may add explicit paths for the
-  /// packaged-app visual gate.
+  /// Loads recent documents for the empty Files view: files used in the last
+  /// 30 days, newest Spotlight last-used date first. Runtime fixtures may add
+  /// explicit paths for the packaged-app visual gate.
   public func recent(settings: FileSearchSettings, limit: Int) async -> Response? {
     generation += 1
     let token = generation
     cancelRunners()
     let request = MdfindQueryRunner.Request(
-      queryString: "kMDItemLastUsedDate = '*' && kMDItemContentTypeTree = 'public.content'",
+      queryString: "kMDItemLastUsedDate >= $time.today(-30) && kMDItemContentTypeTree = 'public.content' && "
+        + SpotlightQueryBuilder.systemFileExclusion,
       onlyIn: onlyInFolders(for: settings),
       scanLimit: max(300, limit * 10)
     )
@@ -172,27 +183,34 @@ public final class FileSearchEngine {
     let fixturePaths = ProcessInfo.processInfo.environment["PHOTON_NATIVE_PARITY_RECENT_FILES"]?
       .split(separator: ":")
       .map(String.init) ?? []
-    let fixtureFiles = fixturePaths.compactMap(FileResultFactory.file(at:))
-    let fixtureSet = Set(fixtureFiles.map(\.path))
-    let discoveredFiles = uniqued(outcome.paths)
-      .compactMap(FileResultFactory.file(at:))
-      .filter { !$0.isApplication && !fixtureSet.contains($0.path) }
-      .sorted { lhs, rhs in
-        let left = lhs.lastUsed ?? lhs.modified ?? lhs.created ?? .distantPast
-        let right = rhs.lastUsed ?? rhs.modified ?? rhs.created ?? .distantPast
-        if left != right {
-          return left > right
+    let paths = uniqued(outcome.paths)
+    let excludedFolders = settings.excludedFolders
+    let recent = await Task.detached(priority: .userInitiated) {
+      let fixtureFiles = fixturePaths.compactMap(FileResultFactory.file(at:))
+      let fixtureSet = Set(fixtureFiles.map(\.path))
+      let discoveredFiles = paths
+        .compactMap(FileResultFactory.file(at:))
+        .filter { file in
+          !file.isApplication && !fixtureSet.contains(file.path)
+            && !FileRanker.isExcluded(file.path, folders: excludedFolders)
         }
-        return lhs.displayName.localizedCaseInsensitiveCompare(rhs.displayName) == .orderedAscending
+        .map { ($0, FileResultFactory.spotlightLastUsedDate(of: $0) ?? .distantPast) }
+        .sorted { lhs, rhs in
+          if lhs.1 != rhs.1 {
+            return lhs.1 > rhs.1
+          }
+          return lhs.0.displayName.localizedCaseInsensitiveCompare(rhs.0.displayName) == .orderedAscending
+        }
+        .map(\.0)
+      let files = Array((fixtureFiles + discoveredFiles).prefix(limit))
+      FileIconCache.shared.prefetch(files)
+      return files.enumerated().map { index, file in
+        RankedFile(file: file, relevance: Double(limit - index))
       }
-    let files = fixtureFiles + discoveredFiles
-    let recent = Array(files.prefix(limit)).enumerated().map { index, file in
-      RankedFile(file: file, relevance: Double(limit - index))
-    }
-    let icons = recent.map(\.file)
-    await Task.detached(priority: .utility) {
-      FileIconCache.shared.prefetch(icons)
     }.value
+    guard token == generation, !Task.isCancelled else {
+      return nil
+    }
     return Response(query: "", files: recent, spotlightAvailable: outcome.spotlightAvailable)
   }
 

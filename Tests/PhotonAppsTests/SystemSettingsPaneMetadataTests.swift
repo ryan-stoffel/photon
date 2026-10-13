@@ -23,34 +23,60 @@ final class SystemSettingsPaneMetadataTests: XCTestCase {
     XCTAssertEqual(name, "Privacy & Security")
   }
 
-  func testKnownStemMapsToHumanTitleWhenPlistEmpty() {
+  func testStemIsHumanizedWhenPlistEmpty() {
     XCTAssertEqual(
       SystemSettingsPaneMetadata.displayName(info: [:], localizedInfo: nil, fallbackStem: "SharingPref"),
       "Sharing"
     )
     XCTAssertEqual(
       SystemSettingsPaneMetadata.displayName(info: [:], localizedInfo: nil, fallbackStem: "EnergySaverPref"),
-      "Battery"
+      "Energy Saver"
     )
   }
 
-  func testWallpaperAliasMatchesDesktopScreenSaverStem() {
+  func testExtensionTitleUsesTheLocalizedNameWithOverrides() {
+    let title = SystemSettingsPaneMetadata.extensionTitle(bundleIdentifier:localizedName:)
+    XCTAssertEqual(title("com.apple.wifi-settings-extension", "Wi\u{2011}Fi"), "Wi\u{2011}Fi")
+    XCTAssertEqual(title("com.apple.Battery-Settings.extension", "PowerPreferences"), "Battery")
+    XCTAssertNil(title("com.apple.HeadphoneSettings", "HeadphoneSettingsExtension"))
+    XCTAssertNil(title("com.apple.Example-Settings.extension", nil))
+  }
+
+  func testKeywordsLeaveOutTheBundleIdentifierAndShareOneSettingsTerm() {
+    let keywords = SystemSettingsPaneMetadata.searchKeywords(
+      displayName: "Bluetooth",
+      bundleIdentifier: "com.apple.BluetoothSettings",
+      fallbackStem: "Bluetooth"
+    )
+    XCTAssertFalse(keywords.contains("com.apple.BluetoothSettings"))
+    XCTAssertTrue(keywords.contains("System Settings Preferences"))
+    XCTAssertFalse(keywords.contains { $0.caseInsensitiveCompare("settings") == .orderedSame })
+  }
+
+  func testWallpaperAliasIncludesScreenSaver() {
     let keywords = SystemSettingsPaneMetadata.searchKeywords(
       displayName: "Wallpaper",
-      bundleIdentifier: "com.apple.preference.desktopscreeneffect",
-      fallbackStem: "DesktopScreenSaverPref"
+      bundleIdentifier: "com.apple.Wallpaper-Settings.extension",
+      fallbackStem: "Wallpaper"
     )
-    XCTAssertTrue(keywords.contains { $0.caseInsensitiveCompare("wallpaper") == .orderedSame })
+    XCTAssertTrue(keywords.contains("screen saver"))
   }
 
-  func testPrivacyAliasMatchesSecurityPane() {
+  func testPrivacyAliasMatchesOnlyThePrivacyPane() {
     let keywords = SystemSettingsPaneMetadata.searchKeywords(
       displayName: "Privacy & Security",
-      bundleIdentifier: "com.apple.preference.security",
-      fallbackStem: "SecurityPref"
+      bundleIdentifier: "com.apple.settings.PrivacySecurity.extension",
+      fallbackStem: "SecurityPrivacyExtension"
     )
     XCTAssertTrue(keywords.contains { $0.caseInsensitiveCompare("privacy") == .orderedSame })
     XCTAssertTrue(keywords.contains { $0.caseInsensitiveCompare("privacy & security") == .orderedSame })
+
+    let improvements = SystemSettingsPaneMetadata.searchKeywords(
+      displayName: "Background Security Improvements",
+      bundleIdentifier: "com.apple.SecurityImprovements-Settings.extension",
+      fallbackStem: "SecurityImprovementsExtension"
+    )
+    XCTAssertFalse(improvements.contains("privacy"))
   }
 
   func testFixturePanePlistFromStringsTable() {

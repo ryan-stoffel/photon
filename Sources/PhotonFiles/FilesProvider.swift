@@ -7,7 +7,7 @@ public enum FilesProviderError: LocalizedError, Sendable {
   public var errorDescription: String? {
     switch self {
     case let .unknownCommand(id):
-      "That file is no longer in the results (\(id))."
+      "That file no longer exists (\(id))."
     }
   }
 }
@@ -35,11 +35,9 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
   public let id = "files"
   public let displayName = "Files"
 
-  /// Invoked on the main actor when inline results for the current query are ready.
-  /// The query is the trimmed search string; `hasFileHits` is true when at least
-  /// one filename match was found. The launcher promotes to Files mode only when
-  /// that query does not also match an application.
-  public var onInlineResultsChanged: (@MainActor (_ query: String, _ hasFileHits: Bool) -> Void)?
+  /// Invoked on the main actor when inline results for `query` (trimmed) are cached.
+  /// The launcher re-runs its search so the rows appear in the root list.
+  public var onInlineResultsChanged: (@MainActor (_ query: String) -> Void)?
 
   private struct InlineCache {
     let query: String
@@ -82,7 +80,6 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
     let (current, cached) = synchronized { (settings, cache) }
 
     guard current.inlineResults, trimmed.count >= FileSearchSettings.inlineMinimumQueryLength else {
-      cancelInlineSearch()
       return commands
     }
     if let cached, cached.query == trimmed {
@@ -97,13 +94,11 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
     if command.id == Self.searchCommandID {
       return
     }
-    let path = Self.path(forCommandID: command.id)
-    let (file, action) = synchronized {
-      (cache?.files.first { $0.path == path }, settings.defaultAction)
-    }
-    guard let file else {
+    // Read the row's file from disk: the inline cache may have been cleared since it was shown.
+    guard let path = Self.path(forCommandID: command.id), let file = FileResultFactory.file(at: path) else {
       throw FilesProviderError.unknownCommand(command.id)
     }
+    let action = synchronized { settings.defaultAction }
     try await MainActor.run {
       try FileActions.perform(action, on: file)
     }
@@ -158,7 +153,7 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
           self.inlinePendingQuery = nil
         }
       }
-      onInlineResultsChanged?(query, !shown.isEmpty)
+      onInlineResultsChanged?(query)
     }
   }
 
@@ -173,44 +168,14 @@ public final class FilesProvider: CommandProvider, @unchecked Sendable {
     }
   }
 
-  /// Ranked inline hits for `query`, when the cache matches.
-  public func inlineRankedFiles(for query: String) -> [RankedFile]? {
-    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    return synchronized {
-      guard let cache, cache.query == trimmed, !cache.files.isEmpty else {
-        return nil
-      }
-      return cache.files.enumerated().map { index, file in
-        RankedFile(file: file, relevance: Double(FileSearchSettings.inlineLimit - index))
-      }
-    }
-  }
-
-  /// Whether the inline cache currently holds filename hits for `query`.
-  public func hasInlineResults(for query: String) -> Bool {
-    let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-    return synchronized {
-      guard let cache, cache.query == trimmed else {
-        return false
-      }
-      return !cache.files.isEmpty
-    }
-  }
-
   /// Cancels in-flight inline Spotlight work so Files mode recents/search are not raced.
   @MainActor
   public func prepareForFullSession() {
-    inlineGeneration += 1
     engine.cancel()
     synchronized {
+      inlineGeneration += 1
       cache = nil
       inlinePendingQuery = nil
-    }
-  }
-
-  private func cancelInlineSearch() {
-    Task { @MainActor [weak self] in
-      self?.prepareForFullSession()
     }
   }
 

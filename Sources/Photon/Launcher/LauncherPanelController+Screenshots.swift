@@ -2,12 +2,6 @@ import AppKit
 import PhotonCore
 
 extension LauncherPanelController {
-  /// Opens clipboard mode for UI screenshots (empty history in isolated data).
-  func showClipboardForScreenshot() {
-    showForScreenshot(query: "")
-    model.enterClipboard(query: "")
-  }
-
   /// Shows the launcher in a fixed position with an optional query (UI screenshot harness).
   func showForScreenshot(query: String) {
     preload()

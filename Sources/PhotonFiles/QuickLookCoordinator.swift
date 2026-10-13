@@ -10,6 +10,8 @@ public final class QuickLookCoordinator: NSObject {
   public private(set) var previewURL: URL?
   /// Called after the panel closes for any reason so the owner can take focus back.
   public var onDidClose: (@MainActor () -> Void)?
+  /// Called with -1 or 1 when Up or Down is pressed while the panel is key.
+  public var onMove: (@MainActor (Int) -> Void)?
 
   public var isVisible: Bool {
     QLPreviewPanel.sharedPreviewPanelExists() && QLPreviewPanel.shared().isVisible
@@ -89,6 +91,28 @@ extension QuickLookCoordinator: @preconcurrency QLPreviewPanelDataSource {
   }
 }
 
-/// Keyboard navigation while the panel is key is handled by the launcher's
-/// event monitor, which sees the event before the panel does.
-extension QuickLookCoordinator: QLPreviewPanelDelegate {}
+/// The panel is key while it is open, so the launcher never sees these keys. Up and Down
+/// move the Files selection (the preview follows it) and ⌘Y closes the panel. Esc and
+/// Space stay with the panel.
+extension QuickLookCoordinator: @preconcurrency QLPreviewPanelDelegate {
+  public func previewPanel(_: QLPreviewPanel!, handle event: NSEvent!) -> Bool {
+    guard let event, event.type == .keyDown else {
+      return false
+    }
+    let modifiers = event.modifierFlags.intersection([.control, .option, .shift, .command])
+    // ⌘Y matches by character so other keyboard layouts keep working.
+    if modifiers == .command, event.charactersIgnoringModifiers?.lowercased() == "y" {
+      hide()
+      return true
+    }
+    switch event.keyCode {
+    case 125 where modifiers.isEmpty:
+      onMove?(1)
+    case 126 where modifiers.isEmpty:
+      onMove?(-1)
+    default:
+      return false
+    }
+    return true
+  }
+}

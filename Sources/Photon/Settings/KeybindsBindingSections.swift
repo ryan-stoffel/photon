@@ -12,11 +12,19 @@ struct AppHotkeysSection: View {
   @EnvironmentObject private var runningApps: RunningApplications
   @State private var installed: [AppHotkeyNamedApp] = []
   @State private var runningNamed: [AppHotkeyNamedApp] = []
+  /// False until the first scan finishes. The list area keeps its full height meanwhile, so the cards below
+  /// do not jump when the pane opens.
+  @State private var catalogLoaded = false
   @State private var addError: String?
   @State private var filter = ""
 
+  /// The row list scrolls inside the card past this height, so the Hyper key settings stay close.
+  private static let maxListHeight: CGFloat = 320
+
   var body: some View {
-    PhotonSettingsCard(
+    let rows = visibleRows
+    let owners = settings.keybindConflicts
+    return PhotonSettingsCard(
       title: "App hotkeys",
       footer: "The shortcut launches or focuses the app. Press it again while the app is frontmost to hide it."
     ) {
@@ -27,10 +35,12 @@ struct AppHotkeysSection: View {
         TextField("Filter apps", text: $filter)
           .textFieldStyle(.plain)
           .font(.system(size: 14))
+          .settingsFocused(.control("keybinds.filter"))
         Button("Add missing app…") {
           addApplication()
         }
         .buttonStyle(.borderless)
+        .settingsFocused(.control("keybinds.addApp"))
       }
       .padding(.horizontal, 10)
       .frame(height: LauncherLayout.rowHeight)
@@ -43,21 +53,30 @@ struct AppHotkeysSection: View {
 
       PhotonSettingsHairline()
 
-      if visibleRows.isEmpty {
+      if !catalogLoaded {
+        Color.clear.frame(height: Self.maxListHeight)
+      } else if rows.isEmpty {
         PhotonSettingsCaption(text: emptyText)
       } else {
-        ForEach(visibleRows) { row in
-          AppHotkeyCatalogRowView(
-            row: row,
-            shortcut: shortcutBinding(for: row),
-            conflict: hasConflict(row),
-            failure: shortcut(for: row).flatMap { keybinds.registrationFailures[$0] },
-            onRemoveExtra: row.isExtra ? { removeExtra(row.bundleIdentifier) } : nil
-          )
+        ScrollView {
+          LazyVStack(spacing: 0) {
+            ForEach(rows) { row in
+              AppHotkeyCatalogRowView(
+                row: row,
+                shortcut: shortcutBinding(for: row),
+                conflict: hasConflict(row, owners: owners),
+                failure: shortcut(for: row).flatMap { keybinds.registrationFailures[$0] },
+                onRemoveExtra: row.isExtra ? { removeExtra(row.bundleIdentifier) } : nil
+              )
+            }
+          }
         }
+        .frame(height: min(CGFloat(rows.count) * LauncherLayout.rowHeight, Self.maxListHeight))
       }
     }
-    .onAppear(perform: reloadCatalog)
+    .task {
+      await reloadCatalog()
+    }
     .onChange(of: runningApps.bundleIdentifiers) { _, _ in
       reloadRunning()
     }
@@ -88,13 +107,8 @@ struct AppHotkeysSection: View {
     }
   }
 
-  private var conflicts: Set<BindingOwner> {
-    settings.keybinds.conflictingOwners(launcher: KeyShortcut(settings.hotkey))
-  }
-
-  private func hasConflict(_ row: AppHotkeyCatalogRow) -> Bool {
-    let owners = conflicts
-    return settings.keybinds.appHotkeys.contains { hotkey in
+  private func hasConflict(_ row: AppHotkeyCatalogRow, owners: Set<BindingOwner>) -> Bool {
+    settings.keybinds.appHotkeys.contains { hotkey in
       hotkey.bundleIdentifier.caseInsensitiveCompare(row.bundleIdentifier) == .orderedSame
         && owners.contains(.app(hotkey.id))
     }
@@ -138,10 +152,14 @@ struct AppHotkeysSection: View {
     }
   }
 
-  private func reloadCatalog() {
-    let index = ApplicationIndex()
-    index.refresh()
-    installed = index.applications.compactMap { app in
+  /// Scans installed apps off the main thread, the same way `AppsProvider.reload` does.
+  private func reloadCatalog() async {
+    let applications = await Task.detached(priority: .userInitiated) {
+      let index = ApplicationIndex()
+      index.refresh()
+      return index.applications
+    }.value
+    installed = applications.compactMap { app in
       guard app.id.hasPrefix("app:") else {
         return nil
       }
@@ -151,6 +169,7 @@ struct AppHotkeysSection: View {
       }
       return AppHotkeyNamedApp(bundleIdentifier: identifier, name: app.name)
     }
+    catalogLoaded = true
     reloadRunning()
   }
 
@@ -270,7 +289,7 @@ struct WindowCommandsSection: View {
           Text(binding.action.title)
             .font(.system(size: 14, weight: .medium))
           Spacer()
-          if conflicts.contains(.window(binding.action)) {
+          if settings.keybindConflicts.contains(.window(binding.action)) {
             Text("Also used elsewhere")
               .font(.system(size: 11))
               .foregroundStyle(.secondary)
@@ -293,9 +312,16 @@ struct WindowCommandsSection: View {
       .padding(.bottom, 6)
     }
   }
+}
 
-  private var conflicts: Set<BindingOwner> {
-    settings.keybinds.conflictingOwners(launcher: KeyShortcut(settings.hotkey))
+private extension SettingsStore {
+  /// Keybinds owners that share a shortcut with another binding or with one of Photon's registered hotkeys.
+  var keybindConflicts: Set<BindingOwner> {
+    keybinds.conflictingOwners(
+      launcher: KeyShortcut(hotkey),
+      clipboard: clipboardEnabled && clipboardHotkeyEnabled ? KeyShortcut(clipboardHotkey) : nil,
+      notes: notesHotkey.map { KeyShortcut($0) }
+    )
   }
 }
 

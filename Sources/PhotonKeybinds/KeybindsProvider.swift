@@ -26,7 +26,7 @@ public final class KeybindsProvider: CommandProvider, Sendable {
       return Command(
         id: Self.commandPrefix + action.rawValue,
         title: action.title,
-        subtitle: "Window",
+        subtitle: "Window Management",
         keywords: keywords,
         providerID: id,
         icon: .symbol(name: action.symbolName)

@@ -58,11 +58,6 @@ extension NativeParityReporter {
       runtime.restoreAccessoryPolicy()
     } else if command == "suppressAutoHide" {
       runtime.launcher.suppressAutoHide(for: 60)
-    } else if command == "holdCommandList" {
-      Self.suppressFilesPromotion = true
-      runtime.launcher.model.exitMode(clearingQuery: false)
-    } else if command == "releaseCommandList" {
-      Self.suppressFilesPromotion = false
     } else {
       handleLauncherPrefixCommand(command, runtime: runtime)
     }
@@ -272,7 +267,7 @@ extension NativeParityReporter {
     return LauncherRowChrome.shortcutChips(
       commandID: row.id,
       keybinds: runtime.settings.keybinds,
-      clipboardHotkeyEnabled: runtime.settings.clipboardHotkeyEnabled,
+      clipboardHotkeyEnabled: runtime.settings.clipboardEnabled && runtime.settings.clipboardHotkeyEnabled,
       clipboardHotkey: runtime.settings.clipboardHotkey,
       notesHotkey: runtime.settings.notesHotkey
     )
@@ -435,8 +430,8 @@ extension NativeParityReporter {
     }
     return [
       "exists": true,
-      "x": position.originX,
-      "y": position.originY,
+      "centerOffset": position.centerOffset,
+      "topInset": position.topInset,
       "centered": position.isHorizontallyCentered,
     ]
   }

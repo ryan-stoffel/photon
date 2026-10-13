@@ -58,6 +58,12 @@ final class HIDKeyMappingTests: XCTestCase {
     XCTAssertEqual(replaced, [HIDKeyMappingPair(source: capsLockToF18.source, destination: 0x7_0000_0029)])
   }
 
+  func testForeignMappingIgnoresPhotonsOwnF18Pair() {
+    let capsLockToEscape = HIDKeyMappingPair(source: 0x7_0000_0039, destination: 0x7_0000_0029)
+    XCTAssertEqual(HIDKeyMapping.foreignMapping(of: 0x7_0000_0039, in: [capsLockToEscape]), capsLockToEscape)
+    XCTAssertNil(HIDKeyMapping.foreignMapping(of: 0x7_0000_0039, in: [capsLockToF18, sectionToGrave]))
+  }
+
   func testRemovingOnlyTouchesOwnedMappings() {
     let foreignCapsLock = HIDKeyMappingPair(source: 0x7_0000_0039, destination: 0x7_0000_0029)
     let cleaned = HIDKeyMapping.removing(

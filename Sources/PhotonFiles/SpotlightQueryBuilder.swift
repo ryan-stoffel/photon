@@ -6,9 +6,11 @@ import Foundation
 /// characters match anywhere in the display name or file name; shorter terms
 /// only match at the start of a word so single letters do not flood the
 /// result set. Content matching is opt-in and word-prefix based, which is
-/// what Spotlight's own UI does.
+/// what Spotlight's own UI does. Every query skips Spotlight's system support
+/// files, such as app caches and data under ~/Library.
 public enum SpotlightQueryBuilder: Sendable {
   public static let substringMinimumLength = 3
+  static let systemFileExclusion = "kMDItemSupportFileType != \"MDSystemFile\""
 
   public static func terms(from query: String) -> [String] {
     var seen = Set<String>()
@@ -59,7 +61,13 @@ public enum SpotlightQueryBuilder: Sendable {
       return nil
     }
     let clauses = terms.map { clause(for: $0, searchContents: searchContents) }
-    return clauses.count == 1 ? clauses[0] : clauses.joined(separator: " && ")
+    return (clauses + [systemFileExclusion]).joined(separator: " && ")
+  }
+
+  /// Case-insensitive substring match on the on-disk name of one term. Catches
+  /// underscore names such as `Ember_Individual_Pitch.pdf` that word matching misses.
+  static func fileNameQueryString(for term: String) -> String {
+    "kMDItemFSName == \"*\(escape(term))*\"c && \(systemFileExclusion)"
   }
 
   static func clause(for term: String, searchContents: Bool) -> String {

@@ -3,7 +3,8 @@ import AppKit
 import PhotonCore
 import SwiftUI
 
-/// Footer for clipboard mode in the launcher panel (mode label and key hints).
+/// Footer for clipboard mode in the launcher panel: the clear-all confirmation, a paste
+/// notice, or the mode label with the primary action and the ⌘K hint.
 public struct ClipboardLauncherFooter: View {
   @ObservedObject private var model: ClipboardHistoryViewModel
 
@@ -20,7 +21,7 @@ public struct ClipboardLauncherFooter: View {
           .foregroundStyle(.primary)
           .lineLimit(1)
         Spacer()
-        KeyHint(key: "↩", label: "Confirm")
+        KeyHint(key: "↵", label: "Confirm")
         KeyHint(key: "esc", label: "Cancel")
       } else if let notice = model.notice {
         Image(systemName: "exclamationmark.triangle.fill")
@@ -39,20 +40,15 @@ public struct ClipboardLauncherFooter: View {
       } else {
         Image(systemName: "clipboard")
           .font(.system(size: 12, weight: .medium))
-        Text("Clipboard")
+        Text("Clipboard History")
           .fontWeight(.medium)
-        if let hint = model.footerEmptyHint {
-          Text("·")
-          Text(hint)
-            .lineLimit(1)
-        }
         Spacer(minLength: 12)
-        KeyHint(key: "↩", label: model.manager.settings.pasteBehavior == .paste ? "Paste" : "Copy")
-        KeyHint(key: "⌘↩", label: "Copy")
-        KeyHint(key: "⌘P", label: model.selectedItem?.isPinned == true ? "Unpin" : "Pin")
-        KeyHint(key: "⌘⌫", label: "Delete")
-        KeyHint(key: "⌘⇧⌫", label: "Clear all")
-        KeyHint(key: "esc", label: "Back")
+        if model.selectedItem != nil {
+          KeyHint(key: "↵", label: model.manager.settings.pasteBehavior.label)
+          Divider()
+            .frame(height: 14)
+          KeyHint(key: "⌘K", label: "Actions")
+        }
       }
     }
     .font(.system(size: 12))
@@ -120,6 +116,7 @@ public struct ClipboardLauncherRow: View {
   }
 }
 
+/// "Paste to Active App ↵": the label first, then the key in a small cap.
 public struct KeyHint: View {
   let key: String
   let label: String
@@ -131,12 +128,12 @@ public struct KeyHint: View {
 
   public var body: some View {
     HStack(spacing: 4) {
+      Text(label)
       Text(key)
         .font(.caption.weight(.semibold))
         .padding(.horizontal, 5)
         .padding(.vertical, 1)
         .background(.quaternary, in: RoundedRectangle(cornerRadius: 4, style: .continuous))
-      Text(label)
     }
   }
 }

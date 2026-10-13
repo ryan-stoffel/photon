@@ -135,6 +135,27 @@ final class MarkdownStylerTests: XCTestCase {
     XCTAssertNil(MarkdownCheckbox.toggle(in: text, at: 99))
   }
 
+  func testCheckboxToggleOnLineFindsTheBoxFromTheLineEnd() {
+    let toggle = MarkdownCheckbox.toggleOnLine(in: "intro\n- [ ] Buy milk", at: 20)
+    XCTAssertEqual(toggle?.range, NSRange(location: 8, length: 3))
+    XCTAssertEqual(toggle?.replacement, "[x]")
+    XCTAssertNil(MarkdownCheckbox.toggleOnLine(in: "intro\n- [ ] Buy milk", at: 2))
+  }
+
+  func testQuoteLines() {
+    let text = "> quoted *word*\nplain"
+    XCTAssertEqual(spans(text, .quote), ["quoted *word*"])
+    XCTAssertEqual(spans(text, .syntax), ["> ", "*", "*"])
+    XCTAssertEqual(spans(text, .italic), ["word"])
+  }
+
+  func testLinksButNotInsideCode() {
+    let text = "see [Photon](https://x.dev) now"
+    XCTAssertEqual(spans(text, .link), ["Photon"])
+    XCTAssertEqual(spans(text, .syntax), ["[", "](https://x.dev)"])
+    XCTAssertTrue(spans("run `[a](b)` here", .link).isEmpty)
+  }
+
   func testListContinuation() {
     XCTAssertEqual(MarkdownList.continuation(at: 6, in: "- item"), .insert("\n- "))
     XCTAssertEqual(MarkdownList.continuation(at: 10, in: "- [x] done"), .insert("\n- [ ] "))

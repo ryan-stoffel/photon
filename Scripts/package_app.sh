@@ -6,7 +6,7 @@
 #   PHOTON_DEV=1 Scripts/package_app.sh
 #
 # The dev bundle uses com.ryanstoffel.photon.dev, the product name Photon-Dev,
-# and a yellow "dev" tag on the app icon. The default (no switch) stays the
+# the photon-dev:// URL scheme, and a yellow "dev" tag on the app icon. The default (no switch) stays the
 # release app: Photon.app, com.ryanstoffel.photon, unmodified icon.
 #
 # Set PHOTON_ARCHS="arm64 x86_64" to build a universal binary (the release
@@ -55,9 +55,12 @@ if [[ "$DEV" == "1" ]]; then
   fi
   PRODUCT_NAME="Photon-Dev"
   BUNDLE_ID="com.ryanstoffel.photon.dev"
+  # Photon-Dev has its own notes folder, so its note links need their own scheme.
+  URL_SCHEME="photon-dev"
 else
   PRODUCT_NAME="Photon"
   BUNDLE_ID="com.ryanstoffel.photon"
+  URL_SCHEME="photon"
 fi
 
 APP="$ROOT/build/${PRODUCT_NAME}.app"
@@ -88,6 +91,7 @@ sed \
   -e "s/VERSION_PLACEHOLDER/${VERSION}/g" \
   -e "s/PRODUCT_NAME_PLACEHOLDER/${PRODUCT_NAME}/g" \
   -e "s/BUNDLE_ID_PLACEHOLDER/${BUNDLE_ID}/g" \
+  -e "s/URL_SCHEME_PLACEHOLDER/${URL_SCHEME}/g" \
   "$ROOT/Resources/Info.plist" > "$CONTENTS/Info.plist"
 chmod +x "$CONTENTS/MacOS/$PRODUCT_NAME"
 

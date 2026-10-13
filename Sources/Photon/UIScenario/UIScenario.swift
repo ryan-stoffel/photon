@@ -5,6 +5,8 @@ import Foundation
 enum UIScenario: Equatable, Sendable {
   case launcherEmpty
   case launcherQuery(String)
+  /// Launcher with a query and the ⌘K action panel open, optionally filtered.
+  case launcherActions(query: String, filter: String)
   case launcherRecs
   case clipboardEmpty
   case filesEmpty
@@ -55,38 +57,35 @@ enum UIScenario: Equatable, Sendable {
   }
 
   private static func parse(_ raw: String) -> UIScenario? {
-    if raw == "launcher-empty" {
-      return .launcherEmpty
+    switch raw {
+    case "launcher-empty": .launcherEmpty
+    case "launcher-recs": .launcherRecs
+    case "clipboard-empty": .clipboardEmpty
+    case "files-empty": .filesEmpty
+    case "notes": .notes
+    case "calculator": .launcherQuery("2 + 2")
+    default: parsePrefixed(raw)
     }
-    if raw == "launcher-recs" {
-      return .launcherRecs
-    }
+  }
+
+  /// Scenarios that carry a value after a `name:` prefix.
+  private static func parsePrefixed(_ raw: String) -> UIScenario? {
     if raw.hasPrefix("launcher-query:") {
-      let query = String(raw.dropFirst("launcher-query:".count))
-      return .launcherQuery(query)
+      return .launcherQuery(String(raw.dropFirst("launcher-query:".count)))
     }
-    if raw == "clipboard-empty" {
-      return .clipboardEmpty
-    }
-    if raw == "files-empty" {
-      return .filesEmpty
+    if raw.hasPrefix("launcher-actions:") {
+      // launcher-actions:<query>[|<action filter>]
+      let parts = raw.dropFirst("launcher-actions:".count).split(separator: "|", maxSplits: 1)
+      return .launcherActions(
+        query: parts.first.map(String.init) ?? "",
+        filter: parts.count > 1 ? String(parts[1]) : ""
+      )
     }
     if raw.hasPrefix("files-query:") {
-      let query = String(raw.dropFirst("files-query:".count))
-      return .filesQuery(query)
+      return .filesQuery(String(raw.dropFirst("files-query:".count)))
     }
     if raw.hasPrefix("settings:") {
-      let pane = String(raw.dropFirst("settings:".count))
-      guard let id = SettingsPaneID(rawValue: pane) else {
-        return nil
-      }
-      return .settings(id)
-    }
-    if raw == "notes" {
-      return .notes
-    }
-    if raw == "calculator" {
-      return .launcherQuery("2 + 2")
+      return SettingsPaneID(rawValue: String(raw.dropFirst("settings:".count))).map { .settings($0) }
     }
     return nil
   }

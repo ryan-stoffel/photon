@@ -33,6 +33,9 @@ public enum ClipboardRetention: Int, Codable, Sendable, CaseIterable, Identifiab
   case oneDay = 1
   case sevenDays = 7
   case thirtyDays = 30
+  case threeMonths = 90
+  case sixMonths = 180
+  case oneYear = 365
   case forever = 0
 
   public var id: Int {
@@ -44,6 +47,9 @@ public enum ClipboardRetention: Int, Codable, Sendable, CaseIterable, Identifiab
     case .oneDay: "1 day"
     case .sevenDays: "7 days"
     case .thirtyDays: "30 days"
+    case .threeMonths: "3 months"
+    case .sixMonths: "6 months"
+    case .oneYear: "1 year"
     case .forever: "Forever"
     }
   }
@@ -61,7 +67,7 @@ public enum ClipboardRetention: Int, Codable, Sendable, CaseIterable, Identifiab
   }
 }
 
-/// What Return does on a history item.
+/// What Return does on a history item. Cmd+Return runs the other one.
 public enum ClipboardPasteBehavior: String, Codable, Sendable, CaseIterable, Identifiable {
   /// Write the item to the pasteboard, then send Cmd+V to the frontmost app.
   case paste
@@ -72,11 +78,17 @@ public enum ClipboardPasteBehavior: String, Codable, Sendable, CaseIterable, Ide
     rawValue
   }
 
+  /// Picker label and action title.
   public var label: String {
     switch self {
-    case .paste: "Paste into the frontmost app"
-    case .copy: "Copy to the clipboard only"
+    case .paste: "Paste to Active App"
+    case .copy: "Copy to Clipboard"
     }
+  }
+
+  /// The action Cmd+Return runs when this one is on Return.
+  public var other: ClipboardPasteBehavior {
+    self == .paste ? .copy : .paste
   }
 }
 

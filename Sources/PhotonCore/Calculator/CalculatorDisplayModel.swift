@@ -26,8 +26,8 @@ public struct CalculatorDisplayModel: Equatable, Sendable {
     self.init(
       commandID: commandID,
       expression: result.expression,
-      value: result.value,
-      expressionCaption: result.operationLabel,
+      value: result.displayValue(),
+      expressionCaption: "Question",
       valueCaption: result.wordForm
     )
   }

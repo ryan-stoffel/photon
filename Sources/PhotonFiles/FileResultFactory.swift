@@ -1,3 +1,4 @@
+import CoreServices
 import Foundation
 import UniformTypeIdentifiers
 
@@ -45,6 +46,15 @@ enum FileResultFactory: Sendable {
       modified: values?.contentModificationDate,
       lastUsed: values?.contentAccessDate
     )
+  }
+
+  /// Spotlight's `kMDItemLastUsedDate`, which changes only when the user opens the file
+  /// (unlike the access time). One Spotlight lookup per call, so only recents use it.
+  static func spotlightLastUsedDate(of file: FileResult) -> Date? {
+    guard let item = MDItemCreateWithURL(nil, file.url as CFURL) else {
+      return nil
+    }
+    return MDItemCopyAttribute(item, kMDItemLastUsedDate) as? Date
   }
 
   static func fallbackKind(contentType: String?, isFolder: Bool, fileName: String) -> String {

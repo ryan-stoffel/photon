@@ -5,8 +5,8 @@ import IOKit.hidsystem
 /// Reads and writes the Caps Lock lock state through IOHIDSystem.
 ///
 /// Needed because remapping Caps Lock to F18 with `hidutil` still lets macOS toggle the lock
-/// on some machines. Photon forces the lock off while Caps Lock is the Hyper key, except when
-/// the user has chosen the tap behaviour "Toggle Caps Lock".
+/// on some machines. While Caps Lock is the Hyper key, Photon holds the lock off, or at the state
+/// the last tap set when the tap behaviour is "Toggle Caps Lock".
 public enum CapsLockState {
   public static var isOn: Bool {
     withConnect { _, connect in

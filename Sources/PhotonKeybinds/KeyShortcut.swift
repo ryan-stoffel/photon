@@ -156,9 +156,10 @@ public struct KeyShortcut: Hashable, Codable, Sendable {
     modifiers.isHyper
   }
 
-  /// Bare keys can only be global shortcuts when they are function keys.
+  /// Global shortcuts need ⌘, ⌃ or ⌥, because Shift alone would hijack normal typing.
+  /// Function keys are the exception and work bare.
   public var isBindable: Bool {
-    !modifiers.isEmpty || KeyNames.isFunctionKey(keyCode)
+    !modifiers.subtracting(.shift).isEmpty || KeyNames.isFunctionKey(keyCode)
   }
 
   public var keyName: String {

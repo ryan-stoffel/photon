@@ -2,12 +2,15 @@ import Foundation
 
 enum UnitConversion {
   static func evaluate(_ input: String) -> CalculatorResult? {
-    let lowered = input.lowercased()
-    guard let separatorRange = lowered.range(of: #"\b(to|in)\b"#, options: .regularExpression) else {
+    // Split on the last "to"/"in" word that is not the final word, so "1 in to cm" and "5 km to in" both work.
+    let words = input.split(whereSeparator: \.isWhitespace)
+    guard let separator = words.dropLast().lastIndex(where: { ["to", "in"].contains($0.lowercased()) }),
+          separator > 0
+    else {
       return nil
     }
-    let left = String(input[input.startIndex ..< separatorRange.lowerBound]).trimmingCharacters(in: .whitespaces)
-    let right = String(input[separatorRange.upperBound...]).trimmingCharacters(in: .whitespaces)
+    let left = words[..<separator].joined(separator: " ")
+    let right = words[(separator + 1)...].joined(separator: " ")
     guard let (amount, fromOptional) = parseAmountUnit(left),
           let from = fromOptional,
           let to = resolveUnit(right)
@@ -17,17 +20,13 @@ enum UnitConversion {
     guard let converted = convert(amount: amount, from: from, to: to) else {
       return nil
     }
-    let valueText = format(converted, unit: to)
+    let unit = label(to)
     return CalculatorResult(
-      expression: compactExpression(input),
-      value: stripUnit(valueText),
+      expression: input,
+      value: "\(formatCalculatorNumber(converted)) \(unit.symbol)",
       operationLabel: "Convert",
-      wordForm: NumberWords.spokenForm(for: converted)
+      wordForm: unit.name
     )
-  }
-
-  private static func compactExpression(_ input: String) -> String {
-    input.split(whereSeparator: \.isWhitespace).joined(separator: " ")
   }
 
   private static func parseAmountUnit(_ text: String) -> (Double, UnitKind?)? {
@@ -60,7 +59,11 @@ enum UnitConversion {
   }
 
   private enum LengthUnit: String {
-    case m, km, cm, mm, mi, mile, miles, ft, foot, feet, inch, inches, yd, yard, yards
+    case m, meter, meters, metre, metres
+    case km, kilometer, kilometers, kilometre, kilometres
+    case cm, centimeter, centimeters, centimetre, centimetres
+    case mm, millimeter, millimeters, millimetre, millimetres
+    case mi, mile, miles, ft, foot, feet, inch, inches, yd, yard, yards
   }
 
   private enum MassUnit: String {
@@ -81,10 +84,14 @@ enum UnitConversion {
   }
 
   private static func resolveUnit(_ token: String) -> UnitKind? {
-    let cleaned = token
+    let trimmed = token
       .trimmingCharacters(in: .whitespacesAndNewlines)
       .trimmingCharacters(in: CharacterSet(charactersIn: "°"))
-      .lowercased()
+    // "B" is bytes and "b" is bits, matching the symbols the converter prints.
+    if trimmed == "B" {
+      return .data(.byte)
+    }
+    let cleaned = trimmed.lowercased()
     if cleaned == "in" {
       return .length(.inch)
     }
@@ -137,10 +144,10 @@ enum UnitConversion {
 
   private static func lengthToMeters(_ value: Double, unit: LengthUnit) -> Double {
     switch unit {
-    case .m: value
-    case .km: value * 1000
-    case .cm: value / 100
-    case .mm: value / 1000
+    case .m, .meter, .meters, .metre, .metres: value
+    case .km, .kilometer, .kilometers, .kilometre, .kilometres: value * 1000
+    case .cm, .centimeter, .centimeters, .centimetre, .centimetres: value / 100
+    case .mm, .millimeter, .millimeters, .millimetre, .millimetres: value / 1000
     case .mi, .mile, .miles: value * 1609.344
     case .ft, .foot, .feet: value * 0.3048
     case .inch, .inches: value * 0.0254
@@ -198,73 +205,69 @@ enum UnitConversion {
     }
   }
 
-  private static func format(_ value: Double, unit: UnitKind) -> String {
-    let number = formatCalculatorNumber(value)
+  /// Symbol printed after the answer and the name on the answer pill, e.g. ("mi", "Miles").
+  private static func label(_ unit: UnitKind) -> (symbol: String, name: String) {
     switch unit {
-    case let .length(u): return "\(number) \(display(u))"
-    case let .mass(u): return "\(number) \(display(u))"
-    case let .temperature(u): return "\(number) \(display(u))"
-    case let .time(u): return "\(number) \(display(u))"
-    case let .data(u): return "\(number) \(display(u))"
+    case let .length(u): label(u)
+    case let .mass(u): label(u)
+    case let .temperature(u): label(u)
+    case let .time(u): label(u)
+    case let .data(u): label(u)
     }
   }
 
-  private static func stripUnit(_ text: String) -> String {
-    text.split(whereSeparator: \.isWhitespace).first.map(String.init) ?? text
-  }
-
-  private static func display(_ unit: LengthUnit) -> String {
+  private static func label(_ unit: LengthUnit) -> (symbol: String, name: String) {
     switch unit {
-    case .m: "m"
-    case .km: "km"
-    case .cm: "cm"
-    case .mm: "mm"
-    case .mi, .mile, .miles: "mi"
-    case .ft, .foot, .feet: "ft"
-    case .inch, .inches: "in"
-    case .yd, .yard, .yards: "yd"
+    case .m, .meter, .meters, .metre, .metres: ("m", "Meters")
+    case .km, .kilometer, .kilometers, .kilometre, .kilometres: ("km", "Kilometers")
+    case .cm, .centimeter, .centimeters, .centimetre, .centimetres: ("cm", "Centimeters")
+    case .mm, .millimeter, .millimeters, .millimetre, .millimetres: ("mm", "Millimeters")
+    case .mi, .mile, .miles: ("mi", "Miles")
+    case .ft, .foot, .feet: ("ft", "Feet")
+    case .inch, .inches: ("in", "Inches")
+    case .yd, .yard, .yards: ("yd", "Yards")
     }
   }
 
-  private static func display(_ unit: MassUnit) -> String {
+  private static func label(_ unit: MassUnit) -> (symbol: String, name: String) {
     switch unit {
-    case .g, .gram, .grams: "g"
-    case .kg, .kilogram, .kilograms: "kg"
-    case .lb, .lbs, .pound, .pounds: "lb"
-    case .oz, .ounce, .ounces: "oz"
+    case .g, .gram, .grams: ("g", "Grams")
+    case .kg, .kilogram, .kilograms: ("kg", "Kilograms")
+    case .lb, .lbs, .pound, .pounds: ("lb", "Pounds")
+    case .oz, .ounce, .ounces: ("oz", "Ounces")
     }
   }
 
-  private static func display(_ unit: TemperatureUnit) -> String {
+  private static func label(_ unit: TemperatureUnit) -> (symbol: String, name: String) {
     switch unit {
-    case .c, .cel, .celsius: "°C"
-    case .f, .fah, .fahrenheit: "°F"
-    case .k, .kelvin: "K"
+    case .c, .cel, .celsius: ("°C", "Celsius")
+    case .f, .fah, .fahrenheit: ("°F", "Fahrenheit")
+    case .k, .kelvin: ("K", "Kelvin")
     }
   }
 
-  private static func display(_ unit: TimeUnit) -> String {
+  private static func label(_ unit: TimeUnit) -> (symbol: String, name: String) {
     switch unit {
-    case .s, .sec, .secs, .second, .seconds: "s"
-    case .min, .mins, .minute, .minutes: "min"
-    case .h, .hr, .hrs, .hour, .hours: "h"
-    case .d, .day, .days: "d"
-    case .wk, .week, .weeks: "wk"
+    case .s, .sec, .secs, .second, .seconds: ("s", "Seconds")
+    case .min, .mins, .minute, .minutes: ("min", "Minutes")
+    case .h, .hr, .hrs, .hour, .hours: ("h", "Hours")
+    case .d, .day, .days: ("d", "Days")
+    case .wk, .week, .weeks: ("wk", "Weeks")
     }
   }
 
-  private static func display(_ unit: DataUnit) -> String {
+  private static func label(_ unit: DataUnit) -> (symbol: String, name: String) {
     switch unit {
-    case .b, .bit, .bits: "b"
-    case .byte, .bytes: "B"
-    case .kb: "KB"
-    case .mb: "MB"
-    case .gb: "GB"
-    case .tb: "TB"
-    case .kib: "KiB"
-    case .mib: "MiB"
-    case .gib: "GiB"
-    case .tib: "TiB"
+    case .b, .bit, .bits: ("b", "Bits")
+    case .byte, .bytes: ("B", "Bytes")
+    case .kb: ("KB", "Kilobytes")
+    case .mb: ("MB", "Megabytes")
+    case .gb: ("GB", "Gigabytes")
+    case .tb: ("TB", "Terabytes")
+    case .kib: ("KiB", "Kibibytes")
+    case .mib: ("MiB", "Mebibytes")
+    case .gib: ("GiB", "Gibibytes")
+    case .tib: ("TiB", "Tebibytes")
     }
   }
 }

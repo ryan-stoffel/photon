@@ -39,13 +39,21 @@ public struct LauncherRow: Identifiable, Hashable, Sendable {
     return identifier.isEmpty ? nil : identifier
   }
 
-  /// Verb for the footer hint: window commands run, calculator copies, everything else opens.
-  public var actionVerb: String {
-    switch providerID {
-    case "keybinds": "Run"
-    case "calculator": "Copy Answer"
-    default: "Open"
+  /// Right-aligned type label: Application, File, Note or Command. Nil for the calculator.
+  public var accessory: String? {
+    if providerID == "calculator" {
+      return nil
     }
+    if id.hasPrefix("app:") {
+      return "Application"
+    }
+    if id.hasPrefix("file:") {
+      return "File"
+    }
+    if id.hasPrefix("note:") {
+      return "Note"
+    }
+    return "Command"
   }
 
   /// A subtitle is shown only when it adds something: not blank and not the title again.

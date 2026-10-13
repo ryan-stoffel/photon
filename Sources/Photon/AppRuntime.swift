@@ -34,7 +34,7 @@ final class AppRuntime: ObservableObject {
     let defaults = Self.userDefaultsForLaunch()
     let settings = SettingsStore(defaults: defaults)
     self.settings = settings
-    let dir = Self.applicationSupportDirectory()
+    let dir = Self.dataDirectory()
     fileAccess = FileAccessCoordinator(defaults: defaults)
     frecencyURL = dir.appendingPathComponent("frecency.json")
     launcher = LauncherPanelController(
@@ -102,18 +102,20 @@ final class AppRuntime: ObservableObject {
       applyHotkey()
       applyClipboardHotkey()
       settings.onHotkeyChange = { [weak self] in
-        self?.applyHotkey()
+        self?.applyGlobalHotkeys()
       }
       settings.onClipboardChange = { [weak self] in
         self?.applyClipboardSettings()
       }
       notes.start()
+      let notesChange = settings.onNotesChange
+      settings.onNotesChange = { [weak self] in
+        notesChange?()
+        self?.applyGlobalHotkeys()
+      }
       keybinds.apply(settings.keybinds)
       settings.onKeybindsChange = { [weak self] in
-        guard let self else {
-          return
-        }
-        keybinds.apply(settings.keybinds)
+        self?.applyGlobalHotkeys()
       }
       if NativeParityReporter.isRequested {
         // The harness launches a fresh app. Mark the welcome seen so it cannot
@@ -130,13 +132,15 @@ final class AppRuntime: ObservableObject {
     }
   }
 
-  private static func applicationSupportDirectory() -> URL {
+  /// Photon's data folder in Application Support, or under the isolated root for UI scenarios and parity runs.
+  /// Photon-Dev keeps its own folder so it can run next to the release app.
+  static func dataDirectory() -> URL {
     if let root = isolatedDataRoot {
       return root.appendingPathComponent("Photon", isDirectory: true)
     }
     let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
       ?? URL(fileURLWithPath: NSTemporaryDirectory())
-    return support.appendingPathComponent("Photon", isDirectory: true)
+    return support.appendingPathComponent(PhotonProduct.isDev ? "Photon-Dev" : "Photon", isDirectory: true)
   }
 
   private static func userDefaultsForLaunch() -> UserDefaults {
@@ -257,7 +261,6 @@ final class AppRuntime: ObservableObject {
     }
     settingsWindowController?.showWindow(nil)
     settingsWindowController?.window?.makeKeyAndOrderFront(nil)
-    hideSwiftUISettingsScene()
   }
 
   private var settingsRootView: some View {
@@ -273,7 +276,6 @@ final class AppRuntime: ObservableObject {
   }
 
   func closeSettings() {
-    existingSettingsWindow()?.orderOut(nil)
     settingsWindowController?.window?.orderOut(nil)
     restoreAccessoryPolicy()
   }
@@ -282,46 +284,10 @@ final class AppRuntime: ObservableObject {
     NSApp.setActivationPolicy(.accessory)
   }
 
+  /// The Photon settings window, once `openSettings()` has created it. Never matched by title,
+  /// because a note window can be titled "Settings".
   func existingSettingsWindow() -> NSWindow? {
-    let hosted = settingsWindowController?.window
-    if let hosted {
-      return hosted
-    }
-    if let photon = NSApp.windows.first(where: { $0 is PhotonSettingsWindow }) {
-      return photon
-    }
-    return NSApp.windows.first { window in
-      if window === launcher.panel {
-        return false
-      }
-      if window.title.localizedCaseInsensitiveContains("Settings") {
-        return true
-      }
-      if window.identifier == WelcomeWindow.identifier || window is WelcomeWindow {
-        return false
-      }
-      if window.title == "Photon" {
-        return true
-      }
-      if window.className.localizedCaseInsensitiveContains("Settings") {
-        return true
-      }
-      return SettingsPaneID.allCases.contains { $0.title == window.title }
-    }
-  }
-
-  /// The SwiftUI `Settings` scene can also appear on ⌘,. Prefer the Photon window.
-  private func hideSwiftUISettingsScene() {
-    guard let hosted = settingsWindowController?.window else {
-      return
-    }
-    for window in NSApp.windows where window !== hosted && !(window is PhotonSettingsWindow) {
-      let settingsLike = window.title.localizedCaseInsensitiveContains("Settings")
-        || window.className.localizedCaseInsensitiveContains("Settings")
-      if settingsLike {
-        window.orderOut(nil)
-      }
-    }
+    settingsWindowController?.window
   }
 
   /// Phase 2: add `registry.register(YourProvider())` here. Do not edit PhotonCore.
@@ -371,11 +337,13 @@ final class AppRuntime: ObservableObject {
   }
 
   /// Keeps the Files panel on screen and continues the pending query.
+  /// The folder picker has closed, so focus loss hides the launcher again (`resume` sets its own grace).
   private func resumeFilesAfterGrant(
     controller: FileSearchController,
     query: String,
     previousGrantCount: Int
   ) {
+    launcher.autoHideSuppressedUntil = .distantPast
     guard fileAccess.grants.count > previousGrantCount else {
       return
     }
@@ -403,7 +371,17 @@ final class AppRuntime: ObservableObject {
 
   private func applyClipboardSettings() {
     clipboard.settings = settings.clipboardSettings
+    applyGlobalHotkeys()
+  }
+
+  /// Re-applies every global shortcut when any of them changes, so one that lost a clash earlier
+  /// registers once its combo is free. The launcher goes first because it may have just released one.
+  /// Launcher, clipboard and notes shortcuts that are already registered are left alone. Keybinds rebuild.
+  private func applyGlobalHotkeys() {
+    applyHotkey()
     applyClipboardHotkey()
+    notes.applyHotkey()
+    keybinds.apply(settings.keybinds)
   }
 
   private func applyClipboardHotkey() {

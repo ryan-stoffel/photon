@@ -37,6 +37,19 @@ final class KeybindsConfigurationTests: XCTestCase {
     XCTAssertFalse(owners.contains(.window(.rightHalf)))
   }
 
+  func testPhotonClipboardAndNotesHotkeysTakePartInConflicts() {
+    var configuration = KeybindsConfiguration.default
+    let commandShiftV = KeyShortcut(keyCode: 9, modifiers: [.command, .shift])
+    let commandShiftN = KeyShortcut(keyCode: 45, modifiers: [.command, .shift])
+    configuration.setShortcut(commandShiftV, for: .center)
+    let finder = AppHotkey(bundleIdentifier: "com.apple.finder", name: "Finder", shortcut: commandShiftN)
+    configuration.appHotkeys = [finder]
+
+    let conflicts = configuration.conflicts(launcher: commandSpace, clipboard: commandShiftV, notes: commandShiftN)
+    XCTAssertEqual(conflicts.map(\.owners), [[.clipboard, .window(.center)], [.notes, .app(finder.id)]])
+    XCTAssertTrue(configuration.conflicts(launcher: commandSpace).isEmpty)
+  }
+
   func testWindowShortcutsCanConflictWithEachOther() {
     var configuration = KeybindsConfiguration.default
     configuration.setShortcut(hyperLeft, for: .rightHalf)

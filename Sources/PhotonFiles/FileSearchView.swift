@@ -2,9 +2,12 @@ import AppKit
 import PhotonCore
 import SwiftUI
 
-/// Results area of the launcher while it is in file mode.
+/// Results area and footer of the launcher while it is in file mode.
 public struct FileSearchView: View {
   @ObservedObject private var controller: FileSearchController
+
+  /// Scroll target for the section header, so selecting the first row shows it.
+  private static let headerID = "files.list.header"
 
   public init(controller: FileSearchController) {
     self.controller = controller
@@ -36,6 +39,38 @@ public struct FileSearchView: View {
       Divider()
       footer
     }
+  }
+
+  /// Left: folder icon, "Files", a notice such as "Path copied", and the spinner while a search
+  /// refreshes visible results. Right: the Enter action and the ⌘K hint while a file is selected.
+  private var footer: some View {
+    HStack(spacing: 10) {
+      Image(systemName: "folder")
+        .font(.system(size: 12, weight: .medium))
+      Text("Files")
+        .fontWeight(.medium)
+      if let notice = controller.notice {
+        Text("\u{00B7}")
+        Text(notice)
+          .lineLimit(1)
+      }
+      if controller.isSearching, controller.status != .searching {
+        ProgressView()
+          .controlSize(.small)
+      }
+      Spacer(minLength: 12)
+      if controller.selected != nil {
+        FooterKeyHint(label: controller.settings.defaultAction.title, keys: ["\u{21B5}"])
+        Rectangle()
+          .fill(Color.primary.opacity(0.15))
+          .frame(width: 1, height: 14)
+        FooterKeyHint(label: "Actions", keys: ["\u{2318}", "K"])
+      }
+    }
+    .font(.system(size: 12))
+    .foregroundStyle(.secondary)
+    .padding(.horizontal, 14)
+    .frame(height: LauncherLayout.footerHeight)
   }
 
   private var showsHorizontalSplit: Bool {
@@ -136,6 +171,7 @@ public struct FileSearchView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
+            .id(Self.headerID)
           ForEach(controller.results) { item in
             FileResultRow(file: item.file, selected: item.id == controller.selectedID)
               .id(item.id)
@@ -154,40 +190,17 @@ public struct FileSearchView: View {
         .padding(.vertical, LauncherLayout.listInset)
       }
       .onChange(of: controller.selectedID) { _, newValue in
-        if let newValue {
-          proxy.scrollTo(newValue, anchor: .center)
+        guard let newValue else {
+          return
+        }
+        if newValue == controller.results.first?.id {
+          proxy.scrollTo(Self.headerID, anchor: .top)
+        } else {
+          proxy.scrollTo(newValue)
         }
       }
     }
     .frame(maxHeight: .infinity)
-  }
-
-  private var footer: some View {
-    HStack(spacing: 12) {
-      Image(systemName: "folder")
-        .font(.system(size: 12, weight: .medium))
-      Text("Files")
-        .fontWeight(.medium)
-      if let notice = controller.notice {
-        Text("·")
-        Text(notice)
-          .lineLimit(1)
-      } else {
-        Spacer(minLength: 12)
-        ForEach(controller.keyHints) { hint in
-          KeyHintView(hint: hint)
-        }
-      }
-      Spacer(minLength: 8)
-      if controller.isSearching {
-        ProgressView()
-          .controlSize(.small)
-      }
-    }
-    .font(.system(size: 12))
-    .foregroundStyle(.secondary)
-    .padding(.horizontal, 14)
-    .frame(height: LauncherLayout.footerHeight)
   }
 
   private func emptyState(symbol: String, title: String, detail: String) -> some View {
@@ -207,6 +220,27 @@ public struct FileSearchView: View {
   }
 }
 
+/// "Open ↵": the label first, then each key in a small cap.
+private struct FooterKeyHint: View {
+  let label: String
+  let keys: [String]
+
+  var body: some View {
+    HStack(spacing: 4) {
+      Text(label)
+        .padding(.trailing, 2)
+      ForEach(keys, id: \.self) { key in
+        Text(key)
+          .font(.system(size: 11, weight: .semibold))
+          .frame(minWidth: 14)
+          .padding(.horizontal, 4)
+          .padding(.vertical, 2)
+          .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(Color.primary.opacity(0.08)))
+      }
+    }
+  }
+}
+
 struct FileResultRow: View {
   let file: FileResult
   let selected: Bool
@@ -217,16 +251,16 @@ struct FileResultRow: View {
         .resizable()
         .interpolation(.high)
         .frame(width: LauncherLayout.iconSize, height: LauncherLayout.iconSize)
-      HStack(alignment: .firstTextBaseline, spacing: 8) {
-        Text(file.displayName)
-          .font(.system(size: 14, weight: .medium))
-          .lineLimit(1)
-          .layoutPriority(1)
-        Text(PathFormatter.parentDisplay(for: file.path, maxLength: 28))
-          .font(.system(size: 12))
-          .foregroundStyle(.secondary)
-          .lineLimit(1)
-          .truncationMode(.middle)
+      // The parent path shows only when it fits next to the full name.
+      ViewThatFits(in: .horizontal) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+          name
+          Text(PathFormatter.parentDisplay(for: file.path, maxLength: 28))
+            .font(.system(size: 12))
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+        }
+        name
       }
       Spacer(minLength: 0)
     }
@@ -238,22 +272,11 @@ struct FileResultRow: View {
     )
     .contentShape(Rectangle())
   }
-}
 
-struct KeyHintView: View {
-  let hint: FileSearchController.KeyHint
-
-  var body: some View {
-    HStack(spacing: 4) {
-      Text(hint.key)
-        .font(.caption2.weight(.semibold))
-        .padding(.horizontal, 5)
-        .padding(.vertical, 1)
-        .background(RoundedRectangle(cornerRadius: 4, style: .continuous).fill(.quaternary))
-      Text(hint.label)
-        .font(.caption)
-        .foregroundStyle(.secondary)
-    }
+  private var name: some View {
+    Text(file.displayName)
+      .font(.system(size: 14, weight: .medium))
+      .lineLimit(1)
   }
 }
 
@@ -292,9 +315,6 @@ struct FileDetailView: View {
         .scaledToFit()
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(22)
-    } else if loader.isLoading {
-      ProgressView()
-        .controlSize(.small)
     } else {
       Image(nsImage: FileIconCache.shared.icon(for: file))
         .resizable()
@@ -304,37 +324,35 @@ struct FileDetailView: View {
     }
   }
 
+  /// Takes its natural height so every row stays visible. The preview above shrinks to fit.
   private var metadata: some View {
-    ScrollView(.vertical) {
-      VStack(alignment: .leading, spacing: 0) {
-        Text("Metadata")
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(.secondary)
-          .padding(.bottom, 6)
-        ForEach(rows) { row in
-          HStack(alignment: .firstTextBaseline, spacing: 16) {
-            Text(row.label)
-              .foregroundStyle(.secondary)
-            Spacer(minLength: 12)
-            Text(row.value)
-              .lineLimit(1)
-              .truncationMode(.middle)
-              .textSelection(.enabled)
-          }
-          .font(.system(size: 13))
-          .padding(.vertical, 3)
-          .overlay(alignment: .bottom) {
-            Divider()
-          }
+    VStack(alignment: .leading, spacing: 0) {
+      Text("Metadata")
+        .font(.system(size: 13, weight: .semibold))
+        .foregroundStyle(.secondary)
+        .padding(.bottom, 6)
+      ForEach(rows) { row in
+        HStack(alignment: .firstTextBaseline, spacing: 16) {
+          Text(row.label)
+            .foregroundStyle(.secondary)
+          Spacer(minLength: 12)
+          Text(row.value)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .textSelection(.enabled)
+        }
+        .font(.system(size: 13))
+        .padding(.vertical, 3)
+        .overlay(alignment: .bottom) {
+          Divider()
         }
       }
-      .padding(.horizontal, 20)
-      .padding(.top, 10)
-      .padding(.bottom, 6)
     }
-    .frame(height: LauncherLayout.detailMetadataHeight, alignment: .top)
+    .padding(.horizontal, 20)
+    .padding(.top, 10)
+    .padding(.bottom, 6)
+    .fixedSize(horizontal: false, vertical: true)
     .padding(.bottom, LauncherLayout.detailFooterSafeInset)
-    .clipped()
   }
 
   private var rows: [Row] {

@@ -20,7 +20,11 @@ public struct RankedFile: Identifiable, Hashable, Sendable {
 public enum FileRanker: Sendable {
   /// Relevance at or above this is good enough to show inline next to apps.
   public static let strongMatchThreshold = 0.7
+  /// Relevance of a file Spotlight matched by its text only, below every name match.
+  static let contentMatchRelevance = 0.05
 
+  /// `contentMatches` holds paths Spotlight matched with content search on. Those
+  /// files are kept at `contentMatchRelevance` even when their name does not match.
   public static func rank(
     _ files: [FileResult],
     query: String,
@@ -29,7 +33,8 @@ public enum FileRanker: Sendable {
     limit: Int,
     home: String = NSHomeDirectory(),
     scope: FileSearchScope = .computer,
-    extraFolders: [String] = []
+    extraFolders: [String] = [],
+    contentMatches: Set<String> = []
   ) -> [RankedFile] {
     guard limit > 0 else {
       return []
@@ -58,10 +63,10 @@ public enum FileRanker: Sendable {
         }
       }
       let score = relevance(of: file, foldedTerms: terms, wholeQuery: wholeQuery, home: home)
-      guard score > 0 else {
-        return nil
+      if score > 0 {
+        return RankedFile(file: file, relevance: score)
       }
-      return RankedFile(file: file, relevance: score)
+      return contentMatches.contains(file.path) ? RankedFile(file: file, relevance: contentMatchRelevance) : nil
     }
     return Array(ranked.sorted(by: precedes).prefix(limit))
   }

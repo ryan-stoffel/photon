@@ -28,6 +28,7 @@ final class HotkeyManager {
   var onPressed: (() -> Void)?
 
   private var hotKeyRefs: [UInt32: EventHotKeyRef] = [:]
+  private var combos: [UInt32: HotkeyCombo] = [:]
   private var handlers: [UInt32: () -> Void] = [:]
   private var handlerRef: EventHandlerRef?
   private var nextDynamicID = HotkeyID.firstDynamic
@@ -41,9 +42,13 @@ final class HotkeyManager {
     }
   }
 
-  /// Registers (or replaces) the shortcut for `id`.
+  /// Registers (or replaces) the shortcut for `id`. The new combo is registered before the old one is
+  /// dropped, so a failure (for example a combo another Photon hotkey holds) keeps the previous binding.
   func register(combo: HotkeyCombo, id: UInt32, handler: @escaping () -> Void) throws {
-    unregister(id: id)
+    if combos[id] == combo {
+      handlers[id] = handler
+      return
+    }
     try installHandlerIfNeeded()
 
     let hotKeyID = EventHotKeyID(signature: photonHotKeySignature, id: id)
@@ -59,7 +64,11 @@ final class HotkeyManager {
     guard status == noErr, let ref else {
       throw HotkeyError.registrationFailed(status)
     }
+    if let previous = hotKeyRefs[id] {
+      UnregisterEventHotKey(previous)
+    }
     hotKeyRefs[id] = ref
+    combos[id] = combo
     handlers[id] = handler
   }
 
@@ -80,6 +89,7 @@ final class HotkeyManager {
     if let ref = hotKeyRefs.removeValue(forKey: id) {
       UnregisterEventHotKey(ref)
     }
+    combos[id] = nil
     handlers[id] = nil
     if hotKeyRefs.isEmpty, let handlerRef {
       RemoveEventHandler(handlerRef)

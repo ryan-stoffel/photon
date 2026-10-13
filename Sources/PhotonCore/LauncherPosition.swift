@@ -43,24 +43,33 @@ public struct PanelOrigin: Equatable, Sendable {
   }
 }
 
-/// User-customized launcher placement. `originX` is ignored when centered horizontally.
+/// User-customized launcher placement, measured from the top edge and horizontal center of the
+/// visible frame so it lands in the same spot on displays of any size. The top edge is stored because
+/// the panel height changes with its content.
+/// The field names changed from `originY`/`originX`, so positions saved by older builds fall back to the default.
 public struct LauncherStoredPosition: Equatable, Codable, Sendable {
-  public var originY: Double
+  /// Panel top edge below `visible.maxY`.
+  public var topInset: Double
   public var isHorizontallyCentered: Bool
-  public var originX: Double
+  /// Panel center offset from `visible.midX`. Ignored when centered horizontally.
+  public var centerOffset: Double
 
-  public init(originY: Double, isHorizontallyCentered: Bool, originX: Double) {
-    self.originY = originY
+  public init(topInset: Double, isHorizontallyCentered: Bool, centerOffset: Double) {
+    self.topInset = topInset
     self.isHorizontallyCentered = isHorizontallyCentered
-    self.originX = originX
+    self.centerOffset = centerOffset
   }
 }
 
 /// Default placement and snap geometry for the launcher panel.
 public enum LauncherPosition {
-  /// Spotlight-like default: centred horizontally, top edge ~74% up the visible frame.
+  /// Spotlight-like default: centred horizontally, top edge ~74% up the visible frame,
+  /// but high enough that an expanded panel still fits above the bottom.
   public static func defaultOrigin(panelSize: PanelSize, visible: ScreenVisibleFrame) -> PanelOrigin {
-    let top = min(visible.minY + visible.height * 0.74, visible.maxY - 8)
+    let top = min(
+      max(visible.minY + visible.height * 0.74, visible.minY + LauncherLayout.expandedHeight),
+      visible.maxY - 8
+    )
     return PanelOrigin(
       x: visible.midX - panelSize.width / 2,
       y: top - panelSize.height
@@ -75,10 +84,12 @@ public enum LauncherPosition {
     guard let stored else {
       return defaultOrigin(panelSize: panelSize, visible: visible)
     }
-    let x = stored.isHorizontallyCentered
-      ? visible.midX - panelSize.width / 2
-      : stored.originX
-    return clampedOrigin(PanelOrigin(x: x, y: stored.originY), panelSize: panelSize, visible: visible)
+    let offset = stored.isHorizontallyCentered ? 0 : stored.centerOffset
+    let origin = PanelOrigin(
+      x: visible.midX + offset - panelSize.width / 2,
+      y: visible.maxY - stored.topInset - panelSize.height
+    )
+    return clampedOrigin(origin, panelSize: panelSize, visible: visible)
   }
 
   public static func clampedOrigin(
@@ -98,7 +109,6 @@ public enum LauncherPosition {
 
   /// Horizontal positions of the two snap guides in screen coordinates.
   /// Guides sit at the left and right edges of a horizontally centered panel.
-  /// When the panel midpoint moves between them, horizontal placement snaps to center.
   public static func snapGuideXPositions(
     visible: ScreenVisibleFrame,
     panelWidth: Double
@@ -107,13 +117,15 @@ public enum LauncherPosition {
     return (centeredOriginX, centeredOriginX + panelWidth)
   }
 
-  /// The snap corridor is the span between the two edge guides (the centered
-  /// panel width), not a collapsed band and not the full screen width.
+  /// Panel midpoints inside this span snap to center. It matches the guide span (the centered
+  /// panel width) only on screens at least three panel widths wide. Otherwise it reaches a quarter
+  /// of the free width to each side of center, so the panel can still sit off-center on a laptop.
   public static func snapCorridor(
     visible: ScreenVisibleFrame,
     panelWidth: Double
   ) -> (left: Double, right: Double) {
-    snapGuideXPositions(visible: visible, panelWidth: panelWidth)
+    let half = min(panelWidth / 2, max(0, (visible.width - panelWidth) / 4))
+    return (visible.midX - half, visible.midX + half)
   }
 
   /// Resolves horizontal placement after a drag ends.
@@ -142,8 +154,8 @@ public enum LauncherPosition {
     )
   }
 
-  /// Follows the pointer on Y; snaps X to screen center while the panel
-  /// midpoint sits between the two edge guides (centered panel width).
+  /// Follows the pointer on Y; snaps X to screen center while the panel midpoint sits in the
+  /// snap corridor. Clamps first, so the live preview matches what release stores.
   public static func liveDragOrigin(
     initialOrigin: PanelOrigin,
     startMouse: PanelOrigin,
@@ -151,35 +163,30 @@ public enum LauncherPosition {
     panelWidth: Double,
     visible: ScreenVisibleFrame
   ) -> PanelOrigin {
-    let raw = originByMouseDelta(
-      initialOrigin: initialOrigin,
-      startMouse: startMouse,
-      currentMouse: currentMouse
-    )
-    let midX = raw.x + panelWidth / 2
-    let horizontal = resolveHorizontalSnap(
-      panelMidX: midX,
-      panelWidth: panelWidth,
-      visible: visible
-    )
-    return clampedOrigin(
-      PanelOrigin(x: horizontal.originX, y: raw.y),
+    let raw = clampedOrigin(
+      originByMouseDelta(initialOrigin: initialOrigin, startMouse: startMouse, currentMouse: currentMouse),
       panelSize: PanelSize(width: panelWidth, height: 0),
       visible: visible
     )
+    let horizontal = resolveHorizontalSnap(
+      panelMidX: raw.x + panelWidth / 2,
+      panelWidth: panelWidth,
+      visible: visible
+    )
+    return PanelOrigin(x: horizontal.originX, y: raw.y)
   }
 
   public static func storedPosition(
     origin: PanelOrigin,
-    panelWidth: Double,
+    panelSize: PanelSize,
     visible: ScreenVisibleFrame
   ) -> LauncherStoredPosition {
-    let midX = origin.x + panelWidth / 2
-    let horizontal = resolveHorizontalSnap(panelMidX: midX, panelWidth: panelWidth, visible: visible)
+    let midX = origin.x + panelSize.width / 2
+    let horizontal = resolveHorizontalSnap(panelMidX: midX, panelWidth: panelSize.width, visible: visible)
     return LauncherStoredPosition(
-      originY: origin.y,
+      topInset: visible.maxY - (origin.y + panelSize.height),
       isHorizontallyCentered: horizontal.isHorizontallyCentered,
-      originX: horizontal.originX
+      centerOffset: horizontal.originX + panelSize.width / 2 - visible.midX
     )
   }
 }

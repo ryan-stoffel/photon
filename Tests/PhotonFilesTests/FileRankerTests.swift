@@ -174,4 +174,18 @@ final class FileRankerTests: XCTestCase {
     let unrelated = file("/Users/ryan/Library/Caches/com.apple.something/random.txt")
     XCTAssertTrue(FileRanker.rank([unrelated], query: "ember_individual", limit: 10, home: home).isEmpty)
   }
+
+  func testContentMatchesRankBelowNameMatches() {
+    let byName = file("/a/Photosynthesis Lab.pdf")
+    let byText = file("/a/Bio notes.pdf")
+    let unrelated = file("/a/Other.pdf")
+    let ranked = FileRanker.rank(
+      [byText, unrelated, byName],
+      query: "photosynthesis",
+      limit: 10,
+      contentMatches: [byText.path]
+    )
+    XCTAssertEqual(ranked.map(\.file.path), [byName.path, byText.path])
+    XCTAssertEqual(ranked[1].relevance, FileRanker.contentMatchRelevance)
+  }
 }

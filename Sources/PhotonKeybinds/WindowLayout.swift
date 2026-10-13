@@ -66,11 +66,20 @@ public enum WindowAction: String, CaseIterable, Codable, Sendable, Identifiable 
     .topRightQuarter: Metadata(title: "Top Right Quarter", keywords: ["quarter", "corner"], defaultKey: nil),
     .bottomLeftQuarter: Metadata(title: "Bottom Left Quarter", keywords: ["quarter", "corner"], defaultKey: nil),
     .bottomRightQuarter: Metadata(title: "Bottom Right Quarter", keywords: ["quarter", "corner"], defaultKey: nil),
-    .leftThird: Metadata(title: "Left Third", keywords: ["third"], defaultKey: nil),
+    // Raycast's names. The old Left/Right titles stay searchable as keywords.
+    .leftThird: Metadata(title: "First Third", keywords: ["third", "left third"], defaultKey: nil),
     .centerThird: Metadata(title: "Center Third", keywords: ["third", "middle"], defaultKey: nil),
-    .rightThird: Metadata(title: "Right Third", keywords: ["third"], defaultKey: nil),
-    .leftTwoThirds: Metadata(title: "Left Two Thirds", keywords: ["thirds", "two-thirds"], defaultKey: nil),
-    .rightTwoThirds: Metadata(title: "Right Two Thirds", keywords: ["thirds", "two-thirds"], defaultKey: nil),
+    .rightThird: Metadata(title: "Last Third", keywords: ["third", "right third"], defaultKey: nil),
+    .leftTwoThirds: Metadata(
+      title: "First Two Thirds",
+      keywords: ["thirds", "two-thirds", "left two thirds"],
+      defaultKey: nil
+    ),
+    .rightTwoThirds: Metadata(
+      title: "Last Two Thirds",
+      keywords: ["thirds", "two-thirds", "right two thirds"],
+      defaultKey: nil
+    ),
     .maximize: Metadata(title: "Maximize", keywords: ["fullscreen", "fill", "zoom"], defaultKey: "return"),
     .almostMaximize: Metadata(title: "Almost Maximize", keywords: ["large", "fill"], defaultKey: nil),
     .center: Metadata(title: "Center", keywords: ["middle"], defaultKey: "c"),
@@ -99,10 +108,6 @@ public enum WindowLayout {
   }
 
   private static let cells: [WindowAction: Cell] = [
-    .leftHalf: Cell(columns: 2, rows: 1, column: 0, row: 0, columnSpan: 1, rowSpan: 1),
-    .rightHalf: Cell(columns: 2, rows: 1, column: 1, row: 0, columnSpan: 1, rowSpan: 1),
-    .topHalf: Cell(columns: 1, rows: 2, column: 0, row: 0, columnSpan: 1, rowSpan: 1),
-    .bottomHalf: Cell(columns: 1, rows: 2, column: 0, row: 1, columnSpan: 1, rowSpan: 1),
     .topLeftQuarter: Cell(columns: 2, rows: 2, column: 0, row: 0, columnSpan: 1, rowSpan: 1),
     .topRightQuarter: Cell(columns: 2, rows: 2, column: 1, row: 0, columnSpan: 1, rowSpan: 1),
     .bottomLeftQuarter: Cell(columns: 2, rows: 2, column: 0, row: 1, columnSpan: 1, rowSpan: 1),
@@ -115,9 +120,21 @@ public enum WindowLayout {
     .maximize: Cell(columns: 1, rows: 1, column: 0, row: 0, columnSpan: 1, rowSpan: 1)
   ]
 
+  /// Spans a repeated Left/Right/Top/Bottom Half press steps through: ½, then ⅔, then ⅓.
+  private static let halfCycle: [(span: Int, of: Int)] = [(1, 2), (2, 3), (1, 3)]
+
+  /// How close a window must be to a cycle step to count as already there. Loose enough for apps
+  /// that snap their size to a character grid, far below the gap between steps.
+  private static let cycleTolerance: CGFloat = 20
+
   /// Target frame for a layout action inside `visible` (the display's visible frame).
   /// Returns `nil` for actions that are not in-display layouts (`nextDisplay`, `previousDisplay`, `restore`).
+  /// A half action on a window that already sits at one cycle step returns the next step.
   public static func frame(for action: WindowAction, window: CGRect, in visible: CGRect) -> CGRect? {
+    if let steps = halfCycleCells(action)?.map({ gridFrame($0, in: visible) }) {
+      let current = steps.firstIndex { approximatelyEqual($0, window, tolerance: cycleTolerance) }
+      return steps[current.map { ($0 + 1) % steps.count } ?? 0]
+    }
     if let cell = cells[action] {
       return gridFrame(cell, in: visible)
     }
@@ -153,6 +170,12 @@ public enum WindowLayout {
       height: (window.height / source.height * target.height).rounded()
     )
     return fit(scaled, in: target)
+  }
+
+  /// True when the two frames' origins and sizes each differ by at most `tolerance` points.
+  static func approximatelyEqual(_ lhs: CGRect, _ rhs: CGRect, tolerance: CGFloat) -> Bool {
+    abs(lhs.minX - rhs.minX) <= tolerance && abs(lhs.minY - rhs.minY) <= tolerance
+      && abs(lhs.width - rhs.width) <= tolerance && abs(lhs.height - rhs.height) <= tolerance
   }
 
   /// Shrinks `frame` to `bounds` if needed, then shifts it so it lies inside `bounds`.
@@ -221,6 +244,22 @@ public enum WindowLayout {
   /// Converts between bottom-left (Cocoa) and top-left (Accessibility) origins. The function is its own inverse.
   public static func flipped(_ rect: CGRect, primaryHeight: CGFloat) -> CGRect {
     CGRect(x: rect.minX, y: primaryHeight - rect.maxY, width: rect.width, height: rect.height)
+  }
+
+  /// Cycle steps for the four half actions, anchored to their edge. `nil` for every other action.
+  private static func halfCycleCells(_ action: WindowAction) -> [Cell]? {
+    switch action {
+    case .leftHalf:
+      halfCycle.map { Cell(columns: $0.of, rows: 1, column: 0, row: 0, columnSpan: $0.span, rowSpan: 1) }
+    case .rightHalf:
+      halfCycle.map { Cell(columns: $0.of, rows: 1, column: $0.of - $0.span, row: 0, columnSpan: $0.span, rowSpan: 1) }
+    case .topHalf:
+      halfCycle.map { Cell(columns: 1, rows: $0.of, column: 0, row: 0, columnSpan: 1, rowSpan: $0.span) }
+    case .bottomHalf:
+      halfCycle.map { Cell(columns: 1, rows: $0.of, column: 0, row: $0.of - $0.span, columnSpan: 1, rowSpan: $0.span) }
+    default:
+      nil
+    }
   }
 
   private static func gridFrame(_ cell: Cell, in visible: CGRect) -> CGRect {

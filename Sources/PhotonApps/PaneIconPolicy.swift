@@ -9,6 +9,9 @@ import PhotonCore
 /// know the pane-specific key and returns the generic pane document icon when it
 /// finds nothing, so the policy resolves the declared icon itself and falls back
 /// to the System Settings app icon when a pane declares nothing usable.
+///
+/// Built-in panes are Settings extensions (`.appex`), which `icon(forFile:)` draws correctly
+/// when they declare a graphic or asset-catalog icon.
 public enum PaneIconPolicy {
   public static let systemSettingsBundleID = "com.apple.systempreferences"
   public static let systemSettingsIcon = CommandIcon.application(bundleIdentifier: systemSettingsBundleID)
@@ -37,6 +40,15 @@ public enum PaneIconPolicy {
     let catalogNames = declared + [info["CFBundleIconName"] as? String].compactMap(\.self)
     if let name = catalogNames.first, fileExists(resources.appendingPathComponent("Assets.car").path) {
       return .bundleResource(bundlePath: paneURL.path, name: (name as NSString).deletingPathExtension)
+    }
+    return systemSettingsIcon
+  }
+
+  /// Icon for a built-in Settings extension. One that declares neither `CFBundleIcons` nor `CFBundleIconName`
+  /// (Battery) draws as a generic plugin, so it gets the System Settings icon.
+  public static func icon(forSettingsExtensionAt url: URL, info: [String: Any]) -> CommandIcon {
+    if info["CFBundleIcons"] != nil || info["CFBundleIconName"] != nil {
+      return .fileIcon(path: url.path)
     }
     return systemSettingsIcon
   }

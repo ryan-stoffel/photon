@@ -28,10 +28,8 @@ extension AppRuntime {
     controller.onFinish = { [weak self] in
       WelcomeLaunch.markComplete()
       self?.keybinds.acknowledgeAccessibilityGuidance()
-      guard let self else {
-        return
-      }
-      SpotlightConflict.adviseIfNeeded(current: settings.hotkey)
+      // The welcome itself shows any Spotlight conflict, so skip the later alert.
+      SpotlightConflict.markShown()
     }
     controller.onGrant = { [weak self] in
       guard let self else {
@@ -45,7 +43,10 @@ extension AppRuntime {
         return welcome.isVisible && welcome.presentationGeneration == generation
       }
     }
-    controller.present(hotkey: settings.hotkey)
+    controller.present(
+      hotkey: settings.hotkey,
+      spotlightConflict: SpotlightConflict.likelyConflicts(with: settings.hotkey)
+    )
   }
 
   func replayOnboarding() {

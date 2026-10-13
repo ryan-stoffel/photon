@@ -25,7 +25,7 @@ public final class KeybindsController: ObservableObject {
   @Published public private(set) var accessibilityGranted = false
   @Published public private(set) var inputMonitoringGranted = false
   @Published public private(set) var lastError: String?
-  /// Plain shortcuts macOS refused to register, usually because another app owns them.
+  /// Plain shortcuts Carbon refused to register because another Photon shortcut already holds them.
   @Published public private(set) var registrationFailures: [KeyShortcut: String] = [:]
 
   /// Set by shortcut recorders. While recording, bound shortcuts pass through so they can be re-recorded.
@@ -55,9 +55,6 @@ public final class KeybindsController: ObservableObject {
         self?.fire(hyperKeyCode: keyCode)
       }
     }
-    engine.onSuppressCapsLock = {
-      CapsLockState.forceOff()
-    }
     refreshPermissions()
   }
 
@@ -78,17 +75,35 @@ public final class KeybindsController: ObservableObject {
     permissionTimer = nil
     unregisterCarbon()
     engine.stop()
-    removeRemap()
+    // Only undo our own mapping. Release and dev install the same pair, so leave it while the other one runs.
+    // ponytail: if that instance has Hyper off, the mapping stays until it applies again or logout.
+    if installedSource != nil, !Self.otherPhotonIsRunning {
+      removeRemap()
+    }
     hyperStatus = .disabled
+  }
+
+  private static var otherPhotonIsRunning: Bool {
+    let current = ProcessInfo.processInfo.processIdentifier
+    return ["com.ryanstoffel.photon", "com.ryanstoffel.photon.dev"]
+      .flatMap(NSRunningApplication.runningApplications(withBundleIdentifier:))
+      .contains { $0.processIdentifier != current && !$0.isTerminated }
   }
 
   public func perform(_ action: WindowAction) throws {
     try windows.perform(action)
   }
 
+  /// Assigns only on change, so the 2 s poll does not re-render every observing view.
   public func refreshPermissions() {
-    accessibilityGranted = AccessibilityPermission.isTrusted
-    inputMonitoringGranted = AccessibilityPermission.hasInputMonitoring
+    let trusted = AccessibilityPermission.isTrusted
+    if accessibilityGranted != trusted {
+      accessibilityGranted = trusted
+    }
+    let monitoring = AccessibilityPermission.hasInputMonitoring
+    if inputMonitoringGranted != monitoring {
+      inputMonitoringGranted = monitoring
+    }
   }
 
   /// Shows the macOS prompt (which also lists Photon under Accessibility) and opens System Settings.
@@ -100,12 +115,29 @@ public final class KeybindsController: ObservableObject {
     updatePermissionPolling()
   }
 
+  /// Re-installs the Hyper remap when something outside Photon removed it, for example another
+  /// Photon instance quitting or a manual `hidutil` call. The check runs off the main thread.
+  public func verifyRemap() {
+    guard case .active = hyperStatus, let source = installedSource, let usage = source.hidUsage else {
+      return
+    }
+    Task {
+      let installed = await Task.detached { HIDKeyRemapper.isInstalled(source: usage) }.value
+      // A failed read is not a missing mapping: reinstalling would fail too and stop a working engine.
+      guard installed == false, installedSource == source else {
+        return
+      }
+      installedSource = nil
+      applyHyperKey()
+    }
+  }
+
   /// Emergency exit: puts the physical key back even if state got out of sync, then re-applies settings.
   public func resetKeyMapping() {
     engine.stop()
+    // `applyHyperKey` then removes or reinstalls the mapping from scratch and reports a hidutil failure.
     installedSource = nil
     didCleanStaleMapping = false
-    removeRemap()
     applyHyperKey()
   }
 
@@ -177,6 +209,7 @@ public final class KeybindsController: ObservableObject {
         try windows.perform(action)
         lastError = nil
       } catch {
+        NSSound.beep()
         lastError = error.localizedDescription
       }
     case let .app(bundleIdentifier):
@@ -185,6 +218,7 @@ public final class KeybindsController: ObservableObject {
           try await AppActivator.toggle(bundleIdentifier: bundleIdentifier)
           self?.lastError = nil
         } catch {
+          NSSound.beep()
           self?.lastError = error.localizedDescription
         }
       }
@@ -237,7 +271,7 @@ public final class KeybindsController: ObservableObject {
       carbonTokens.append(token)
     } catch {
       if !shortcut.isHyper {
-        registrationFailures[shortcut] = "\(shortcut.displayString) is already taken by another app."
+        registrationFailures[shortcut] = "\(shortcut.displayString) is already used by another Photon shortcut."
       }
     }
   }
@@ -265,14 +299,12 @@ public final class KeybindsController: ObservableObject {
     let settings = configuration.hyperKey
     guard settings.enabled else {
       engine.stop()
-      removeRemap()
-      hyperStatus = .disabled
+      hyperStatus = removeRemap().map { .failed($0) } ?? .disabled
       return
     }
     guard accessibilityGranted else {
       engine.stop()
-      removeRemap()
-      hyperStatus = .needsAccessibility
+      hyperStatus = removeRemap().map { .failed($0) } ?? .needsAccessibility
       return
     }
 
@@ -294,7 +326,9 @@ public final class KeybindsController: ObservableObject {
           installedSource = settings.source
           didCleanStaleMapping = true
         } catch {
+          // Put the previous source back to a normal key: with the engine stopped its F18 would do nothing.
           engine.stop()
+          removeRemap()
           hyperStatus = .failed(error.localizedDescription)
           return
         }
@@ -302,23 +336,27 @@ public final class KeybindsController: ObservableObject {
     } else {
       removeRemap()
     }
-    if settings.source == .capsLock {
+    // With "Toggle Caps Lock" the engine owns the lock state, so a settings change must not clear it.
+    if settings.source == .capsLock, settings.tapBehavior != .capsLock {
       CapsLockState.forceOff()
     }
     hyperStatus = .active(settings.source)
   }
 
   /// Removes Photon's HID mapping. Also runs once at startup to clean up after a crash.
-  private func removeRemap() {
+  /// Returns the hidutil error message when the removal fails.
+  @discardableResult
+  private func removeRemap() -> String? {
     guard installedSource != nil || !didCleanStaleMapping else {
-      return
+      return nil
     }
     didCleanStaleMapping = true
     do {
       try HIDKeyRemapper.removeAll()
       installedSource = nil
+      return nil
     } catch {
-      lastError = error.localizedDescription
+      return error.localizedDescription
     }
   }
 
