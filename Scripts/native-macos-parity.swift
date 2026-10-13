@@ -752,10 +752,11 @@ func dragAndReset(
   let startX = double(frame(report)["x"])
   let startY = double(frame(report)["y"])
   let screen = NSScreen.main?.visibleFrame ?? .zero
-  let roomDown = startY - screen.minY
-  // Expanded Files sits near the bottom of GitHub's Mac display. Dragging
-  // down is clamped, and a 90pt X move stays inside the snap corridor.
-  let deltaY: Double = roomDown > 80 ? 55 : -70
+  let roomUp = screen.maxY - (startY + double(frame(report)["height"]))
+  // Expanded Files sits near the bottom of GitHub's Mac display, so drag up when there is room.
+  // Dragging down is clamped, and a press near the bottom edge can reach the Dock instead of the
+  // panel. A 90pt X move stays inside the snap corridor.
+  let deltaY: Double = roomUp > 80 ? -70 : 55
   var guides = dragLauncher(
     report,
     xFromLeft: xFromLeft,

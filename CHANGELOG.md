@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-10-13
+
+Raycast parity pass: `⌘K` actions, exact-title ranking, calculator fixes, and a glitch-free launcher with Raycast's metrics.
+
 ### Added
 
 - `⌘K` opens an action panel for the selected item in the launcher, clipboard history, and Files, with a filter field. Root rows offer Show in Finder `⌘↵`, Copy Path, Copy Name, Copy Bundle Identifier, Quit Application while the app runs, Reset Ranking, and Copy Answer for the calculator. Every action's shortcut also works with the panel closed.
@@ -32,10 +36,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - New Note is now Create Note in the launcher. Window thirds use Raycast's First and Last names, and window rows read "Window Management".
 - Photon-Dev keeps its data in `~/Library/Application Support/Photon-Dev` and starts empty.
 - Settings Tab order follows each pane's layout.
+- The launcher uses Raycast's metrics: 20 pt icons, 14 pt titles and subtitles, larger section headers, a 40 pt footer that emphasizes the Return action, and a 474 pt expanded panel.
 
 ### Fixed
 
 - Root search no longer switches into Files mode when filename hits arrive, and file rows trail commands, panes and the calculator.
+- Launcher glitches: a growing panel no longer shows a blank frame, the first typed character no longer flashes an empty row, arrow keys scroll only when the selected row is cut off and keep whole rows in view, clearing a Files search keeps the list while recents reload, and symbol icons no longer flash a placeholder.
 - Launcher: the selection returns to the first row when the query changes. A held Backspace no longer leaves Files or clipboard history. Editing shortcuts work in the search field, and input method composition keeps its keys. Losing focus no longer reactivates the previous app. Paste goes back to a note or Settings window that was key. The hidden launcher can no longer be dragged from other windows.
 - Calculator: large results such as `2^64` no longer crash. Unary minus and power precedence are correct. `.` stays a decimal point in locales that group with `.`.
 - Apps: Safari shows again on macOS 27. Bundle ids no longer produce unrelated matches. Duplicate app copies show once. The launcher hides immediately when opening an app. Running dots match the Dock. `login` opens Login Items.
