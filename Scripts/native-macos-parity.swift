@@ -780,8 +780,12 @@ func dragAndReset(
   }
   try require(guides, "\(name) drag displays center guides")
   try sendRuntimeCommand("resetLauncherPosition")
+  // X alone can pass before the reset lands, because the corridor already snapped it back.
+  // Wait for Y too, or the next drag aims at a stale frame.
   report = try wait("\(name) drag recenters the panel") {
-    abs(double(frame($0)["x"]) - centeredX) < 80 && bool(launcher($0)["visible"])
+    abs(double(frame($0)["x"]) - centeredX) < 80
+      && abs(double(frame($0)["y"]) - startY) < 2
+      && bool(launcher($0)["visible"])
   }
   return report
 }
